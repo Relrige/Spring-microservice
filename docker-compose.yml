@@ -1,0 +1,137 @@
+services:
+  # catalog-service section
+  catalog-service-postgres:
+    container_name: catalog-service-pg
+    image: postgres:18-alpine
+    volumes:
+      - catalog-service-postgres:/var/lib/postgresql
+    env_file:
+      - catalog-service/.env
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  catalog-service:
+    container_name: catalog-service
+    build:
+      context: ./catalog-service
+    depends_on:
+      catalog-service-postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    env_file:
+      - catalog-service/.env
+
+  # order-service section
+  order-service-postgres:
+    container_name: order-service-pg
+    image: postgres:18-alpine
+    volumes:
+      - order-service-postgres:/var/lib/postgresql
+    env_file:
+      - order-service/.env
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  order-service:
+    container_name: order-service
+    build:
+      context: ./order-service
+    depends_on:
+      order-service-postgres:
+        condition: service_healthy
+    ports:
+      - "8082:8080"
+    env_file:
+      - order-service/.env
+
+  # delivery-service section
+  delivery-service-postgres:
+    container_name: delivery-service-pg
+    image: postgres:18-alpine
+    volumes:
+      - delivery-service-postgres:/var/lib/postgresql
+    env_file:
+      - delivery-service/.env
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  delivery-service:
+    container_name: delivery-service
+    build:
+      context: ./delivery-service
+    depends_on:
+      delivery-service-postgres:
+        condition: service_healthy
+    ports:
+      - "8083:8080"
+    env_file:
+      - delivery-service/.env
+
+  # inventory-service section
+  inventory-service-postgres:
+    container_name: inventory-service-pg
+    image: postgres:18-alpine
+    volumes:
+      - inventory-service-postgres:/var/lib/postgresql
+    env_file:
+      - inventory-service/.env
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  inventory-service:
+    container_name: inventory-service
+    build:
+      context: ./inventory-service
+    depends_on:
+      inventory-service-postgres:
+        condition: service_healthy
+    ports:
+      - "8084:8080"
+    env_file:
+      - inventory-service/.env
+
+  # payment-service section
+  payment-service-postgres:
+    container_name: payment-service-pg
+    image: postgres:18-alpine
+    volumes:
+      - payment-service-postgres:/var/lib/postgresql
+    env_file:
+      - payment-service/.env
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  payment-service:
+    container_name: payment-service
+    build:
+      context: ./payment-service
+    depends_on:
+      payment-service-postgres:
+        condition: service_healthy
+    ports:
+      - "8085:8080"
+    env_file:
+      - payment-service/.env
+
+volumes:
+  catalog-service-postgres:
+  order-service-postgres:
+  delivery-service-postgres:
+  inventory-service-postgres:
+  payment-service-postgres:
