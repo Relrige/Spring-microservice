@@ -1,0 +1,25 @@
+goal: Establish agentic workflow entry points and quality gate for VoltStore microservices
+done:
+  - check.py: verified cross-platform quality gate compiles all 5 services with exit code 0
+  - AGENTS.md: established working agreement, source of truth, and project code map
+  - CLAUDE.md: configured agent entry point importing @AGENTS.md
+  - catalog-service/AGENTS.md: defined catalog context boundary and check commands
+  - delivery-service/AGENTS.md: defined delivery context boundary and check commands
+  - inventory-service/AGENTS.md: defined inventory context boundary and check commands
+  - order-service/AGENTS.md: defined order context boundary and check commands
+  - payment-service/AGENTS.md: defined payment context boundary and check commands
+wip: null
+blocked: null
+next: Run Flyway migrations and domain entity implementations across the 5 microservices
+decisions:
+  - Shared python check.py runner executing embedded ./mvnw wrappers across projects
+  - Default quality gate runs test-compile; full test suite requires active Docker daemon
+refs:
+  - ARCHITECTURE_PROPOSAL.md:1
+  - docker-compose.yml:1
+  - check.py:1
+checks:
+  gate: python check.py
+  last: pass 2026-09-20
+platforms:
+  - windows 11 (jdk-26.0.2.1, maven 3.9.16 via wrapper)
