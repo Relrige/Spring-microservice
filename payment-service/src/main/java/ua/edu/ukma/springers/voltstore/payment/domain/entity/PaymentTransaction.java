@@ -22,7 +22,7 @@ public class PaymentTransaction {
     private BigDecimal amount;
 
     @Column(nullable = false)
-    private String currency = "UAH"; // Default to Ukrainian Hryvnia
+    private String currency = "UAH";
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

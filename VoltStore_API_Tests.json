@@ -1,0 +1,309 @@
+{
+  "info": {
+    "name": "VoltStore Complete Microservices API",
+    "description": "Comprehensive Postman collection covering all endpoints for Catalog, Inventory, Order, Payment, and Delivery controllers.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "catalogUrl", "value": "http://localhost:8081", "type": "string" },
+    { "key": "orderUrl", "value": "http://localhost:8082", "type": "string" },
+    { "key": "deliveryUrl", "value": "http://localhost:8083", "type": "string" },
+    { "key": "inventoryUrl", "value": "http://localhost:8084", "type": "string" },
+    { "key": "paymentUrl", "value": "http://localhost:8085", "type": "string" },
+    { "key": "productId", "value": "", "type": "string" },
+    { "key": "sku", "value": "TEST-SKU-999", "type": "string" },
+    { "key": "orderId", "value": "", "type": "string" },
+    { "key": "customerId", "value": "11111111-1111-1111-1111-111111111111", "type": "string" },
+    { "key": "waybillNumber", "value": "TTN-123456789", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "1. Catalog Context",
+      "item": [
+        {
+          "name": "Create Product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 201 Created\", function () { pm.response.to.have.status(201); });",
+                  "var jsonData = pm.response.json();",
+                  "if(jsonData.id) { pm.collectionVariables.set(\"productId\", jsonData.id); }",
+                  "if(jsonData.sku) { pm.collectionVariables.set(\"sku\", jsonData.sku); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"{{sku}}\",\n  \"title\": \"MacBook Pro 16\",\n  \"description\": \"M3 Max, 36GB RAM\",\n  \"category\": \"Laptops\",\n  \"price\": 120000.00\n}"
+            },
+            "url": { "raw": "{{catalogUrl}}/api/v1/catalog/products", "host": ["{{catalogUrl}}"], "path": ["api", "v1", "catalog", "products"] }
+          }
+        },
+        {
+          "name": "Get All Products",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{catalogUrl}}/api/v1/catalog/products", "host": ["{{catalogUrl}}"], "path": ["api", "v1", "catalog", "products"] }
+          }
+        },
+        {
+          "name": "Get Product by ID",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{catalogUrl}}/api/v1/catalog/products/{{productId}}", "host": ["{{catalogUrl}}"], "path": ["api", "v1", "catalog", "products", "{{productId}}"] }
+          }
+        },
+        {
+          "name": "Update Product",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"{{sku}}\",\n  \"title\": \"MacBook Pro 16 (Updated)\",\n  \"description\": \"M3 Max, 36GB RAM, 1TB SSD\",\n  \"category\": \"Laptops\",\n  \"price\": 125000.00\n}"
+            },
+            "url": { "raw": "{{catalogUrl}}/api/v1/catalog/products/{{productId}}", "host": ["{{catalogUrl}}"], "path": ["api", "v1", "catalog", "products", "{{productId}}"] }
+          }
+        },
+        {
+          "name": "Delete Product",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{catalogUrl}}/api/v1/catalog/products/{{productId}}", "host": ["{{catalogUrl}}"], "path": ["api", "v1", "catalog", "products", "{{productId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Inventory Context",
+      "item": [
+        {
+          "name": "Add Stock",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{inventoryUrl}}/api/v1/inventory/stock?sku={{sku}}&quantity=50",
+              "host": ["{{inventoryUrl}}"],
+              "path": ["api", "v1", "inventory", "stock"],
+              "query": [
+                { "key": "sku", "value": "{{sku}}" },
+                { "key": "quantity", "value": "50" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Item Details",
+          "request": {
+            "method": "PATCH",
+            "url": {
+              "raw": "{{inventoryUrl}}/api/v1/inventory/stock/{{sku}}/details?weightGrams=2150&dimensions=355x248x16",
+              "host": ["{{inventoryUrl}}"],
+              "path": ["api", "v1", "inventory", "stock", "{{sku}}", "details"],
+              "query": [
+                { "key": "weightGrams", "value": "2150" },
+                { "key": "dimensions", "value": "355x248x16" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Stock",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{inventoryUrl}}/api/v1/inventory/stock", "host": ["{{inventoryUrl}}"], "path": ["api", "v1", "inventory", "stock"] }
+          }
+        },
+        {
+          "name": "Get Stock by SKU",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{inventoryUrl}}/api/v1/inventory/stock/{{sku}}", "host": ["{{inventoryUrl}}"], "path": ["api", "v1", "inventory", "stock", "{{sku}}"] }
+          }
+        },
+        {
+          "name": "Reserve Stock",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{inventoryUrl}}/api/v1/inventory/reserve?orderId={{orderId}}&sku={{sku}}&quantity=1",
+              "host": ["{{inventoryUrl}}"],
+              "path": ["api", "v1", "inventory", "reserve"],
+              "query": [
+                { "key": "orderId", "value": "{{orderId}}" },
+                { "key": "sku", "value": "{{sku}}" },
+                { "key": "quantity", "value": "1" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Confirm Reservation",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{inventoryUrl}}/api/v1/inventory/confirm-reservation/{{orderId}}", "host": ["{{inventoryUrl}}"], "path": ["api", "v1", "inventory", "confirm-reservation", "{{orderId}}"] }
+          }
+        },
+        {
+          "name": "Cancel Reservation",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{inventoryUrl}}/api/v1/inventory/cancel-reservation/{{orderId}}", "host": ["{{inventoryUrl}}"], "path": ["api", "v1", "inventory", "cancel-reservation", "{{orderId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Order Context",
+      "item": [
+        {
+          "name": "Create Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if(jsonData.id) { pm.collectionVariables.set(\"orderId\", jsonData.id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"totalAmount\": 120000.00,\n  \"deliveryInfo\": {\n    \"recipientName\": \"Oleh Petrenko\",\n    \"phone\": \"+380509999999\",\n    \"city\": \"Lviv\",\n    \"warehouseAddress\": \"NP #15\"\n  },\n  \"items\": [\n    {\n      \"sku\": \"{{sku}}\",\n      \"title\": \"MacBook Pro 16\",\n      \"priceAtPurchase\": 120000.00,\n      \"quantity\": 1\n    }\n  ]\n}"
+            },
+            "url": { "raw": "{{orderUrl}}/api/v1/orders", "host": ["{{orderUrl}}"], "path": ["api", "v1", "orders"] }
+          }
+        },
+        {
+          "name": "Get Order by ID",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{orderUrl}}/api/v1/orders/{{orderId}}", "host": ["{{orderUrl}}"], "path": ["api", "v1", "orders", "{{orderId}}"] }
+          }
+        },
+        {
+          "name": "Get Customer Orders",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{orderUrl}}/api/v1/orders/customer/{{customerId}}", "host": ["{{orderUrl}}"], "path": ["api", "v1", "orders", "customer", "{{customerId}}"] }
+          }
+        },
+        {
+          "name": "Update Order Status",
+          "request": {
+            "method": "PATCH",
+            "url": {
+              "raw": "{{orderUrl}}/api/v1/orders/{{orderId}}/status?status=PAID",
+              "host": ["{{orderUrl}}"],
+              "path": ["api", "v1", "orders", "{{orderId}}", "status"],
+              "query": [
+                { "key": "status", "value": "PAID" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Payment Context",
+      "item": [
+        {
+          "name": "Initiate Payment",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{paymentUrl}}/api/v1/payments/initiate?orderId={{orderId}}&amount=120000.00",
+              "host": ["{{paymentUrl}}"],
+              "path": ["api", "v1", "payments", "initiate"],
+              "query": [
+                { "key": "orderId", "value": "{{orderId}}" },
+                { "key": "amount", "value": "120000.00" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Payment Callback",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{paymentUrl}}/api/v1/payments/callback?orderId={{orderId}}&externalId=BANK-TX-5555&success=true",
+              "host": ["{{paymentUrl}}"],
+              "path": ["api", "v1", "payments", "callback"],
+              "query": [
+                { "key": "orderId", "value": "{{orderId}}" },
+                { "key": "externalId", "value": "BANK-TX-5555" },
+                { "key": "success", "value": "true" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Refund Payment",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{paymentUrl}}/api/v1/payments/refund/{{orderId}}", "host": ["{{paymentUrl}}"], "path": ["api", "v1", "payments", "refund", "{{orderId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Delivery Context",
+      "item": [
+        {
+          "name": "Create Consignment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"carrier\": \"NovaPoshta\",\n  \"parcelParams\": {\n    \"weightKg\": 2.15,\n    \"dimensions\": \"355x248x16\",\n    \"declaredValue\": 120000.00\n  },\n  \"recipient\": {\n    \"fullName\": \"Oleh Petrenko\",\n    \"phoneNumber\": \"+380509999999\",\n    \"city\": \"Lviv\",\n    \"warehouseAddress\": \"NP #15\"\n  }\n}"
+            },
+            "url": { "raw": "{{deliveryUrl}}/api/v1/delivery", "host": ["{{deliveryUrl}}"], "path": ["api", "v1", "delivery"] }
+          }
+        },
+        {
+          "name": "Update Waybill",
+          "request": {
+            "method": "PATCH",
+            "url": {
+              "raw": "{{deliveryUrl}}/api/v1/delivery/{{orderId}}/waybill?waybillNumber={{waybillNumber}}",
+              "host": ["{{deliveryUrl}}"],
+              "path": ["api", "v1", "delivery", "{{orderId}}", "waybill"],
+              "query": [
+                { "key": "waybillNumber", "value": "{{waybillNumber}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Track Parcel",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{deliveryUrl}}/api/v1/delivery/track/{{waybillNumber}}", "host": ["{{deliveryUrl}}"], "path": ["api", "v1", "delivery", "track", "{{waybillNumber}}"] }
+          }
+        },
+        {
+          "name": "Cancel Delivery",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{deliveryUrl}}/api/v1/delivery/{{orderId}}/cancel", "host": ["{{deliveryUrl}}"], "path": ["api", "v1", "delivery", "{{orderId}}", "cancel"] }
+          }
+        }
+      ]
+    }
+  ]
+}
