@@ -1,3 +1,6 @@
 spring:
   application:
     name: catalog-service
+  jpa:
+    hibernate:
+      ddl-auto: update
