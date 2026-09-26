@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: payment-config
+  namespace: voltstore
+data:
+  POSTGRES_DB: "payment-service"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://payment-service-postgres:5432/payment-service"
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -Xlog:gc*"

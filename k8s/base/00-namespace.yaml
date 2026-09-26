@@ -1,21 +1,6 @@
 apiVersion: v1
-kind: ConfigMap
+kind: Namespace
 metadata:
-  name: catalog-config
-  namespace: voltstore
-data:
-  POSTGRES_DB: "catalog-service"
-  SPRING_DATASOURCE_URL: "jdbc:postgresql://catalog-service-postgres:5432/catalog-service"
-  JAVA_TOOL_OPTIONS: "-XX:+UseZGC -Xlog:gc*"
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: catalog-db-credentials
-  namespace: voltstore
-type: Opaque
-stringData:
-  POSTGRES_USER: "catalog-service"
-  POSTGRES_PASSWORD: "catalog-service"
-  SPRING_DATASOURCE_USERNAME: "catalog-service"
-  SPRING_DATASOURCE_PASSWORD: "catalog-service"
+  name: voltstore
+  labels:
+    environment: development

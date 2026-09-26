@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: delivery-service-postgres
+  namespace: voltstore
+spec:
+  type: ClusterIP
+  selector:
+    app: delivery-service-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

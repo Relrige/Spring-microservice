@@ -63,16 +63,3 @@ spec:
         - name: postgres-data
           persistentVolumeClaim:
             claimName: catalog-postgres-pvc
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: catalog-service-postgres
-  namespace: voltstore
-spec:
-  type: ClusterIP
-  selector:
-    app: catalog-service-postgres
-  ports:
-    - port: 5432
-      targetPort: 5432
