@@ -1,3 +1,6 @@
 spring:
   application:
     name: inventory-service
+  jpa:
+    hibernate:
+      ddl-auto: update
