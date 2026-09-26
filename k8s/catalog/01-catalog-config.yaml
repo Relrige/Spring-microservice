@@ -6,7 +6,7 @@ metadata:
 data:
   POSTGRES_DB: "catalog-service"
   SPRING_DATASOURCE_URL: "jdbc:postgresql://catalog-service-postgres:5432/catalog-service"
-  JAVA_TOOL_OPTIONS: "-XX:+UseZGC -Xlog:gc*"
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -Xlog:gc*"
 ---
 apiVersion: v1
 kind: Secret
