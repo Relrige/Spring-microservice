@@ -9,5 +9,5 @@ spec:
     app: payment-service
   ports:
     - name: http
-      port: 8081
+      port: 8085
       targetPort: 8080
