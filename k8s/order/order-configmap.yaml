@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: order-config
+  labels:
+    app: order
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  CATALOG_SERVICE_URL: "http://catalog-service:8081"
+  LOGGING_LEVEL_ORG_SPRINGFRAMEWORK: "INFO"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://order-postgres:5432/orderdb"
+  SPRING_DATASOURCE_USERNAME: "order"
+  SPRING_DATASOURCE_PASSWORD: "orderpass"
+  SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
