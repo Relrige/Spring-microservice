@@ -27,7 +27,7 @@
 		<url/>
 	</scm>
 	<properties>
-		<java.version>25</java.version>
+		<java.version>21</java.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -137,6 +137,130 @@
 					</execution>
 				</executions>
 			</plugin>
+            <plugin>
+                <groupId>de.elnarion.maven</groupId>
+                <artifactId>plantuml-generator-maven-plugin</artifactId>
+                <version>2.3.0</version>
+                <executions>
+                    <execution>
+                        <id>generate-puml-from-code</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <!-- Runs immediately after your Java code compiles -->
+                        <phase>process-classes</phase>
+                        <configuration>
+                            <scanPackages>
+                                <!-- Point this at the specific VoltStore package -->
+                                <scanPackage>ua.edu.ukma.springers.voltstore.catalog</scanPackage>
+                            </scanPackages>
+                            <outputFilename>order-orchestrator.puml</outputFilename>
+                            <outputDirectory>${project.build.directory}/generated-docs/diagrams</outputDirectory>
+                            <hideFields>false</hideFields>
+                            <hideMethods>false</hideMethods>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.github.davidmoten</groupId>
+                <artifactId>plantuml-maven-plugin</artifactId>
+                <version>0.2.11</version>
+                <executions>
+                    <execution>
+                        <id>render-diagrams</id>
+                        <!-- Must run after process-classes, e.g., during prepare-package -->
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <directory>${project.build.directory}/generated-docs/diagrams</directory>
+                                <includes>
+                                    <include>**/*.puml</include>
+                                </includes>
+                            </sources>
+                            <outputDirectory>${project.build.directory}/generated-docs/diagrams</outputDirectory>
+                            <formats>
+                                <format>png</format>
+                            </formats>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.6</version>
+                <configuration>
+                    <systemPropertyVariables>
+                        <user.timezone>Europe/Kyiv</user.timezone>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>de.elnarion.maven</groupId>
+                <artifactId>plantuml-generator-maven-plugin</artifactId>
+                <version>2.3.0</version>
+                <executions>
+                    <execution>
+                        <id>generate-puml-from-code</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <!-- Runs immediately after your Java code compiles -->
+                        <phase>process-classes</phase>
+                        <configuration>
+                            <scanPackages>
+                                <!-- Point this at the specific VoltStore package -->
+                                <scanPackage>ua.edu.ukma.springers.voltstore.inventory</scanPackage>
+                            </scanPackages>
+                            <outputFilename>inventory-c4-lvl4.puml</outputFilename>
+                            <outputDirectory>${project.build.directory}/generated-docs/diagrams</outputDirectory>
+                            <hideFields>false</hideFields>
+                            <hideMethods>false</hideMethods>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.github.davidmoten</groupId>
+                <artifactId>plantuml-maven-plugin</artifactId>
+                <version>0.2.11</version>
+                <executions>
+                    <execution>
+                        <id>render-diagrams</id>
+                        <!-- Must run after process-classes, e.g., during prepare-package -->
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <directory>${project.build.directory}/generated-docs/diagrams</directory>
+                                <includes>
+                                    <include>**/*.puml</include>
+                                </includes>
+                            </sources>
+                            <outputDirectory>${project.build.directory}/generated-docs/diagrams</outputDirectory>
+                            <formats>
+                                <format>png</format>
+                            </formats>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.6</version>
+                <configuration>
+                    <systemPropertyVariables>
+                        <user.timezone>Europe/Kyiv</user.timezone>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
 		</plugins>
 	</build>
 
