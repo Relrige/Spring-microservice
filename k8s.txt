@@ -18,3 +18,11 @@ minikube image load voltstore/payment-service:latest
 kubectl apply -f C:\Users\stasp\Desktop\uni\course4sem1\microserv\Spring-microservice\k8s\ -R
 
 kubectl get pods -n voltstore
+
+
+
+minikube addons enable ingress
+
+minikube tunnel
+
+
