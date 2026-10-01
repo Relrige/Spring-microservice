@@ -52,3 +52,15 @@ This document captures architectural discoveries, domain boundaries, and technic
   2. **Tier 2 (`TTN_FAILED` Sub-Status & Dead-Letter Queue):** If all automated retries fail (e.g. prolonged carrier downtime or malformed recipient address), the order remains in `PAID` / `PROCESSING`, but its delivery state is flagged as `TTN_FAILED` in the warehouse queue.
   3. **Tier 3 (Manual Remediation by Inventory Worker):** The inventory worker sees the error reason on the fulfillment dashboard and has a dedicated "Retry TTN Generation" action once the carrier is back online.
 - **Architectural Value:** Demonstrates fault isolation, graceful degradation, and preventing cascading failures from 3rd-party dependencies.
+
+---
+
+## 6. Carrier Mocking & Progression to DELIVERED
+- **Bounded Context Isolation:** Delivery operator integration is the sole concern of `Delivery Service`. Neither `Order Service` nor `Inventory Service` knows about carrier protocols, tracking numbers format, or carrier webhooks.
+- **Mock Strategy for Study Stage:**
+  - `Delivery Service` includes a `MockCarrierGateway` with an arbitrary simulation strategy.
+  - To transition an order to `DELIVERED`, a simulated webhook endpoint (e.g. `POST /api/v1/delivery/carrier-webhook`) or background delay triggers the status change.
+  - Upon receiving the carrier status update, `Delivery Service` publishes a domain event `OrderDelivered(orderId, ttn)`:
+    - `Order Service` updates order status to `DELIVERED`.
+    - `Notification Service` dispatches a delivery confirmation email to the customer.
+- **Portability:** If a real sandbox (like Nova Poshta API) is introduced later, only the `CarrierGateway` implementation inside `Delivery Service` changes; no other microservices are affected.

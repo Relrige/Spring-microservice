@@ -47,7 +47,7 @@ This document captures the functional requirements from the perspective of custo
 ### Checkout & Payment
 * **US-CUST-08: Checkout & Delivery Selection**
   * **As a** customer,
-  * **I want to** proceed from my basket to the checkout form and select delivery details (recipient name, phone, address/branch, postal carrier),
+  * **I want to** proceed from my cart to the checkout form and select delivery details (recipient name, phone, address/branch, postal carrier),
   * **So that** the store knows where and to whom to deliver the items.
   * *Notes:* 
     - Upon clicking "Proceed to Checkout", the system performs a soft check confirming all cart items are both in stock and currently active before loading the form.
@@ -73,8 +73,8 @@ This document captures the functional requirements from the perspective of custo
 ### Post-Purchase, Tracking & Cancellation
 * **US-CUST-12: Order Notifications**
   * **As a** customer,
-  * **I want to** receive email notifications on key order events (Order Placed, Payment Received, Parcel Shipped),
-  * **So that** I stay updated on my order's progress.
+  * **I want to** receive email notifications on key order events (Order Placed, Payment Received, Parcel Shipped, Parcel Delivered),
+  * **So that** I stay updated throughout the full lifecycle of my purchase.
 
 * **US-CUST-13: Order Cancellation & Refund**
   * **As a** customer,
@@ -95,7 +95,7 @@ This document captures the functional requirements from the perspective of custo
   * **I want to** view detailed information for a specific order (including the purchase price at the time of ordering),
   * **So that** I have an accurate receipt regardless of future catalog price changes.
 
-* **US-CUST-16: Delivery Tracking (TTN)**
+* **US-CUST-16: Delivery Tracking & Final Delivery (TTN)**
   * **As a** customer,
-  * **I want to** see the postal tracking code (TTN) and shipping status on my order details page,
-  * **So that** I know when my parcel will arrive.
+  * **I want to** see the postal tracking code (TTN) and shipping status updates on my order details page through to `DELIVERED`,
+  * **So that** I know when my parcel is in transit and when it has arrived.

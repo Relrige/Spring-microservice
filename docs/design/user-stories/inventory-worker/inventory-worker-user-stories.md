@@ -10,12 +10,15 @@ This document captures the functional requirements from the perspective of the *
   * **As an** inventory worker,
   * **I want to** add incoming physical stock for existing products received from suppliers,
   * **So that** warehouse stock balances increase and out-of-stock items become available for customer purchase.
-  * *Notes:* If stock increases from 0 to $>0$, an asynchronous event notifies `Catalog Service` that the product is back in stock.
+  * *Notes:* 
+    - Products can be restocked even when in `NOT_ACTIVE` status, allowing warehouse inventory to be prepared prior to customer launch.
+    - If stock increases from 0 to $>0$ on an active product, an asynchronous event notifies `Catalog Service` that the product is back in stock.
 
 * **US-INV-02: Manage Package Logistics Parameters**
   * **As an** inventory worker,
   * **I want to** set and update the packaged gross weight and box dimensions (L x W x H) for a product,
   * **So that** `Delivery Service` has accurate package dimensions when calculating carrier shipping parameters.
+  * *Notes:* Workers configure these parameters for any existing `productId`, including `NOT_ACTIVE` items.
 
 * **US-INV-03: Stock Adjustment & Write-off**
   * **As an** inventory worker,

@@ -75,5 +75,15 @@ This document captures architectural discoveries, domain boundaries, and technic
 ## 7. Event-Driven Asynchronous Notifications
 - **User Story Context:** US-CUST-12 (Order status emails).
 - **Insight / Approach:**
-  - A dedicated `Notification Service` listens to domain events (`OrderPlaced`, `OrderPaid`, `OrderShipped`, `OrderCancelled`).
+  - A dedicated `Notification Service` listens to domain events (`OrderPlaced`, `OrderPaid`, `OrderShipped`, `OrderDelivered`, `OrderCancelled`).
   - Keeps the synchronous order checkout and payment processing resilient and fast by decoupling email delivery from transactional flows.
+
+---
+
+## 8. Payment Processing Simulation & Anti-Corruption Layer (ACL)
+- **Challenge:** Avoid relying on real bank merchant accounts and third-party financial sandboxes during university development and testing.
+- **Architectural Solution:**
+  - `Payment Service` defines a domain interface `PaymentGateway` (`charge(amount, cardInfo)`, `refund(transactionId, amount)`).
+  - A `MockPaymentGateway` implementation simulates payment processing:
+    - Standard test card numbers (e.g., cards ending in `4242` succeed; cards ending in `0002` fail with insufficient funds; cards ending in `5000` trigger gateway timeouts).
+  - External payment protocol specifics are fully quarantined inside `Payment Service` via an Anti-Corruption Layer (ACL), making future integration with real gateways (Stripe, LiqPay, Monobank) seamless without changing any order or payment domain logic.

@@ -24,10 +24,11 @@ This document captures architectural discoveries, domain boundaries, and technic
 
 ---
 
-## 3. Category Relationship
+## 3. Category Relationship & Deletion Constraint
 - **Structure:** `Category` is a distinct entity with `id` and `name`.
 - **Relationship:** One-to-Many (`Category` $1 \to N$ `Product`). Each product belongs to exactly one category (not multi-category tags).
 - **Specs Approach:** In line with keeping initial focus on microservices and avoiding over-engineered faceted search, product specifications will start as plain text descriptions.
+- **Deletion Constraint:** Deleting a category that currently has associated products is prohibited. This prevents orphaned products in the catalog and preserves navigation integrity. Products must be reassigned to another category before deletion.
 
 ---
 

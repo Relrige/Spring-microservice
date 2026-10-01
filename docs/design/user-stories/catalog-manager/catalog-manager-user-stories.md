@@ -32,9 +32,11 @@ This document captures the functional requirements from the perspective of the *
 
 * **US-CM-05: Category Management**
   * **As a** catalog manager,
-  * **I want to** create, rename, and view product categories,
+  * **I want to** create, rename, delete, and view product categories,
   * **So that** products can be organized in a clear one-to-many hierarchy for customer navigation.
-  * *Notes:* Each product belongs to exactly one category.
+  * *Notes:* 
+    - Each product belongs to exactly one category.
+    - Deleting a category that currently contains products is strictly forbidden (must reassign or remove products first).
 
 ---
 
