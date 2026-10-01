@@ -10,7 +10,6 @@ This is the **VoltStore** project repository. This file serves as the definitive
 - **Context:** A university study project for a course on **Microservice Architecture with Spring Boot**.
 - **Team Size:** Two software engineering students.
 - **Repository State:** Recently scaffolded draft state. The project contains 5 Spring Boot microservices with draft entities, repositories, services, controllers, and Kubernetes infrastructure.
-- **Historical Proposal:** [`ARCHITECTURE_PROPOSAL.md`](ARCHITECTURE_PROPOSAL.md) contains an initial proposal written in Ukrainian. It is a draft proposal containing potential logic/design gaps and must remain **untouched** as an initial historical reference. All new documentation, decisions, and discussions are conducted exclusively in English.
 - **Expected Maturity:** The project does not target commercial production deployment, but it must exhibit technical maturity, clean architectural boundaries, and sound software engineering principles representative of a bachelor's degree in software engineering.
 
 ---
@@ -70,26 +69,24 @@ Project documentation, architectural decision tracking, and task management will
 
 ---
 
-## 5. Repository & Services Map
+## 5. Repository
 
-The repository is structured as a collection of independent Spring Boot services with container orchestration:
+The repository is structured as a collection of independent Spring Boot microservices:
+- Catalog Service
+- Order Service
+- Inventory Service
+- Payment Service
+- Delivery Service
 
-| Component | Directory | Default Port | Role & Purpose |
-| :--- | :--- | :--- | :--- |
-| **Catalog Service** | [`catalog-service/`](catalog-service/) | `8081` | Manages products, categories, specs, and showcase pricing. |
-| **Order Service** | [`order-service/`](order-service/) | `8082` | Manages order lifecycles, checkout snapshots, and status transitions. |
-| **Delivery Service** | [`delivery-service/`](delivery-service/) | `8083` | Handles logistics, carrier integration, parcel snapshots, and tracking (TTN). |
-| **Inventory Service** | [`inventory-service/`](inventory-service/) | `8084` | Tracks stock levels, reservations, warehouse items, weight/dimensions. |
-| **Payment Service** | [`payment-service/`](payment-service/) | `8085` | Processes transactions, payment gateway integrations, refunds. |
+This is not the final state of the repository. The number and role of services may change.
 
-*Note: Specific libraries and patterns (such as messaging brokers, service discovery, resiliency libraries) are deliberately not fixed upfront; they will be explored, evaluated, and decided iteratively during the project.*
+Specific libraries and patterns (such as messaging brokers, service discovery, resiliency libraries) are deliberately not fixed upfront; they will be explored, evaluated, and decided iteratively during the project.
 
 ---
 
 ## 6. Verification & Quality Mindset
 
 Before proposing that a milestone or feature is complete, encourage sound verification:
-- Validate that services compile cleanly with Maven (`./mvnw clean compile`).
 - Promote unit testing for domain logic and integration testing where appropriate.
 - Verify database schemas and data isolation between microservice boundaries.
 - Ensure all relevant decisions and tasks are kept up to date according to the documentation structure established by the team.
