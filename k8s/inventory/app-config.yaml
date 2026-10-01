@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inventory-config
+  namespace: voltstore
+data:
+  POSTGRES_DB: "inventory-service"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://inventory-service-postgres:5432/inventory-service"
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -Xlog:gc*"

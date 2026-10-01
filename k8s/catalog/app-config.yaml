@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: catalog-config
+  namespace: voltstore
+data:
+  POSTGRES_DB: "catalog-service"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://catalog-service-postgres:5432/catalog-service"
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -Xlog:gc*"

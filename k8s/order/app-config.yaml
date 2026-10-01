@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: order-config
+  namespace: voltstore
+data:
+  POSTGRES_DB: "order-service"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://order-service-postgres:5432/order-service"
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -Xlog:gc*"

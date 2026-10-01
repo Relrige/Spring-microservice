@@ -1,0 +1,28 @@
+minikube start
+
+
+docker build -t  voltstore/catalog-service:latest .\catalog-service
+docker build -t  voltstore/delivery-service:latest .\delivery-service
+docker build -t  voltstore/inventory-service:latest .\inventory-service
+docker build -t  voltstore/order-service:latest .\order-service
+docker build -t  voltstore/payment-service:latest .\payment-service
+
+
+
+minikube image load voltstore/catalog-service:latest
+minikube image load voltstore/delivery-service:latest
+minikube image load voltstore/inventory-service:latest
+minikube image load voltstore/order-service:latest
+minikube image load voltstore/payment-service:latest
+
+kubectl apply -f C:\Users\stasp\Desktop\uni\course4sem1\microserv\Spring-microservice\k8s\ -R
+
+kubectl get pods -n voltstore
+
+
+
+minikube addons enable ingress
+
+minikube tunnel
+
+
