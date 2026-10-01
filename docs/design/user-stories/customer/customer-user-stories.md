@@ -20,10 +20,11 @@ This document captures the functional requirements from the perspective of custo
   * **I want to** add products to my cart,
   * **So that** I can collect items for purchase later.
 
-* **US-CUST-04: Modify Cart Items**
+* **US-CUST-04: Modify Cart Items & Handle Unavailable Products**
   * **As a** customer,
-  * **I want to** change item quantities or remove items from my cart,
-  * **So that** I can adjust my selection before checkout.
+  * **I want to** change item quantities, remove items from my cart, and clearly see when a previously added item has become unavailable,
+  * **So that** I can adjust my selection before checkout without items silently disappearing.
+  * *Notes:* If an item in the cart is deactivated by a manager or runs out of stock, it remains visible with an "Unavailable" badge, is disabled, its price is excluded from the subtotal, and can be removed.
 
 * **US-CUST-05: Cross-Device Cart Synchronization**
   * **As a** registered customer,
@@ -49,14 +50,14 @@ This document captures the functional requirements from the perspective of custo
   * **I want to** proceed from my basket to the checkout form and select delivery details (recipient name, phone, address/branch, postal carrier),
   * **So that** the store knows where and to whom to deliver the items.
   * *Notes:* 
-    - Upon clicking "Proceed to Checkout", the system performs a soft check confirming all cart items are in stock before loading the form.
+    - Upon clicking "Proceed to Checkout", the system performs a soft check confirming all cart items are both in stock and currently active before loading the form.
     - If logged in, delivery details pre-fill from the customer profile.
 
-* **US-CUST-09: Out-of-Stock Guard & Order Submission Reservation**
+* **US-CUST-09: Out-of-Stock & Deactivation Guard at Order Submission**
   * **As a** customer,
-  * **I want** stock to be securely reserved when I submit my order, or be notified if an item became unavailable while I filled the form,
-  * **So that** I only proceed to payment if the physical items are guaranteed.
-  * *Notes:* Submitting the order form attempts an atomic stock reservation. If an item ran out, the user is prevented from proceeding to payment and prompted to adjust their cart.
+  * **I want** stock to be securely reserved and product availability verified when I submit my order, or be notified if an item became unavailable or deactivated while I filled the form,
+  * **So that** I only proceed to payment if the physical items are guaranteed and valid.
+  * *Notes:* Submitting the order form attempts an atomic stock reservation and confirms all items are active. If an item ran out or was deactivated, the user is prevented from proceeding to payment and prompted to adjust their cart.
 
 * **US-CUST-10: Card Payment Processing**
   * **As a** customer,

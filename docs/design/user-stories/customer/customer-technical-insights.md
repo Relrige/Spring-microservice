@@ -14,12 +14,12 @@ This document captures architectural discoveries, domain boundaries, and technic
 
 ---
 
-## 2. Order Placement & Two-Phase Stock Check / Reservation
+## 2. Order Placement & Two-Phase Product / Stock Verification
 - **User Story Context:** US-CUST-08, US-CUST-09, US-CUST-11 (Cart $\to$ Checkout $\to$ Payment).
 - **Decision & Architecture:**
-  - **Phase 1: Transition from Cart to Checkout (Soft Check):** When the customer clicks "Proceed to Checkout", the system validates that all cart items are currently available in stock. If an item is missing, checkout is blocked and the customer is prompted to update their cart. No stock is locked yet.
-  - **Phase 2: Transition from Checkout Form to Payment (Hard Reservation):** When the customer submits the order form ("Submit & Pay"), the order is created in `PENDING_PAYMENT` and a hard stock reservation is requested from `Inventory Service`.
-  - **Out-of-Stock Guard at Submission:** If an item ran out while the user was filling the delivery form, the reservation fails, the user is notified immediately, and payment is not initiated.
+  - **Phase 1: Transition from Cart to Checkout (Soft Check):** When the customer clicks "Proceed to Checkout", the system validates that all cart items are currently available in stock (`Inventory Service`) and have `ProductStatus.ACTIVE` (`Catalog Service`). If any item is missing or inactive, checkout is blocked and the customer is prompted to adjust their cart. No stock is locked yet.
+  - **Phase 2: Transition from Checkout Form to Payment (Hard Reservation & Status Confirmation):** When the customer submits the order form ("Submit & Pay"), `Order Service` verifies active status and requests an atomic stock reservation from `Inventory Service`. The order is created in `PENDING_PAYMENT`.
+  - **Out-of-Stock & Deactivation Guard at Submission:** If an item ran out or was deactivated while the user filled the form, the submission is rejected, the user is notified immediately, and payment is prevented.
   - **Reservation Timeout (TTL):** Successfully reserved stock has an expiration timer (e.g., 15 minutes). If payment confirmation is not received within this window, the reservation expires and stock is automatically released back to the warehouse.
   - **Scope Boundary:** Complex anti-abuse rate-limiting and artificial per-order quantity ceilings are deemed out of scope for the academic project; the design relies on the reservation TTL to prevent permanent inventory starvation.
 
@@ -47,12 +47,15 @@ This document captures architectural discoveries, domain boundaries, and technic
 
 ---
 
-## 5. Cart Architecture: Client vs. Server-Side
+## 5. Cart Architecture & Unavailable Product Handling
 - **User Story Context:** US-CUST-03, US-CUST-04, US-CUST-05 (Cart persistence and multi-device).
 - **Insight / Approach:**
   - **Guest Carts:** Stored entirely client-side (e.g., browser `localStorage`), keeping backend microservices stateless for anonymous browsing.
   - **Account Carts:** Persisted on the backend for authenticated customers to enable cross-device synchronization.
   - **Merge on Login:** When a guest customer logs into their account, the client submits the local guest cart items to be merged into the account's backend cart.
+  - **Handling Inactive & Out-of-Stock Items in Cart:**
+    - Products in a cart that are deactivated (`NOT_ACTIVE`) or out of stock are **not silently deleted**. Silent deletion creates severe customer confusion.
+    - Instead, the cart hydrates fresh item states: unavailable products are grayed out with a clear "Unavailable / Discontinued" badge, quantity controls are disabled, their price is excluded from the subtotal, and a "Remove" action is provided.
 
 ---
 
