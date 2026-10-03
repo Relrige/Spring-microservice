@@ -9,3 +9,7 @@ management:
     health:
       probes:
         enabled: true
+
+clients:
+  catalog:
+    url: http://catalog-service:8081
