@@ -1,9 +1,12 @@
 package ua.edu.ukma.springers.voltstore.order.controllers;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ua.edu.ukma.springers.voltstore.order.domain.entity.Order;
+import ua.edu.ukma.springers.voltstore.order.dto.request.ValidateCheckoutRequest;
 import ua.edu.ukma.springers.voltstore.order.services.OrderService;
 
 import java.util.List;
@@ -14,6 +17,12 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OrderController {
     private final OrderService orderService;
+
+    @PostMapping("/validate")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void validateCheckout(@RequestBody @Valid ValidateCheckoutRequest request) {
+        orderService.validateCheckout(request);
+    }
 
     @PostMapping
     public ResponseEntity<Order> createOrder(@RequestBody Order order) {
