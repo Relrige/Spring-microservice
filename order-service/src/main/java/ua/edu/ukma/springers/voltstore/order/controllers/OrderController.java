@@ -3,6 +3,8 @@ package ua.edu.ukma.springers.voltstore.order.controllers;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import ua.edu.ukma.springers.voltstore.order.client.CatalogClient;
+import ua.edu.ukma.springers.voltstore.order.client.ProductDto;
 import ua.edu.ukma.springers.voltstore.order.domain.entity.Order;
 import ua.edu.ukma.springers.voltstore.order.services.OrderService;
 
@@ -14,6 +16,18 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OrderController {
     private final OrderService orderService;
+    private final CatalogClient catalogClient;
+
+
+    @GetMapping("/products/{id}")
+    public ProductDto getProductDirectly(@PathVariable("id") UUID id) {
+        return orderService.getProduct(id);
+    }
+
+    @GetMapping("/products/{id}/slow")
+    public ProductDto getProductSlow(@PathVariable("id") UUID id) {
+        return orderService.getProductSlow(id);
+    }
 
     @PostMapping
     public ResponseEntity<Order> createOrder(@RequestBody Order order) {

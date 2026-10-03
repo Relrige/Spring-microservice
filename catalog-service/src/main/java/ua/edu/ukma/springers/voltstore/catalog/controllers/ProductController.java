@@ -1,5 +1,7 @@
 package ua.edu.ukma.springers.voltstore.catalog.controllers;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -12,6 +14,8 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/catalog/products")
 public class ProductController {
+
+    private static final Logger log = LoggerFactory.getLogger(ProductController.class);
 
     private final ProductService productService;
 
@@ -31,7 +35,21 @@ public class ProductController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Product> getById(@PathVariable UUID id) {
+    public ResponseEntity<Product> getById(@PathVariable UUID id,
+                                           @RequestHeader(value = "X-Correlation-Id", required = false) String correlationId) {
+        log.info("Received request for product id={}, correlationId={}", id, correlationId);
+        return ResponseEntity.ok(productService.getProductById(id));
+    }
+
+    @GetMapping("/{id}/slow")
+    public ResponseEntity<Product> getByIdSlow(@PathVariable UUID id,
+                                               @RequestHeader(value = "X-Correlation-Id", required = false) String correlationId) {
+        log.warn("Simulating slow response (3500 ms) for product id={}, correlationId={}", id, correlationId);
+        try {
+            Thread.sleep(3500);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
         return ResponseEntity.ok(productService.getProductById(id));
     }
 
