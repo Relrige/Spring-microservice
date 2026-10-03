@@ -108,7 +108,6 @@ Owns the order lifecycle, immutable historical snapshots of purchases, and coord
 **`OrderItemSnapshot`** (Child Entity)
 - `id`: UUID
 - `productId`: UUID
-- `productName`: String *(Historical snapshot)*
 - `unitPriceAtOrder`: Decimal *(Historical snapshot)*
 - `quantity`: Integer
 
