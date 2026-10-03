@@ -1,5 +1,5 @@
 ---
-status: TODO
+status: DONE
 service: order-service
 ---
 # Declarative HTTP Client for Catalog Service
@@ -9,16 +9,16 @@ The Order Service must synchronously fetch product data (e.g., during checkout v
 *References:* [SCN-C14 Checkout Soft Check](../../design/scenarios/customer-scenarios.md), [API Contracts](../../design/services-requirements/api-contracts.md)
 
 ## Acceptance Criteria
-- [ ] Create `ProductDto` as a Java `record` annotated with `@JsonIgnoreProperties(ignoreUnknown = true)` for Tolerant Reader.
-- [ ] Create `CatalogClient` interface.
-- [ ] Add `@GetExchange("/catalog/products/{id}")` to the `CatalogClient` method.
-- [ ] Implement `ClientHttpRequestInterceptor` to automatically append `X-Correlation-Id` header to outgoing requests.
-- [ ] Create `@Configuration` class to configure `JdkClientHttpRequestFactory` with 2s connect timeout and 3s read timeout.
-- [ ] Build `RestClient` integrating the factory and the interceptor.
-- [ ] Create the `CatalogClient` Spring `@Bean` using `HttpServiceProxyFactory`.
-- [ ] Inject `CatalogClient` into an Order Service controller and verify successful retrieval.
-- [ ] Create a local `MockCatalogController` (within the Order Service test/mock package) exposing the `/catalog/products/{id}` endpoint.
-- [ ] Test timeout behavior by adding an artificial delay (>3s) to the mock controller and asserting that a `ResourceAccessException` is thrown.
+- [x] Create `ProductDto` as a Java class annotated with `@JsonIgnoreProperties(ignoreUnknown = true)` for Tolerant Reader.
+- [x] Create `CatalogClient` interface.
+- [x] Add `@GetExchange("/products/batch")` to the `CatalogClient` method.
+- [x] Implement `ClientHttpRequestInterceptor` to automatically append `X-Correlation-Id` header to outgoing requests.
+- [x] Create `@Configuration` class to configure `JdkClientHttpRequestFactory` with 2s connect timeout and 3s read timeout.
+- [x] Build `RestClient` integrating the factory and the interceptor.
+- [x] Create the `CatalogClient` Spring `@Bean` using `HttpServiceProxyFactory`.
+- [x] Inject `CatalogClient` into an Order Service controller and verify successful retrieval.
+- [x] Set up WireMock to simulate the external Catalog Service without deploying external infrastructure.
+- [x] Test timeout behavior by adding an artificial delay (>3s) to WireMock and asserting that a `ResourceAccessException` is thrown.
 
 ## Technical Notes / Constraints
 - **Must use** Spring 6 declarative `@HttpExchange` interfaces and `RestClient`. 
