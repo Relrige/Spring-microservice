@@ -32,6 +32,17 @@ docs/
         └── inventory-worker/
             ├── inventory-worker-user-stories.md
             └── inventory-worker-technical-insights.md
+├── tasks/
+│   ├── _template.md
+│   ├── cross-cutting/
+│   ├── order-service/
+│   ├── catalog-service/
+│   ├── inventory-service/
+│   ├── customer-service/
+│   ├── payment-service/
+│   ├── delivery-service/
+│   ├── auth-service/
+│   └── notification-service/
 ```
 
 ## Directory Guide
@@ -47,3 +58,5 @@ docs/
   - `api-getaway-draft.md`: Decisions regarding the Spring Cloud Gateway implementation.
 - **[`user-stories/`](design/user-stories/)**: The original functional requirements and analysis.
   - Includes actor-specific user stories, technical insights, and design review notes (`user-stories-review-notes.md`) that shape the microservice boundaries.
+
+- **[`tasks/`](tasks/)**: Implementation backlog, grouped by service, using the \_template.md\ format.
