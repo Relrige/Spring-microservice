@@ -17,6 +17,11 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.web.client.RestClient;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import ua.edu.ukma.springers.voltstore.order.utils.constants.CorrelationIdKeys;
+
 @SpringBootTest(
         classes = {
                 ClientsConfiguration.class,
@@ -26,6 +31,8 @@ import org.springframework.web.client.RestClient;
 )
 @WireMockTest(httpPort = 8081)
 class CatalogClientIntegrationTest {
+
+    private static final Logger log = LoggerFactory.getLogger(CatalogClientIntegrationTest.class);
 
     @TestConfiguration
     static class TestConfig {
@@ -40,54 +47,68 @@ class CatalogClientIntegrationTest {
 
     @Test
     void getProductsByIds_ShouldReturnData_WhenHappyPath() {
-        // Arrange
-        UUID productId = UUID.randomUUID();
-        
-        stubFor(get(urlPathEqualTo("/products/batch"))
-                .withQueryParam("ids", equalTo(productId.toString()))
-                .willReturn(aResponse()
-                        .withHeader("Content-Type", "application/json")
-                        .withStatus(200)
-                        .withBody("""
-                                [
-                                    {
-                                        "id": "%s",
-                                        "title": "Test Product",
-                                        "price": 99.99,
-                                        "activenessStatus": "ACTIVE",
-                                        "stockStatus": "IN_STOCK"
-                                    }
-                                ]
-                                """.formatted(productId))));
+        MDC.put(CorrelationIdKeys.CORRELATION_ID_MDC_KEY, "test-corr-id-happy-path");
+        try {
+            // Arrange
+            UUID productId = UUID.randomUUID();
 
-        // Act
-        List<ProductDto> products = catalogClient.getProductsByIds(List.of(productId));
+            stubFor(get(urlPathEqualTo("/products/batch"))
+                    .withQueryParam("ids", equalTo(productId.toString()))
+                    .willReturn(aResponse()
+                            .withHeader("Content-Type", "application/json")
+                            .withStatus(200)
+                            .withBody("""
+                                    [
+                                        {
+                                            "id": "%s",
+                                            "title": "Test Product",
+                                            "price": 99.99,
+                                            "activenessStatus": "ACTIVE",
+                                            "stockStatus": "IN_STOCK"
+                                        }
+                                    ]
+                                    """.formatted(productId))));
 
-        // Assert
-        assertNotNull(products);
-        assertEquals(1, products.size());
-        assertEquals(productId, products.get(0).getId());
-        assertEquals("Test Product", products.get(0).getTitle());
+            // Act
+            log.info("Executing client call for product IDs: [{}]", productId);
+            List<ProductDto> products = catalogClient.getProductsByIds(List.of(productId));
+            log.info("<<< [SUCCESS] Response received successfully: {}", products);
+
+            // Assert
+            assertNotNull(products);
+            assertEquals(1, products.size());
+            assertEquals(productId, products.get(0).getId());
+            assertEquals("Test Product", products.get(0).getTitle());
+        } finally {
+            MDC.clear();
+        }
     }
 
     @Test
     void getProductsByIds_ShouldThrowResourceAccessException_WhenReadTimeoutExceeded() {
-        // Arrange
-        UUID productId = UUID.randomUUID();
+        MDC.put(CorrelationIdKeys.CORRELATION_ID_MDC_KEY, "test-corr-id-timeout");
+        try {
+            // Arrange
+            UUID productId = UUID.randomUUID();
 
-        // Stub a response with a 3.5-second delay to trigger the 3-second read timeout
-        stubFor(get(urlPathEqualTo("/products/batch"))
-                .withQueryParam("ids", equalTo(productId.toString()))
-                .willReturn(aResponse()
-                        .withStatus(200)
-                        .withFixedDelay(3500) 
-                        .withBody("[]")));
+            // Stub a response with a 3.5-second delay to trigger the 3-second read timeout
+            stubFor(get(urlPathEqualTo("/products/batch"))
+                    .withQueryParam("ids", equalTo(productId.toString()))
+                    .willReturn(aResponse()
+                            .withStatus(200)
+                            .withFixedDelay(3500)
+                            .withBody("[]")));
 
-        // Act & Assert
-        ResourceAccessException exception = assertThrows(ResourceAccessException.class, () -> {
-            catalogClient.getProductsByIds(List.of(productId));
-        });
+            // Act & Assert
+            log.info("Executing client call expecting timeout (configured timeout = 3s, delay = 3.5s)...");
+            ResourceAccessException exception = assertThrows(ResourceAccessException.class, () -> {
+                catalogClient.getProductsByIds(List.of(productId));
+            });
 
-        assertNotNull(exception.getCause());
+            log.warn("<<< [TIMEOUT TRIGGERED] ResourceAccessException thrown as expected: {}", exception.getMessage());
+            assertNotNull(exception.getCause());
+        } finally {
+            MDC.clear();
+        }
     }
 }
