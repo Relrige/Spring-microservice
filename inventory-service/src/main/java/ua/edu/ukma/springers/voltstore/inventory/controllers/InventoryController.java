@@ -40,10 +40,12 @@ public class InventoryController {
     }
 
     @PostMapping("/reserve")
-    public ResponseEntity<StockReservation> reserveStock(@RequestParam UUID orderId,
-                                                         @RequestParam String sku,
-                                                         @RequestParam Integer quantity) {
-        return ResponseEntity.ok(inventoryService.reserveStock(orderId, sku, quantity));
+    public ResponseEntity<?> reserveStock(@RequestHeader("Idempotency-Key") String idempotencyKey,
+                                          @RequestParam UUID orderId,
+                                          @RequestParam String sku,
+                                          @RequestParam Integer quantity) {
+        StockReservation result = inventoryService.reserveStockIdempotent(idempotencyKey, orderId, sku, quantity);
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/confirm-reservation/{orderId}")

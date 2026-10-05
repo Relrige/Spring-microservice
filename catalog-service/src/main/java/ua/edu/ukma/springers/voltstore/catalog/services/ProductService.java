@@ -1,8 +1,13 @@
 package ua.edu.ukma.springers.voltstore.catalog.services;
 
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ua.edu.ukma.springers.voltstore.catalog.domain.entity.Product;
+import ua.edu.ukma.springers.voltstore.catalog.exception.DuplicateSkuException;
+import ua.edu.ukma.springers.voltstore.catalog.exception.InvalidProductDataException;
+import ua.edu.ukma.springers.voltstore.catalog.exception.ProductNotFoundException;
 import ua.edu.ukma.springers.voltstore.catalog.repositories.ProductRepository;
 
 import java.math.BigDecimal;
@@ -10,21 +15,18 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class ProductService {
 
     private final ProductRepository productRepository;
 
-    public ProductService(ProductRepository productRepository) {
-        this.productRepository = productRepository;
-    }
-
     @Transactional
     public Product createProduct(Product product) {
         if (productRepository.existsBySku(product.getSku())) {
-            throw new IllegalArgumentException("SKU already exists: " + product.getSku());
+            throw new DuplicateSkuException(product.getSku());
         }
-        if (product.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Price must be greater than zero");
+        if (product.getPrice() == null || product.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new InvalidProductDataException("Price must be greater than zero");
         }
         return productRepository.save(product);
     }
@@ -35,7 +37,7 @@ public class ProductService {
 
     public Product getProductById(UUID id) {
         return productRepository.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new RuntimeException("Product not found or deleted"));
+                .orElseThrow(() -> new ProductNotFoundException(id));
     }
 
     @Transactional
@@ -43,7 +45,7 @@ public class ProductService {
         Product existingProduct = getProductById(id);
 
         if (updatedData.getPrice() != null && updatedData.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Price must be greater than zero");
+            throw new InvalidProductDataException("Price must be greater than zero");
         }
 
         existingProduct.setTitle(updatedData.getTitle() != null ? updatedData.getTitle() : existingProduct.getTitle());
@@ -59,5 +61,9 @@ public class ProductService {
         Product product = getProductById(id);
         product.setDeleted(true);
         productRepository.save(product);
+    }
+
+    public List<Product> getProductsByIds(List<UUID> ids) {
+        return productRepository.findByIdIn(ids);
     }
 }

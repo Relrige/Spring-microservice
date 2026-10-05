@@ -4,6 +4,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+  mvc:
+    problem-details:
+      enabled: true
 management:
   endpoint:
     health:

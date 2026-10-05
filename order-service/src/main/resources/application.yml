@@ -4,6 +4,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+  mvc:
+    problem-details:
+      enabled: true
 management:
   endpoint:
     health:
@@ -13,3 +16,26 @@ management:
 clients:
   catalog:
     url: http://catalog-service:8081
+
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      catalogClient: # Виправлено ім'я інстансу
+        failureRateThreshold: 50
+        minimumNumberOfCalls: 4
+        slidingWindowSize: 10
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 2
+  retry:
+    instances:
+      catalogClient: # Виправлено ім'я інстансу
+        maxAttempts: 3
+        waitDuration: 1s
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        enableRandomizedWait: true # Увімкнено Jitter (додає випадковий час до очікування)
+  bulkhead:
+    instances:
+      catalogClient: # Виправлено ім'я інстансу
+        maxConcurrentCalls: 10
