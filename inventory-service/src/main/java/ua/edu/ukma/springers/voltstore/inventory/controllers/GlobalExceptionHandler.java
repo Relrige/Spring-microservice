@@ -1,10 +1,11 @@
-package ua.edu.ukma.springers.voltstore.inventory.exceptions;
+package ua.edu.ukma.springers.voltstore.inventory.controllers;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import ua.edu.ukma.springers.voltstore.inventory.exceptions.InsufficientStockException;
 
 import java.net.URI;
 import java.time.Instant;

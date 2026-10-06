@@ -1,10 +1,13 @@
-package ua.edu.ukma.springers.voltstore.catalog.exception;
+package ua.edu.ukma.springers.voltstore.catalog.controllers;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import ua.edu.ukma.springers.voltstore.catalog.exception.DuplicateSkuException;
+import ua.edu.ukma.springers.voltstore.catalog.exception.InvalidProductDataException;
+import ua.edu.ukma.springers.voltstore.catalog.exception.ProductNotFoundException;
 
 import java.net.URI;
 import java.time.Instant;
