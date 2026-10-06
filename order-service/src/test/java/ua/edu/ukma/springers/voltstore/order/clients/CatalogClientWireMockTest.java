@@ -13,34 +13,21 @@ import java.util.UUID;
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.web.client.RestClient;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import ua.edu.ukma.springers.voltstore.order.utils.constants.CorrelationIdKeys;
 
+@WireMockTest(httpPort = 8081)
 @SpringBootTest(
         classes = {
-                ClientsConfiguration.class,
-                CatalogClientIntegrationTest.TestConfig.class
+                ClientsConfiguration.class
         },
         properties = "clients.catalog.url=http://localhost:8081"
 )
-@WireMockTest(httpPort = 8081)
-class CatalogClientIntegrationTest {
+class CatalogClientWireMockTest {
 
-    private static final Logger log = LoggerFactory.getLogger(CatalogClientIntegrationTest.class);
-
-    @TestConfiguration
-    static class TestConfig {
-        @Bean
-        public RestClient.Builder restClientBuilder() {
-            return RestClient.builder();
-        }
-    }
+    private static final Logger log = LoggerFactory.getLogger(CatalogClientWireMockTest.class);
 
     @Autowired
     private CatalogClient catalogClient;

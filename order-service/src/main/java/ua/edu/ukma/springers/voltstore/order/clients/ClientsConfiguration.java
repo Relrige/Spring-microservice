@@ -23,7 +23,7 @@ public class ClientsConfiguration {
     private static final Logger log = LoggerFactory.getLogger(ClientsConfiguration.class);
 
     @Bean
-    public CatalogClient catalogClient(CatalogClientProperties properties) { // <-- ПРИБРАЛИ RestClient.Builder з аргументів
+    public CatalogClient catalogClient(CatalogClientProperties properties) {
 
         HttpClient httpClient = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_2)
@@ -33,7 +33,6 @@ public class ClientsConfiguration {
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(Duration.ofSeconds(3));
 
-        // Використовуємо статичний метод RestClient.builder() замість інжекції
         RestClient restClient = RestClient.builder()
                 .baseUrl(properties.getUrl())
                 .requestFactory(requestFactory)
