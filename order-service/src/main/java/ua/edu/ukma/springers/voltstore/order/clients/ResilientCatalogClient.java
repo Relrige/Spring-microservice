@@ -20,8 +20,8 @@ public class ResilientCatalogClient {
     private static final Logger log = LoggerFactory.getLogger(ResilientCatalogClient.class);
     private final CatalogClient catalogClient;
 
-    @CircuitBreaker(name = "catalogClient", fallbackMethod = "getProductsFallback")
-    @Retry(name = "catalogClient")
+    @Retry(name = "catalogClient", fallbackMethod = "getProductsFallback")
+    @CircuitBreaker(name = "catalogClient")
     @Bulkhead(name = "catalogClient", type = Bulkhead.Type.SEMAPHORE)
     public List<ProductDto> getProductsBatchSafely(List<UUID> ids) {
         log.info("Fetching batch of products from catalog for {} items", ids.size());

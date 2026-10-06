@@ -7,6 +7,7 @@ spring:
   mvc:
     problem-details:
       enabled: true
+
 management:
   endpoint:
     health:
@@ -17,28 +18,24 @@ clients:
   catalog:
     url: http://catalog-service:8081
 
-
 resilience4j:
   circuitbreaker:
     instances:
-      catalogClient: # Виправлено ім'я інстансу
+      catalogClient:
         failureRateThreshold: 50
         minimumNumberOfCalls: 4
         slidingWindowSize: 10
         waitDurationInOpenState: 10s
         permittedNumberOfCallsInHalfOpenState: 2
-    circuit-breaker-aspect-order: 100
   retry:
     instances:
-      catalogClient: # Виправлено ім'я інстансу
+      catalogClient:
         maxAttempts: 3
         waitDuration: 1s
         enableExponentialBackoff: true
         exponentialBackoffMultiplier: 2
-        enableRandomizedWait: true # Увімкнено Jitter (додає випадковий час до очікування)
-    retry-aspect-order: 200
+        enableRandomizedWait: true
   bulkhead:
     instances:
-      catalogClient: # Виправлено ім'я інстансу
+      catalogClient:
         maxConcurrentCalls: 10
-    bulkhead-aspect-order: 300
