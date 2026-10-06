@@ -4,6 +4,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+  mvc:
+    problem-details:
+      enabled: true
+
 management:
   endpoint:
     health:
@@ -13,3 +17,25 @@ management:
 clients:
   catalog:
     url: http://catalog-service:8081
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      catalogClient:
+        failureRateThreshold: 50
+        minimumNumberOfCalls: 4
+        slidingWindowSize: 10
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 2
+  retry:
+    instances:
+      catalogClient:
+        maxAttempts: 3
+        waitDuration: 1s
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        enableRandomizedWait: true
+  bulkhead:
+    instances:
+      catalogClient:
+        maxConcurrentCalls: 10

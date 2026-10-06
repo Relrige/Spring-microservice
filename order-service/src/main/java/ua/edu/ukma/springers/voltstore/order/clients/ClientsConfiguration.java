@@ -23,9 +23,8 @@ public class ClientsConfiguration {
     private static final Logger log = LoggerFactory.getLogger(ClientsConfiguration.class);
 
     @Bean
-    public CatalogClient catalogClient(
-            RestClient.Builder builder,
-            CatalogClientProperties properties) {
+    public CatalogClient catalogClient(CatalogClientProperties properties) {
+
         HttpClient httpClient = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_2)
                 .connectTimeout(Duration.ofSeconds(2))
@@ -34,12 +33,14 @@ public class ClientsConfiguration {
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(Duration.ofSeconds(3));
 
-        RestClient restClient = builder
+        RestClient restClient = RestClient.builder()
                 .baseUrl(properties.getUrl())
                 .requestFactory(requestFactory)
                 .requestInterceptor((request, body, execution) -> {
                     String correlationId = MDC.get(CORRELATION_ID_MDC_KEY);
-                    request.getHeaders().add(CORRELATION_ID_HTTP_HEADER, correlationId);
+                    if (correlationId != null) {
+                        request.getHeaders().add(CORRELATION_ID_HTTP_HEADER, correlationId);
+                    }
                     log.info(">>> [OUTGOING HTTP] {} {} | Header {}: {}",
                             request.getMethod(), request.getURI(), CORRELATION_ID_HTTP_HEADER, correlationId);
                     return execution.execute(request, body);

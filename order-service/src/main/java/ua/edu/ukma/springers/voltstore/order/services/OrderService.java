@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ua.edu.ukma.springers.voltstore.order.clients.CatalogClient;
+import ua.edu.ukma.springers.voltstore.order.clients.ResilientCatalogClient;
 import ua.edu.ukma.springers.voltstore.order.clients.dto.ProductActivenessStatus;
 import ua.edu.ukma.springers.voltstore.order.clients.dto.ProductDto;
 import ua.edu.ukma.springers.voltstore.order.domain.entity.Order;
@@ -18,14 +19,18 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OrderService {
     private final OrderRepository orderRepository;
-    private final CatalogClient catalogClient;
+    private final ResilientCatalogClient resilientCatalogClient;
 
     public void validateCheckout(ValidateCheckoutRequest request) {
         List<UUID> ids = request.getItems().stream().
                 map(p -> p.getProductId())
                 .toList();
 
-        List<ProductDto> products = catalogClient.getProductsByIds(ids);
+        List<ProductDto> products = resilientCatalogClient.getProductsBatchSafely(ids);
+
+        if (products.isEmpty() && !ids.isEmpty()) {
+            throw new IllegalStateException("Catalog validation is temporarily unavailable");
+        }
 
         List<UUID> notActiveProducts = products.stream()
                 .filter(p -> p.getActivenessStatus() == ProductActivenessStatus.NOT_ACTIVE)

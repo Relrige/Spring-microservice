@@ -3,13 +3,17 @@ package ua.edu.ukma.springers.voltstore.inventory.services;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ua.edu.ukma.springers.voltstore.inventory.domain.entity.IdempotencyRecord;
 import ua.edu.ukma.springers.voltstore.inventory.domain.entity.StockItem;
 import ua.edu.ukma.springers.voltstore.inventory.domain.entity.StockReservation;
+import ua.edu.ukma.springers.voltstore.inventory.exceptions.InsufficientStockException;
+import ua.edu.ukma.springers.voltstore.inventory.repositories.IdempotencyRecordRepository;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemRepository;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockReservationRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -17,6 +21,7 @@ import java.util.UUID;
 public class InventoryService {
     private final StockItemRepository stockItemRepository;
     private final StockReservationRepository reservationRepository;
+    private final IdempotencyRecordRepository idempotencyRecordRepository;
 
     public List<StockItem> getAllStockItems() {
         return stockItemRepository.findAll();
@@ -98,5 +103,41 @@ public class InventoryService {
                     stockItemRepository.save(item);
                     reservationRepository.save(r);
                 });
+    }
+
+    @Transactional
+    public StockReservation reserveStockIdempotent(String idempotencyKey, UUID orderId, String sku, Integer quantity) {
+        Optional<IdempotencyRecord> existingRecord = idempotencyRecordRepository.findById(idempotencyKey);
+        if (existingRecord.isPresent()) {
+            return reservationRepository.findById(existingRecord.get().getReservationId())
+                    .orElseThrow(() -> new RuntimeException("Reservation mapped to idempotency key not found"));
+        }
+
+        StockItem item = stockItemRepository.findBySku(sku)
+                .orElseThrow(() -> new RuntimeException("Stock item not found for SKU: " + sku));
+
+        if (item.getAvailableQuantity() < quantity) {
+            throw new InsufficientStockException(sku, item.getAvailableQuantity(), quantity);
+        }
+
+        item.setAvailableQuantity(item.getAvailableQuantity() - quantity);
+        item.setReservedQuantity(item.getReservedQuantity() + quantity);
+        stockItemRepository.save(item);
+
+        StockReservation reservation = new StockReservation();
+        reservation.setOrderId(orderId);
+        reservation.setSku(sku);
+        reservation.setQuantity(quantity);
+        reservation.setStatus(StockReservation.ReservationStatus.ACTIVE);
+        reservation.setExpiresAt(LocalDateTime.now().plusMinutes(15));
+
+        StockReservation savedReservation = reservationRepository.save(reservation);
+
+        IdempotencyRecord record = new IdempotencyRecord();
+        record.setIdempotencyKey(idempotencyKey);
+        record.setReservationId(savedReservation.getId());
+        idempotencyRecordRepository.save(record);
+
+        return savedReservation;
     }
 }
