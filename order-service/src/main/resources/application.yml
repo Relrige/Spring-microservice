@@ -27,6 +27,7 @@ resilience4j:
         slidingWindowSize: 10
         waitDurationInOpenState: 10s
         permittedNumberOfCallsInHalfOpenState: 2
+    circuit-breaker-aspect-order: 100
   retry:
     instances:
       catalogClient: # Виправлено ім'я інстансу
@@ -35,7 +36,9 @@ resilience4j:
         enableExponentialBackoff: true
         exponentialBackoffMultiplier: 2
         enableRandomizedWait: true # Увімкнено Jitter (додає випадковий час до очікування)
+    retry-aspect-order: 200
   bulkhead:
     instances:
       catalogClient: # Виправлено ім'я інстансу
         maxConcurrentCalls: 10
+    bulkhead-aspect-order: 300
