@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: api-getaway
+  mvc:
+    problem-details:
+      enabled: true
+
+auth:
+  jwt:
+    # HS256 key shared with the auth service; must be at least 32 bytes.
+    secret: ${JWT_SECRET}
+    expiration: 1h
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
