@@ -21,6 +21,15 @@ docs/
     │   ├── api-contracts.md
     │   ├── api-getaway-draft.md
     │   └── events-catalogue.md
+    ├── services-specs/
+    │   ├── auth-service-spec.md
+    │   ├── catalog-service-spec.md
+    │   ├── customer-service-spec.md
+    │   ├── delivery-service-spec.md
+    │   ├── inventory-service-spec.md
+    │   ├── notification-service-spec.md
+    │   ├── order-service-spec.md
+    │   └── payment-service-spec.md
     └── user-stories/
         ├── user-stories-review-notes.md
         ├── customer/
@@ -56,6 +65,8 @@ docs/
   - `api-contracts.md`: Explicit REST API definitions for all endpoints.
   - `events-catalogue.md`: Definitions for all asynchronous domain events.
   - `api-getaway-draft.md`: Decisions regarding the Spring Cloud Gateway implementation.
+- **[`services-specs/`](design/services-specs/)**: Detailed, per-service implementation specifications organized by entrypoint cards.
+  - Contains self-contained specs for each service covering REST endpoints, event consumers, background jobs, execution steps, edge cases, external dependencies, and story/scenario traceability.
 - **[`user-stories/`](design/user-stories/)**: The original functional requirements and analysis.
   - Includes actor-specific user stories, technical insights, and design review notes (`user-stories-review-notes.md`) that shape the microservice boundaries.
 
