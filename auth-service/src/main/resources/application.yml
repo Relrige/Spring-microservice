@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: auth-service
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  mvc:
+    problem-details:
+      enabled: true
+  autoconfigure:
+    # Callers are identified by gateway headers; there is no username/password login, so no default in-memory user
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+
+auth:
+  jwt:
+    # HS256 key shared with the API Gateway; must be at least 32 bytes. Supplied via environment, never committed.
+    secret: ${JWT_SECRET}
+    expiration: 1h
+
+  internal:
+    # Shared secret proving that a request comes from another VoltStore service (sent as X-Internal-Token).
+    # Must be identical in every service and at least 32 characters. Supplied via environment, never committed.
+    token: ${INTERNAL_TOKEN}
+
+  admin:
+    email: ${ADMIN_EMAIL:admin@voltstore.com}
+    password: ${ADMIN_PASSWORD}
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true

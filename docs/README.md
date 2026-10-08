@@ -19,8 +19,18 @@ docs/
     │   └── system-scenarios.md
     ├── services-requirements/
     │   ├── api-contracts.md
-    │   ├── api-getaway-draft.md
-    │   └── events-catalogue.md
+    │   ├── events-catalogue.md
+    │   └── security-model.md
+    ├── services-specs/
+    │   ├── api-gateway-spec.md
+    │   ├── auth-service-spec.md
+    │   ├── catalog-service-spec.md
+    │   ├── customer-service-spec.md
+    │   ├── delivery-service-spec.md
+    │   ├── inventory-service-spec.md
+    │   ├── notification-service-spec.md
+    │   ├── order-service-spec.md
+    │   └── payment-service-spec.md
     └── user-stories/
         ├── user-stories-review-notes.md
         ├── customer/
@@ -55,7 +65,10 @@ docs/
 - **[`services-requirements/`](design/services-requirements/)**: Concrete technical contracts derived from the scenarios.
   - `api-contracts.md`: Explicit REST API definitions for all endpoints.
   - `events-catalogue.md`: Definitions for all asynchronous domain events.
-  - `api-getaway-draft.md`: Decisions regarding the Spring Cloud Gateway implementation.
+  - `security-model.md`: How services identify callers (gateway-validated JWT, trusted headers, internal token) and the preconditions for it to be safe.
+- **[`services-specs/`](design/services-specs/)**: Detailed, per-service implementation specifications organized by entrypoint cards.
+  - Includes the API Gateway spec (routing allowlist, authentication and trust boundary).
+  - Contains self-contained specs for each service covering REST endpoints, event consumers, background jobs, execution steps, edge cases, external dependencies, and story/scenario traceability.
 - **[`user-stories/`](design/user-stories/)**: The original functional requirements and analysis.
   - Includes actor-specific user stories, technical insights, and design review notes (`user-stories-review-notes.md`) that shape the microservice boundaries.
 
