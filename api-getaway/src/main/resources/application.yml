@@ -4,6 +4,42 @@ spring:
   mvc:
     problem-details:
       enabled: true
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          # Explicit allowlist: one route per method + path pair, no wildcards. Anything not listed is a 404.
+          # Paths are forwarded unchanged. Each route needs metadata.authMode (PUBLIC | OPTIONAL | REQUIRED) and,
+          # for REQUIRED routes, optionally metadata.roles (comma-separated). See RouteAccessPolicy.
+          routes:
+            # --- auth-service ---
+            - id: auth-register
+              uri: ${gateway.upstreams.auth}
+              predicates:
+                - Method=POST
+                - Path=/user/register
+              metadata:
+                authMode: PUBLIC
+            - id: auth-login
+              uri: ${gateway.upstreams.auth}
+              predicates:
+                - Method=POST
+                - Path=/auth/login
+              metadata:
+                authMode: PUBLIC
+            - id: auth-create-non-customer
+              uri: ${gateway.upstreams.auth}
+              predicates:
+                - Method=POST
+                - Path=/user/non-customer
+              metadata:
+                authMode: REQUIRED
+                roles: ADMIN
+
+gateway:
+  # Upstream base URLs; each is overridable by the environment variable shown.
+  upstreams:
+    auth: ${AUTH_SERVICE_URL:http://auth-service:8086}
 
 auth:
   jwt:
