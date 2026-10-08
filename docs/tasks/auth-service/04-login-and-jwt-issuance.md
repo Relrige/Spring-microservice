@@ -1,5 +1,5 @@
 ---
-status: TODO
+status: DONE
 service: auth-service
 ---
 # EP-AUTH-02: Login and JWT Issuance
@@ -9,18 +9,19 @@ Any user (customer or staff) authenticates with email and password and receives 
 *References:* [Auth Service Spec — EP-AUTH-02](../../design/services-specs/auth-service-spec.md), [Customer Scenarios (SCN-C03, SCN-C04)](../../design/scenarios/customer-scenarios.md)
 
 ## Acceptance Criteria
-- [ ] `POST /auth/login` accepts `{ email, password }` and returns `200 OK { token }`.
-- [ ] Missing or empty `email`/`password` returns `400 Bad Request`.
-- [ ] Unknown email and wrong password both return an identical `401 Unauthorized` ("Invalid credentials") response, with no difference in body or status.
-- [ ] Issued JWT is signed and contains `sub` (userId), `role`, `iat` and `exp`.
-- [ ] Token lifetime is configurable via `application.yml` (property, not a hard-coded constant).
-- [ ] Signing key is read from configuration/secret (env variable), never committed to the repository.
-- [ ] Tests: successful login; token claims decoded and asserted; unknown email; wrong password; error responses are indistinguishable; an expired or tampered token is rejected by the verifier used in tests.
+- [x] `POST /auth/login` accepts `{ email, password }` and returns `200 OK { token }`.
+- [x] Missing or empty `email`/`password` returns `400 Bad Request`.
+- [x] Unknown email and wrong password both return an identical `401 Unauthorized` ("Invalid credentials") response, with no difference in body or status.
+- [x] Issued JWT is signed and contains `sub` (userId), `role`, `iat` and `exp`.
+- [x] Token lifetime is configurable via `application.yml` (property, not a hard-coded constant).
+- [x] Signing key is read from configuration/secret (env variable), never committed to the repository.
+- [x] Tests: successful login; token claims decoded and asserted; unknown email; wrong password; error responses are indistinguishable; an expired or tampered token is rejected by the verifier used in tests.
 
 ## Technical Notes / Constraints
-- **Open decisions (record in docs before or during implementation):**
-  - Algorithm: symmetric HS256 (secret shared with the gateway) vs. asymmetric RS256/ES256 (gateway only needs the public key; better isolation, optionally exposed via a JWKS endpoint). Present trade-offs and decide.
-  - Token lifetime (the spec says "TBD"). Refresh tokens are out of scope.
-- JWT library options: `jjwt`, Nimbus JOSE (`spring-security-oauth2-jose`). Pick one and keep it behind a small `TokenService` interface so it is easy to test.
-- User enumeration defence: avoid the timing difference between "user not found" and "wrong password" (e.g., run a BCrypt comparison against a dummy hash when the user is missing).
+- **Decisions:**
+  - Algorithm: symmetric **HS256**. The API Gateway shares the same secret (`JWT_SECRET`, at least 32 bytes) to validate tokens. Asymmetric RS256/ES256 would let the gateway hold only a public key, but it needs key-pair management and a JWKS endpoint; this can replace HS256 later without changing the API, because signing is hidden behind `TokenService`.
+  - Token lifetime: 1 hour (`auth.jwt.expiration`). Refresh tokens are out of scope.
+  - Library: Nimbus JOSE + JWT (`nimbus-jose-jwt`, version pinned in `pom.xml` because Spring Boot does not manage it), behind the `TokenService` interface (`JwtTokenService` implementation).
+- User enumeration defence: when the email is unknown, the password is still checked against a dummy BCrypt hash so both failure paths take similar time. Both return the same `401` body.
+- Email is normalized (trim + lowercase) via `EmailNormalizer`, shared with registration.
 - Never log passwords or tokens.

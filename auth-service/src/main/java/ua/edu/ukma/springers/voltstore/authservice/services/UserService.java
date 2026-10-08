@@ -6,13 +6,13 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import java.util.Locale;
 import ua.edu.ukma.springers.voltstore.authservice.dto.RegisterUserRequest;
 import ua.edu.ukma.springers.voltstore.authservice.dto.RegisterUserResponse;
 import ua.edu.ukma.springers.voltstore.authservice.entities.UserEntity;
 import ua.edu.ukma.springers.voltstore.authservice.entities.UserRole;
 import ua.edu.ukma.springers.voltstore.authservice.exceptions.EmailNotUniqueException;
 import ua.edu.ukma.springers.voltstore.authservice.repositories.UserRepository;
+import ua.edu.ukma.springers.voltstore.authservice.utils.EmailNormalizer;
 
 @Service
 @RequiredArgsConstructor
@@ -26,7 +26,7 @@ public class UserService {
     @Transactional
     public RegisterUserResponse registerUser(RegisterUserRequest request) {
         // Emails are case-insensitive: normalize once so "A@x.com" and "a@x.com" are the same account
-        String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
+        String email = EmailNormalizer.normalize(request.getEmail());
         validateEmail(email);
 
         String passwordHash = passwordEncoder.encode(request.getPassword());

@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 class UserRegistrationIntegrationTest {
-    private static final String URL = "/auth/register";
+    private static final String URL = "/user/register";
 
     @Autowired
     private MockMvc mockMvc;

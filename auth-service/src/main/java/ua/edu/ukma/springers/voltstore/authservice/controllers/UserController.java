@@ -9,7 +9,7 @@ import ua.edu.ukma.springers.voltstore.authservice.dto.RegisterUserResponse;
 import ua.edu.ukma.springers.voltstore.authservice.services.UserService;
 
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/user")
 @RequiredArgsConstructor
 public class UserController {
     private final UserService userService;

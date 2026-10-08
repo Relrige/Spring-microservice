@@ -8,6 +8,12 @@ spring:
     problem-details:
       enabled: true
 
+auth:
+  jwt:
+    # HS256 key shared with the API Gateway; must be at least 32 bytes. Supplied via environment, never committed.
+    secret: ${JWT_SECRET}
+    expiration: 1h
+
 management:
   endpoint:
     health:

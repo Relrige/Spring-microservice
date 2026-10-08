@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import ua.edu.ukma.springers.voltstore.authservice.exceptions.EmailNotUniqueException;
+import ua.edu.ukma.springers.voltstore.authservice.exceptions.InvalidCredentialsException;
 
 import java.net.URI;
 import java.time.Instant;
@@ -28,6 +29,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setType(URI.create("https://voltstore.com/errors/conflict"));
         problem.setTitle("Email is not unique");
+        problem.setProperty("timestamp", Instant.now().toString());
+        problem.setProperty("service", "auth-service");
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ProblemDetail handleInvalidCredentials(InvalidCredentialsException ex) {
+        // Body is deliberately fixed: it must not reveal whether the email exists
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
+        problem.setType(URI.create("https://voltstore.com/errors/unauthorized"));
+        problem.setTitle("Unauthorized");
         problem.setProperty("timestamp", Instant.now().toString());
         problem.setProperty("service", "auth-service");
         return problem;
