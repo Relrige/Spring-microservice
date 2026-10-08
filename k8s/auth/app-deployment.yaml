@@ -28,6 +28,8 @@ spec:
                 name: auth-config
             - secretRef:
                 name: auth-db-credentials
+            - secretRef:
+                name: auth-secrets
           resources:
             requests:
               cpu: 250m

@@ -1,4 +1,30 @@
 services:
+  # auth-service section
+  auth-service-postgres:
+    container_name: auth-service-pg
+    image: postgres:18-alpine
+    volumes:
+      - auth-service-postgres:/var/lib/postgresql
+    env_file:
+      - auth-service/.env
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  auth-service:
+    container_name: auth-service
+    build:
+      context: ./auth-service
+    depends_on:
+      auth-service-postgres:
+        condition: service_healthy
+    ports:
+      - "8086:8080"
+    env_file:
+      - auth-service/.env
+
   # catalog-service section
   catalog-service-postgres:
     container_name: catalog-service-pg
@@ -130,6 +156,7 @@ services:
       - payment-service/.env
 
 volumes:
+  auth-service-postgres:
   catalog-service-postgres:
   order-service-postgres:
   delivery-service-postgres:

@@ -1,6 +1,7 @@
 minikube start
 
 
+docker build -t  voltstore/auth-service:latest .\auth-service
 docker build -t  voltstore/catalog-service:latest .\catalog-service
 docker build -t  voltstore/delivery-service:latest .\delivery-service
 docker build -t  voltstore/inventory-service:latest .\inventory-service
@@ -9,6 +10,7 @@ docker build -t  voltstore/payment-service:latest .\payment-service
 
 
 
+minikube image load voltstore/auth-service:latest
 minikube image load voltstore/catalog-service:latest
 minikube image load voltstore/delivery-service:latest
 minikube image load voltstore/inventory-service:latest

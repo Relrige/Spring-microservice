@@ -6,4 +6,5 @@ metadata:
 data:
   POSTGRES_DB: "auth-service"
   SPRING_DATASOURCE_URL: "jdbc:postgresql://auth-service-postgres:5432/auth-service"
+  ADMIN_EMAIL: "admin@voltstore.com"
   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -Xlog:gc*"
