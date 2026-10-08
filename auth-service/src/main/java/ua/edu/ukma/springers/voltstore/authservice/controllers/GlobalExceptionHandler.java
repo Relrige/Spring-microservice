@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import ua.edu.ukma.springers.voltstore.authservice.exceptions.EmailNotUniqueException;
-import ua.edu.ukma.springers.voltstore.authservice.exceptions.ForbiddenException;
 import ua.edu.ukma.springers.voltstore.authservice.exceptions.InvalidCredentialsException;
 import ua.edu.ukma.springers.voltstore.authservice.exceptions.InvalidUserRoleException;
 
@@ -44,16 +43,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
         problem.setType(URI.create("https://voltstore.com/errors/unauthorized"));
         problem.setTitle("Unauthorized");
-        problem.setProperty("timestamp", Instant.now().toString());
-        problem.setProperty("service", "auth-service");
-        return problem;
-    }
-
-    @ExceptionHandler(ForbiddenException.class)
-    public ProblemDetail handleForbidden(ForbiddenException ex) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
-        problem.setType(URI.create("https://voltstore.com/errors/forbidden"));
-        problem.setTitle("Forbidden");
         problem.setProperty("timestamp", Instant.now().toString());
         problem.setProperty("service", "auth-service");
         return problem;

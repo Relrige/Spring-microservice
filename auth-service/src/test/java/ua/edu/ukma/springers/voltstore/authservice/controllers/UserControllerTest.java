@@ -3,9 +3,12 @@ package ua.edu.ukma.springers.voltstore.authservice.controllers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import ua.edu.ukma.springers.voltstore.authservice.support.TrustedHeaders;
+import ua.edu.ukma.springers.voltstore.authservice.security.SecurityConfig;
 import ua.edu.ukma.springers.voltstore.authservice.dto.RegisterUserResponse;
 import ua.edu.ukma.springers.voltstore.authservice.exceptions.EmailNotUniqueException;
 import ua.edu.ukma.springers.voltstore.authservice.exceptions.InvalidUserRoleException;
@@ -22,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(UserController.class)
+@Import(SecurityConfig.class)
 class UserControllerTest {
     private static final String URL = "/user/register";
 
@@ -108,41 +112,53 @@ class UserControllerTest {
         UUID id = UUID.randomUUID();
         when(userService.createNonCustomerUser(any())).thenReturn(new RegisterUserResponse(id));
 
-        mockMvc.perform(post(NON_CUSTOMER_URL).header("X-User-Role", "ADMIN")
+        mockMvc.perform(post(NON_CUSTOMER_URL).headers(TrustedHeaders.asUser("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON).content(NON_CUSTOMER_BODY))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.userId").value(id.toString()));
     }
 
     @Test
-    void createNonCustomer_withoutRoleHeader_returns403() throws Exception {
+    void createNonCustomer_withoutUserHeaders_returns401() throws Exception {
         mockMvc.perform(post(NON_CUSTOMER_URL).contentType(MediaType.APPLICATION_JSON).content(NON_CUSTOMER_BODY))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.detail").value("Authentication required"));
 
         verify(userService, never()).createNonCustomerUser(any());
     }
 
     @Test
     void createNonCustomer_asNonAdminRole_returns403() throws Exception {
-        for (String role : new String[]{"CUSTOMER", "CATALOG_MANAGER", "INVENTORY_WORKER", "garbage"}) {
-            mockMvc.perform(post(NON_CUSTOMER_URL).header("X-User-Role", role)
+        for (String role : new String[]{"CUSTOMER", "CATALOG_MANAGER", "INVENTORY_WORKER"}) {
+            mockMvc.perform(post(NON_CUSTOMER_URL).headers(TrustedHeaders.asUser(role))
                             .contentType(MediaType.APPLICATION_JSON).content(NON_CUSTOMER_BODY))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.detail").value("Access denied"));
         }
 
         verify(userService, never()).createNonCustomerUser(any());
     }
 
     @Test
+    void createNonCustomer_unknownRoleHeader_isAnonymousAndGets401() throws Exception {
+        mockMvc.perform(post(NON_CUSTOMER_URL).headers(TrustedHeaders.asUser("garbage"))
+                        .contentType(MediaType.APPLICATION_JSON).content(NON_CUSTOMER_BODY))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void createNonCustomer_nonAdminWithInvalidBody_returns403Not400() throws Exception {
-        mockMvc.perform(post(NON_CUSTOMER_URL).header("X-User-Role", "CUSTOMER")
+        // The route rule in SecurityConfig rejects the caller before the body is bound or validated
+        mockMvc.perform(post(NON_CUSTOMER_URL).headers(TrustedHeaders.asUser("CUSTOMER"))
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isForbidden());
+
+        verify(userService, never()).createNonCustomerUser(any());
     }
 
     @Test
     void createNonCustomer_missingRole_returns400WithFieldError() throws Exception {
-        mockMvc.perform(post(NON_CUSTOMER_URL).header("X-User-Role", "ADMIN")
+        mockMvc.perform(post(NON_CUSTOMER_URL).headers(TrustedHeaders.asUser("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"manager@example.com\",\"password\":\"secret1\"}"))
                 .andExpect(status().isBadRequest())
@@ -151,7 +167,7 @@ class UserControllerTest {
 
     @Test
     void createNonCustomer_unknownRole_returns400() throws Exception {
-        mockMvc.perform(post(NON_CUSTOMER_URL).header("X-User-Role", "ADMIN")
+        mockMvc.perform(post(NON_CUSTOMER_URL).headers(TrustedHeaders.asUser("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"m@example.com\",\"password\":\"secret1\",\"role\":\"SUPERUSER\"}"))
                 .andExpect(status().isBadRequest());
@@ -161,7 +177,7 @@ class UserControllerTest {
     void createNonCustomer_customerRole_returns400WithRoleError() throws Exception {
         when(userService.createNonCustomerUser(any())).thenThrow(new InvalidUserRoleException("not allowed"));
 
-        mockMvc.perform(post(NON_CUSTOMER_URL).header("X-User-Role", "ADMIN")
+        mockMvc.perform(post(NON_CUSTOMER_URL).headers(TrustedHeaders.asUser("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"c@example.com\",\"password\":\"secret1\",\"role\":\"CUSTOMER\"}"))
                 .andExpect(status().isBadRequest())
@@ -172,7 +188,7 @@ class UserControllerTest {
     void createNonCustomer_emailAlreadyInUse_returns409() throws Exception {
         when(userService.createNonCustomerUser(any())).thenThrow(new EmailNotUniqueException());
 
-        mockMvc.perform(post(NON_CUSTOMER_URL).header("X-User-Role", "ADMIN")
+        mockMvc.perform(post(NON_CUSTOMER_URL).headers(TrustedHeaders.asUser("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON).content(NON_CUSTOMER_BODY))
                 .andExpect(status().isConflict());
     }

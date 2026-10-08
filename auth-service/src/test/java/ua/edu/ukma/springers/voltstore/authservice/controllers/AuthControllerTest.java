@@ -3,9 +3,11 @@ package ua.edu.ukma.springers.voltstore.authservice.controllers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import ua.edu.ukma.springers.voltstore.authservice.security.SecurityConfig;
 import ua.edu.ukma.springers.voltstore.authservice.dto.LoginResponse;
 import ua.edu.ukma.springers.voltstore.authservice.exceptions.InvalidCredentialsException;
 import ua.edu.ukma.springers.voltstore.authservice.services.AuthService;
@@ -19,6 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AuthController.class)
+@Import(SecurityConfig.class)
 class AuthControllerTest {
     private static final String URL = "/auth/login";
 

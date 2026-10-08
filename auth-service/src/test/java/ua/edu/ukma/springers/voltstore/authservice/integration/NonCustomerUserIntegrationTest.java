@@ -12,6 +12,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
 import ua.edu.ukma.springers.voltstore.authservice.TestcontainersConfiguration;
+import ua.edu.ukma.springers.voltstore.authservice.support.TrustedHeaders;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -39,7 +40,7 @@ class NonCustomerUserIntegrationTest {
 
     @Test
     void adminCreatesStaffUser_whoCanThenLoginWithTheirRole() throws Exception {
-        mockMvc.perform(post(URL).header("X-User-Role", "ADMIN").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post(URL).headers(TrustedHeaders.asUser("ADMIN")).contentType(MediaType.APPLICATION_JSON)
                         .content(json("worker@example.com", "secret1", "INVENTORY_WORKER")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.userId").isNotEmpty());
@@ -56,7 +57,7 @@ class NonCustomerUserIntegrationTest {
 
     @Test
     void adminCanCreateAnotherAdmin() throws Exception {
-        mockMvc.perform(post(URL).header("X-User-Role", "ADMIN").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post(URL).headers(TrustedHeaders.asUser("ADMIN")).contentType(MediaType.APPLICATION_JSON)
                         .content(json("admin2@example.com", "secret1", "ADMIN")))
                 .andExpect(status().isCreated());
 
@@ -65,7 +66,7 @@ class NonCustomerUserIntegrationTest {
 
     @Test
     void customerRoleCannotBeCreated_andNothingIsPersisted() throws Exception {
-        mockMvc.perform(post(URL).header("X-User-Role", "ADMIN").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post(URL).headers(TrustedHeaders.asUser("ADMIN")).contentType(MediaType.APPLICATION_JSON)
                         .content(json("c@example.com", "secret1", "CUSTOMER")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.role").isNotEmpty());
@@ -74,11 +75,11 @@ class NonCustomerUserIntegrationTest {
     }
 
     @Test
-    void nonAdminCallers_getForbidden_andNothingIsPersisted() throws Exception {
+    void unauthorizedCallers_areRejected_andNothingIsPersisted() throws Exception {
         mockMvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON)
                         .content(json("a@example.com", "secret1", "CATALOG_MANAGER")))
-                .andExpect(status().isForbidden());
-        mockMvc.perform(post(URL).header("X-User-Role", "CATALOG_MANAGER").contentType(MediaType.APPLICATION_JSON)
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post(URL).headers(TrustedHeaders.asUser("CATALOG_MANAGER")).contentType(MediaType.APPLICATION_JSON)
                         .content(json("b@example.com", "secret1", "CATALOG_MANAGER")))
                 .andExpect(status().isForbidden());
 
@@ -87,11 +88,11 @@ class NonCustomerUserIntegrationTest {
 
     @Test
     void duplicateEmail_returns409() throws Exception {
-        mockMvc.perform(post(URL).header("X-User-Role", "ADMIN").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post(URL).headers(TrustedHeaders.asUser("ADMIN")).contentType(MediaType.APPLICATION_JSON)
                         .content(json("dup@example.com", "secret1", "CATALOG_MANAGER")))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(post(URL).header("X-User-Role", "ADMIN").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post(URL).headers(TrustedHeaders.asUser("ADMIN")).contentType(MediaType.APPLICATION_JSON)
                         .content(json("DUP@example.com", "secret1", "INVENTORY_WORKER")))
                 .andExpect(status().isConflict());
     }

@@ -22,7 +22,7 @@ public class UserController {
         return response;
     }
 
-    // Admin-only: access is enforced by AdminOnlyInterceptor before the request body is even validated
+    // Only an administrator may call this; the rule lives in SecurityConfig (route-level role rule)
     @PostMapping("/non-customer")
     @ResponseStatus(code = HttpStatus.CREATED)
     public RegisterUserResponse createNonCustomerUser(@RequestBody @Valid CreateNonCustomerUserRequest request) {
