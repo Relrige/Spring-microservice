@@ -6,11 +6,13 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import ua.edu.ukma.springers.voltstore.authservice.dto.CreateNonCustomerUserRequest;
 import ua.edu.ukma.springers.voltstore.authservice.dto.RegisterUserRequest;
 import ua.edu.ukma.springers.voltstore.authservice.dto.RegisterUserResponse;
 import ua.edu.ukma.springers.voltstore.authservice.entities.UserEntity;
 import ua.edu.ukma.springers.voltstore.authservice.entities.UserRole;
 import ua.edu.ukma.springers.voltstore.authservice.exceptions.EmailNotUniqueException;
+import ua.edu.ukma.springers.voltstore.authservice.exceptions.InvalidUserRoleException;
 import ua.edu.ukma.springers.voltstore.authservice.repositories.UserRepository;
 import ua.edu.ukma.springers.voltstore.authservice.utils.EmailNormalizer;
 
@@ -25,16 +27,30 @@ public class UserService {
 
     @Transactional
     public RegisterUserResponse registerUser(RegisterUserRequest request) {
+        return createUser(request.getEmail(), request.getPassword(), UserRole.CUSTOMER);
+    }
+
+    @Transactional
+    public RegisterUserResponse createNonCustomerUser(CreateNonCustomerUserRequest request) {
+        // Customers must go through public registration; this path is for staff accounts only
+        if (request.getRole() == UserRole.CUSTOMER) {
+            throw new InvalidUserRoleException("Role CUSTOMER cannot be assigned here; customers register themselves");
+        }
+        return createUser(request.getEmail(), request.getPassword(), request.getRole());
+    }
+
+    @Transactional
+    public RegisterUserResponse createUser(String rawEmail, String rawPassword, UserRole role) {
         // Emails are case-insensitive: normalize once so "A@x.com" and "a@x.com" are the same account
-        String email = EmailNormalizer.normalize(request.getEmail());
+        String email = EmailNormalizer.normalize(rawEmail);
         validateEmail(email);
 
-        String passwordHash = passwordEncoder.encode(request.getPassword());
+        String passwordHash = passwordEncoder.encode(rawPassword);
 
         UserEntity entity = UserEntity.builder()
                 .email(email)
                 .passwordHash(passwordHash)
-                .role(UserRole.CUSTOMER)
+                .role(role)
                 .build();
 
         try {

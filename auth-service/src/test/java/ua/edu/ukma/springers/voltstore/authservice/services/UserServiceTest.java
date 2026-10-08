@@ -9,11 +9,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import ua.edu.ukma.springers.voltstore.authservice.dto.CreateNonCustomerUserRequest;
 import ua.edu.ukma.springers.voltstore.authservice.dto.RegisterUserRequest;
 import ua.edu.ukma.springers.voltstore.authservice.dto.RegisterUserResponse;
 import ua.edu.ukma.springers.voltstore.authservice.entities.UserEntity;
 import ua.edu.ukma.springers.voltstore.authservice.entities.UserRole;
 import ua.edu.ukma.springers.voltstore.authservice.exceptions.EmailNotUniqueException;
+import ua.edu.ukma.springers.voltstore.authservice.exceptions.InvalidUserRoleException;
 import ua.edu.ukma.springers.voltstore.authservice.repositories.UserRepository;
 
 import java.sql.SQLException;
@@ -99,6 +101,42 @@ class UserServiceTest {
 
         assertThatThrownBy(() -> userService.registerUser(request("alice@example.com", "secret")))
                 .isSameAs(other);
+    }
+
+    @Test
+    void createNonCustomerUser_savesRequestedRole() {
+        when(passwordEncoder.encode("secret")).thenReturn("hashed-secret");
+
+        userService.createNonCustomerUser(nonCustomerRequest("manager@example.com", UserRole.CATALOG_MANAGER));
+
+        ArgumentCaptor<UserEntity> saved = ArgumentCaptor.forClass(UserEntity.class);
+        verify(userRepo).saveAndFlush(saved.capture());
+        assertThat(saved.getValue().getRole()).isEqualTo(UserRole.CATALOG_MANAGER);
+        assertThat(saved.getValue().getPasswordHash()).isEqualTo("hashed-secret");
+    }
+
+    @Test
+    void createNonCustomerUser_customerRole_isRejectedAndNothingSaved() {
+        assertThatThrownBy(() -> userService.createNonCustomerUser(nonCustomerRequest("c@example.com", UserRole.CUSTOMER)))
+                .isInstanceOf(InvalidUserRoleException.class);
+
+        verify(userRepo, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void createNonCustomerUser_existingEmail_throwsEmailNotUnique() {
+        when(userRepo.existsByEmail("manager@example.com")).thenReturn(true);
+
+        assertThatThrownBy(() -> userService.createNonCustomerUser(nonCustomerRequest("manager@example.com", UserRole.ADMIN)))
+                .isInstanceOf(EmailNotUniqueException.class);
+    }
+
+    private static CreateNonCustomerUserRequest nonCustomerRequest(String email, UserRole role) {
+        CreateNonCustomerUserRequest request = new CreateNonCustomerUserRequest();
+        request.setEmail(email);
+        request.setPassword("secret");
+        request.setRole(role);
+        return request;
     }
 
     private static DataIntegrityViolationException constraintViolation(String constraintName) {
