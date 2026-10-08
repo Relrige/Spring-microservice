@@ -9,7 +9,7 @@ Unauthenticated customers need to create an account. Registration always creates
 *References:* [Auth Service Spec — EP-AUTH-01](../../design/services-specs/auth-service-spec.md), [Customer Scenarios (SCN-C01, SCN-C02)](../../design/scenarios/customer-scenarios.md)
 
 ## Acceptance Criteria
-- [x] `POST /auth/register` accepts `{ email, password }` and returns `201 Created { userId }`.
+- [x] `POST /user/register` accepts `{ email, password }` and returns `201 Created { userId }`.
 - [x] Request DTO is validated with Bean Validation: `email` non-empty and well-formed; `password` meets strength rules.
 - [x] Invalid input returns `400 Bad Request` with field-level error messages.
 - [x] Already registered email returns `409 Conflict` ("Email already in use").

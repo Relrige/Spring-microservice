@@ -7,7 +7,7 @@
 
 ## SCN-C01: Customer Registration — Happy Path
 
-1. Customer sends `POST /auth/register` with `{email, password}`.
+1. Customer sends `POST /user/register` with `{email, password}`.
 2. Auth Service validates: email format correct, email not already registered, password meets strength rules.
 3. Auth Service creates `User(id=UUID, email, hashedPassword, role=CUSTOMER)`.
 4. Auth Service returns `201 Created` with `{userId}`.
@@ -18,7 +18,7 @@
 
 ## SCN-C02: Customer Registration — Validation Failure
 
-1. Customer sends `POST /auth/register` with `{email, password}`.
+1. Customer sends `POST /user/register` with `{email, password}`.
 2. Auth Service validates → finds invalid email format, duplicate email, or weak password.
 3. Auth Service returns `400 Bad Request` with a specific error message.
 

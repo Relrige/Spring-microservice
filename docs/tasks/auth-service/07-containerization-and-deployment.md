@@ -17,6 +17,6 @@ Like the other services, Auth Service must run in the Kubernetes setup alongside
 
 ## Technical Notes / Constraints
 - Ingress routing for auth is intentionally not added yet; it will be handled together with the API Gateway.
-- The gateway contract document (public routes, token validation key) is still to be written after the remaining auth-service work.
+- The gateway contract (public routes, token validation key, trust boundary) is documented in the [API Gateway Spec](../../design/services-specs/api-gateway-spec.md) and the [Auth Service Spec](../../design/services-specs/auth-service-spec.md).
 - Inspect the existing Kubernetes folder before writing manifests and reuse its naming, labels, and structure.
 - The gateway itself is outside this service's scope; this task only documents and prepares the contract Auth Service provides to it.

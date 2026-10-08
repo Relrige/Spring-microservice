@@ -14,7 +14,7 @@ Decisions already made:
 - Internal calls are authenticated with a shared internal token (`X-Internal-Token`), checked by a filter on the receiver and added by an interceptor on the sender (see the order-service follow-up task).
 - Role names are the full names: `CUSTOMER`, `CATALOG_MANAGER`, `INVENTORY_WORKER`, `ADMIN`.
 
-*References:* [Bootstrap Staff and Admin Accounts](06-privileged-user-bootstrap.md), [API Gateway draft](../../design/services-requirements/api-getaway-draft.md), [API Contracts](../../design/services-requirements/api-contracts.md), [Order Service follow-up](../order-service/internal-token-sender-and-security.md)
+*References:* [Bootstrap Staff and Admin Accounts](06-privileged-user-bootstrap.md), [API Gateway Spec](../../design/services-specs/api-gateway-spec.md), [API Contracts](../../design/services-requirements/api-contracts.md), [Order Service follow-up](../order-service/internal-token-sender-and-security.md)
 
 ## Acceptance Criteria
 - [x] Re-add `spring-boot-starter-security` and `spring-boot-starter-security-test`.
