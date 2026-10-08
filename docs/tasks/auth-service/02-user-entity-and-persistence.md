@@ -1,5 +1,5 @@
 ---
-status: TODO
+status: DONE
 service: auth-service
 ---
 # User Entity, Role Enum, Repository and Migration
@@ -9,11 +9,11 @@ The service owns exactly one entity: `User` (`id`, `email`, `passwordHash`, `rol
 *References:* [Auth Service Spec — Service Overview](../../design/services-specs/auth-service-spec.md)
 
 ## Acceptance Criteria
-- [ ] Create `Role` enum with `CUSTOMER`, `CATALOG_MANAGER`, `INVENTORY_WORKER`, `ADMIN`.
-- [ ] Create `User` JPA entity with `id` (UUID), `email`, `passwordHash`, `role` (stored as string), `createdAt`.
-- [ ] Create Flyway migration `V1__create_users_table.sql` with a primary key and a **unique constraint on `email`**.
-- [ ] Create `UserRepository` with `findByEmail` and `existsByEmail`.
-- [ ] Repository test (against a real PostgreSQL, e.g., Testcontainers) verifies persistence, lookup by email, and that a duplicate email violates the unique constraint.
+- [x] Create `Role` enum with `CUSTOMER`, `CATALOG_MANAGER`, `INVENTORY_WORKER`.
+- [x] Create `User` JPA entity with `id` (UUID), `email`, `passwordHash`, `role` (stored as string), `createdAt`.
+- [x] Create Flyway migration `V1__create_users_table.sql` with a primary key and a **unique constraint on `email`**.
+- [x] Create `UserRepository` with `findByEmail` and `existsByEmail`.
+- [x] Repository test (against a real PostgreSQL, e.g., Testcontainers) verifies persistence, lookup by email, and that a duplicate email violates the unique constraint.
 
 ## Technical Notes / Constraints
 - Use `@Enumerated(EnumType.STRING)`, never ordinal, for `role`.
