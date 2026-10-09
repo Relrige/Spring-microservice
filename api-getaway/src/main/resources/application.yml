@@ -36,11 +36,6 @@ spring:
                 authMode: REQUIRED
                 roles: ADMIN
 
-gateway:
-  # Upstream base URLs; each is overridable by the environment variable shown.
-  upstreams:
-    auth: ${AUTH_SERVICE_URL:http://auth-service:8086}
-
 auth:
   jwt:
     leeway: 30s
