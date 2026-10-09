@@ -12,7 +12,7 @@ It serves both the **Inventory Worker** (human-facing endpoints) and other **int
 |---|---|
 | **Owned entities** | `StockItem` (`productId`, `availableQuantity`, `reservedQuantity`, `grossWeightGrams`, `lengthCm`, `widthCm`, `heightCm`); `StockItemReservation` (`id`, `orderId`, `productId`, `quantity`, `status`) |
 | **Key enums** | `ReservationStatus { ACTIVE, RELEASED, CONSUMED }` |
-| **Events emitted** | `ProductStockReplenished`, `ProductStockDepleted` |
+| **Events emitted** | `ProductStockReplenished`, `ProductStockDepleted` (both carry a mandatory `eventId` UUID, in addition to `productId` and `timestamp`, and are keyed by `productId` on one shared topic to preserve per-product order) |
 | **Events consumed** | `ProductCreated` (from Catalog Service), `OrderShipped` (from Order Service) |
 
 ---
@@ -47,8 +47,8 @@ It serves both the **Inventory Worker** (human-facing endpoints) and other **int
 1. Validate request body: `delta` must be a non-zero integer (positive for restocking, negative for write-off / correction). A reason string is recommended but TBD.
 2. Check if a `StockItem` exists for `productId`.
    - **If exists**: proceed to step 3.
-   - **If not exists**: call Catalog Service synchronously: `GET /catalog/products/{productId}`.
-     - Product not found in Catalog → `404 Not Found`. Do not create a `StockItem` for a non-existent product.
+   - **If not exists**: call Catalog Service synchronously: `GET /catalog/products/batch-get?ids={productId}` (internal endpoint; returns the product in any status, including `NOT_ACTIVE`).
+     - Product not found in Catalog (empty `batch-get` result) → `404 Not Found`. Do not create a `StockItem` for a non-existent product.
      - Product found → idempotently create `StockItem(productId, availableQuantity=0, reservedQuantity=0, packaging=null)` and proceed.
 3. Validate that `availableQuantity + delta >= 0`. Cannot reduce available stock below zero.
 4. Apply `availableQuantity += delta`.
@@ -57,7 +57,9 @@ It serves both the **Inventory Worker** (human-facing endpoints) and other **int
    - If `availableQuantity` just crossed **from > 0 to 0** → publish `ProductStockDepleted { productId, timestamp }`.
 6. Return `200 OK { newAvailableQuantity }`.
 
-> Restocking is permitted even for `NOT_ACTIVE` products — warehouse inventory can be prepared before a product goes live.
+> Restocking is permitted even for `NOT_ACTIVE` products — warehouse inventory can be prepared before a product goes live. This is why the existence check uses Catalog's internal `batch-get` endpoint: the public `GET /catalog/products/{id}` hides `NOT_ACTIVE` products (EP-CAT-05), and every new product starts `NOT_ACTIVE`.
+>
+> Inventory does not know a product's Catalog status, so stock events are emitted for every product on a threshold crossing, regardless of status.
 
 **Edge cases:**
 - `delta` == 0 → `400 Bad Request` ("Delta must be non-zero")
@@ -65,7 +67,7 @@ It serves both the **Inventory Worker** (human-facing endpoints) and other **int
 - `productId` not found in Catalog → `404 Not Found`
 
 **External calls:**
-- Catalog Service: `GET /catalog/products/{productId}` — purpose: verify product existence when `StockItem` is absent — **sync** (only if `StockItem` does not already exist)
+- Catalog Service: `GET /catalog/products/batch-get?ids={productId}` — purpose: verify product existence when `StockItem` is absent — **sync** (only if `StockItem` does not already exist)
 
 **Emits:**
 - `ProductStockReplenished { productId, timestamp }` → consumed by Catalog Service (EP-CAT-EVT-01), when product crosses 0→>0
@@ -85,8 +87,8 @@ It serves both the **Inventory Worker** (human-facing endpoints) and other **int
 1. Validate request body: `grossWeightGrams`, `lengthCm`, `widthCm`, `heightCm` — all must be positive integers.
 2. Check if a `StockItem` exists for `productId`.
    - **If exists**: proceed to step 3.
-   - **If not exists**: call Catalog Service synchronously: `GET /catalog/products/{productId}`.
-     - Product not found → `404 Not Found`.
+   - **If not exists**: call Catalog Service synchronously: `GET /catalog/products/batch-get?ids={productId}` (internal endpoint; returns the product in any status, including `NOT_ACTIVE`).
+     - Product not found in Catalog (empty `batch-get` result) → `404 Not Found`.
      - Product found → idempotently create `StockItem(productId, availableQuantity=0, reservedQuantity=0, packaging=null)` and proceed.
 3. Update `StockItem` with the provided packaging values.
 4. Return `200 OK`.
@@ -98,7 +100,7 @@ It serves both the **Inventory Worker** (human-facing endpoints) and other **int
 - `productId` not found in Catalog → `404 Not Found`
 
 **External calls:**
-- Catalog Service: `GET /catalog/products/{productId}` — purpose: verify product existence when `StockItem` is absent — **sync** (only if `StockItem` does not already exist)
+- Catalog Service: `GET /catalog/products/batch-get?ids={productId}` — purpose: verify product existence when `StockItem` is absent — **sync** (only if `StockItem` does not already exist)
 
 **Emits:** none
 **Refs:** US-INV-02, SCN-INV02, N-03
@@ -160,9 +162,11 @@ It serves both the **Inventory Worker** (human-facing endpoints) and other **int
    a. For each item, check `StockItem.availableQuantity >= requestedQuantity`. If any item fails → abort the whole transaction.
    b. For each item, decrement `availableQuantity` by `quantity` and increment `reservedQuantity` by `quantity`.
    c. Create `StockItemReservation(id=UUID, orderId, productId, quantity, status=ACTIVE)` for each item.
-3. Check stock threshold crossings for each updated `StockItem` (only for `ACTIVE` products):
+3. Check stock threshold crossings for each updated `StockItem`:
    - If `availableQuantity` crosses from `> 0` to `0` → publish `ProductStockDepleted { productId }`.
-4. Return `200 OK { reservationId, expiresAt }`. `expiresAt` is `now() + 15 minutes` (TTL defined by Order Service — passed in the request or computed here, TBD).
+4. Return `200 OK` with no response fields.
+
+> A reservation has no expiry here. The payment-window TTL (`reservationExpiresAt`) is owned by Order Service, which releases the reservation through EP-INV-07 when the window elapses. An order has one or more `StockItemReservation` records (one per product line), so there is no single `reservationId`; Order Service finds them by `orderId`.
 
 > Atomicity is critical. If stock is insufficient for even one item, no stock must be locked for any item in the batch.
 
@@ -174,7 +178,7 @@ It serves both the **Inventory Worker** (human-facing endpoints) and other **int
 **External calls:** none
 
 **Emits:**
-- `ProductStockDepleted { productId, timestamp }` → when any item's `availableQuantity` crosses >0→0 on an `ACTIVE` product
+- `ProductStockDepleted { productId, timestamp }` → when any item's `availableQuantity` crosses >0→0
 
 **Refs:** SCN-C14 (step 3), SCN-C15, N-06
 
@@ -192,7 +196,7 @@ It serves both the **Inventory Worker** (human-facing endpoints) and other **int
 3. **Atomically** — in a single database transaction:
    a. For each reservation, increment `StockItem.availableQuantity` by `quantity` and decrement `reservedQuantity` by `quantity`.
    b. Update each `StockItemReservation.status = RELEASED`.
-4. Check stock threshold crossings for each updated `StockItem` (only for `ACTIVE` products):
+4. Check stock threshold crossings for each updated `StockItem`:
    - If `availableQuantity` crosses from `0` to `> 0` → publish `ProductStockReplenished { productId }`.
 5. Return `200 OK`.
 
@@ -203,7 +207,7 @@ It serves both the **Inventory Worker** (human-facing endpoints) and other **int
 **External calls:** none
 
 **Emits:**
-- `ProductStockReplenished { productId, timestamp }` → when any item's `availableQuantity` crosses 0→>0 on an `ACTIVE` product
+- `ProductStockReplenished { productId, timestamp }` → when any item's `availableQuantity` crosses 0→>0
 
 **Refs:** SCN-S06 (step 3), SCN-S07 (step 1)
 

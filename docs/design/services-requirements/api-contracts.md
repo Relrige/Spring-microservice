@@ -41,7 +41,8 @@
 | `POST` | `/catalog/categories` | `CATALOG_MANAGER`| Create category. <br> **Req:** `{name}` <br> **Res:** `201 Created {categoryId}` |
 | `PUT` | `/catalog/categories/{id}`| `CATALOG_MANAGER`| Rename category. <br> **Req:** `{name}` <br> **Res:** `200 OK` |
 | `DELETE`|`/catalog/categories/{id}`| `CATALOG_MANAGER`| Delete category. <br> **Res:** `200 OK` or `409 Conflict` (if products attached) |
-| `GET` | `/catalog/products/batch-get`| Internal | Fetch current prices for Order Service snapshotting. <br> **Query:** `?ids=uuid1,uuid2` <br> **Res:** `200 OK [{productId, price}]` |
+| `GET` | `/catalog/categories` | None | List categories (paginated, search by name). <br> **Query:** `search, page, size` <br> **Res:** `200 OK {content: [{categoryId, name}], page, totalElements}` |
+| `GET` | `/catalog/products/batch-get`| Internal | Fetch current product data for Order Service snapshotting and for Inventory's existence check. Returns products in any status; unknown IDs are simply absent. <br> **Query:** `?ids=uuid1,uuid2` <br> **Res:** `200 OK [{productId, title, basePrice, status}]` or `400` (empty/malformed `ids`) |
 
 ---
 
@@ -50,8 +51,8 @@
 | Method | Path | Auth Role | Description |
 |--------|------|-----------|-------------|
 | `GET` | `/inventory/stock/{id}/readiness`| Internal | (Used by Catalog sync) Check if packaging is configured. <br> **Res:** `200 OK` or `422 Unprocessable {reason}` |
-| `GET` | `/inventory/stock/{id}/packaging`| Internal | (Used by Delivery sync) Get physical dimensions. <br> **Res:** `200 OK {totalWeightGrams, lengthCm, ...}` |
-| `POST` | `/inventory/reservations` | Internal | (Used by Order sync) Hard reserve stock. <br> **Req:** `{orderId, items: [{productId, quantity}]}` <br> **Res:** `200 OK` or `422` (Insufficient stock) |
+| `GET` | `/inventory/stock/{id}/packaging`| Internal | (Used by Delivery sync) Get physical dimensions. <br> **Res:** `200 OK {grossWeightGrams, lengthCm, widthCm, heightCm}` or `404` (no stock item) or `422 {reason}` (packaging not configured) |
+| `POST` | `/inventory/reservations` | Internal | (Used by Order sync) Hard reserve stock. <br> **Req:** `{orderId, items: [{productId, quantity}]}` <br> **Res:** `200 OK` (no body fields; Order Service owns the reservation TTL and finds reservations by `orderId`) or `409` (order already has active reservations) or `422 {insufficientItems: [{productId, requested, available}]}` |
 | `POST` | `/inventory/reservations/{orderId}/release`| Internal| (Used by Order Saga/TTL) Release reservations. <br> **Res:** `200 OK` |
 | `GET` | `/inventory/stock` | `INVENTORY_WORKER`| View stock balances. <br> **Res:** `200 OK [{productId, availableQuantity, ...}]` |
 | `POST` | `/inventory/stock/{id}/adjust`| `INVENTORY_WORKER`| Update stock (+/- delta). <br> **Req:** `{delta}` <br> **Res:** `200 OK {newAvailableQuantity}` |

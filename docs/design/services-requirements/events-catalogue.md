@@ -8,6 +8,8 @@
 
 ## 1. Catalog & Inventory Synchronization
 
+> **Conventions for this section:** every event carries a mandatory `eventId` (UUID, unique per event) so consumers can deduplicate at-least-once deliveries. The Kafka message key is `productId`; `ProductStockReplenished` and `ProductStockDepleted` share one topic so that events of one product keep their order. Consumers ignore unknown payload fields.
+
 ### `ProductCreated`
 - **Producer:** Catalog Service
 - **Consumers:** Inventory Service
@@ -15,6 +17,7 @@
 - **Payload:**
   ```json
   {
+    "eventId": "uuid",
     "productId": "uuid",
     "timestamp": "2023-10-01T12:00:00Z"
   }
@@ -23,10 +26,11 @@
 ### `ProductStockReplenished`
 - **Producer:** Inventory Service
 - **Consumers:** Catalog Service
-- **Trigger:** `availableQuantity` for an `ACTIVE` product transitions from `0` to `> 0`.
+- **Trigger:** `availableQuantity` of a product transitions from `0` to `> 0` (any product, regardless of its Catalog status).
 - **Payload:**
   ```json
   {
+    "eventId": "uuid",
     "productId": "uuid",
     "timestamp": "2023-10-01T12:00:00Z"
   }
@@ -35,10 +39,11 @@
 ### `ProductStockDepleted`
 - **Producer:** Inventory Service
 - **Consumers:** Catalog Service
-- **Trigger:** `availableQuantity` for an `ACTIVE` product transitions from `> 0` to `0`.
+- **Trigger:** `availableQuantity` of a product transitions from `> 0` to `0` (any product, regardless of its Catalog status).
 - **Payload:**
   ```json
   {
+    "eventId": "uuid",
     "productId": "uuid",
     "timestamp": "2023-10-01T12:00:00Z"
   }
