@@ -2,3 +2,5 @@
 .idea
 **/secret.yaml
 *.zip
+target/
+HELP.md
