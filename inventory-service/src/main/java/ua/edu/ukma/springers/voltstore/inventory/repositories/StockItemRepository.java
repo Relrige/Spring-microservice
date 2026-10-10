@@ -4,6 +4,7 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -15,7 +16,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface StockItemRepository extends JpaRepository<StockItemEntity, UUID> {
+public interface StockItemRepository extends JpaRepository<StockItemEntity, UUID>, JpaSpecificationExecutor<StockItemEntity> {
     // For order's products reservation.
     // Locking by SELECT FOR UPDATE to prevent concurrent requests trying to reserve the same product.
     // E.g., availableQuantity = 5, both requests need 5 items, so only one should succeed.

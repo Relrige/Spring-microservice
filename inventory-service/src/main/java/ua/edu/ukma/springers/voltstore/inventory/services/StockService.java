@@ -1,6 +1,9 @@
 package ua.edu.ukma.springers.voltstore.inventory.services;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
@@ -8,6 +11,7 @@ import ua.edu.ukma.springers.voltstore.inventory.events.StockEventPublisher;
 import ua.edu.ukma.springers.voltstore.inventory.events.StockEvents;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.InsufficientStockException;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemRepository;
+import ua.edu.ukma.springers.voltstore.inventory.specifications.StockItemSpecifications;
 
 import java.util.UUID;
 
@@ -16,6 +20,19 @@ import java.util.UUID;
 public class StockService {
     private final StockItemRepository stockItemRepository;
     private final StockEventPublisher stockEventPublisher;
+
+    /**
+     * Lists stock items one page at a time. Filters are optional ({@code null} means "do not filter") and combine
+     * with AND; ordering comes from the pageable.
+     */
+    @Transactional(readOnly = true)
+    public Page<StockItemEntity> listStock(Boolean packagingConfigured, Pageable pageable) {
+        Specification<StockItemEntity> spec = Specification.unrestricted();
+        if (packagingConfigured != null) {
+            spec = spec.and(StockItemSpecifications.packagingConfigured(packagingConfigured));
+        }
+        return stockItemRepository.findAll(spec, pageable);
+    }
 
     /**
      * Applies a signed delta to the available quantity and returns the new quantity.

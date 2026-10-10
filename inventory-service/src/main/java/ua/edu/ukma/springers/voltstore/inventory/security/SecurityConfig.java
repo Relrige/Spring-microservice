@@ -46,6 +46,8 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health/**").permitAll()
                         // Role rules per route: callers without the role are rejected here, before the controller
                         // is reached and before the request body is parsed or validated
+                        .requestMatchers(HttpMethod.GET, "/inventory/stock")
+                                .hasRole(UserRole.INVENTORY_WORKER.name())
                         .requestMatchers(HttpMethod.POST, "/inventory/stock/{productId}/adjust")
                                 .hasRole(UserRole.INVENTORY_WORKER.name())
                         // Fail closed: a route nobody wrote a rule for is unreachable until a rule is added

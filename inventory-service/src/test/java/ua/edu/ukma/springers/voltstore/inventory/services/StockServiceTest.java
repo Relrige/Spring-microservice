@@ -2,10 +2,17 @@ package ua.edu.ukma.springers.voltstore.inventory.services;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
 import ua.edu.ukma.springers.voltstore.inventory.events.ProductStockDepletedEvent;
 import ua.edu.ukma.springers.voltstore.inventory.events.ProductStockReplenishedEvent;
@@ -14,6 +21,7 @@ import ua.edu.ukma.springers.voltstore.inventory.events.StockEventPublisher;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.InsufficientStockException;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemRepository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,6 +45,28 @@ class StockServiceTest {
 
     @InjectMocks
     private StockService stockService;
+
+    @Test
+    void listStock_noFilter_passesPageableAndReturnsPage() {
+        Pageable pageable = PageRequest.of(1, 5);
+        Page<StockItemEntity> expected = new PageImpl<>(List.of(stockItem(1)), pageable, 6);
+        when(stockItemRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(expected);
+
+        Page<StockItemEntity> result = stockService.listStock(null, pageable);
+
+        assertThat(result).isSameAs(expected);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void listStock_withPackagingFilter_queriesRepositoryWithSpecification(boolean configured) {
+        Pageable pageable = PageRequest.of(0, 20);
+        when(stockItemRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(Page.empty(pageable));
+
+        stockService.listStock(configured, pageable);
+
+        verify(stockItemRepository).findAll(any(Specification.class), eq(pageable));
+    }
 
     @Test
     void adjustStock_restock_increasesAvailableQuantity() {

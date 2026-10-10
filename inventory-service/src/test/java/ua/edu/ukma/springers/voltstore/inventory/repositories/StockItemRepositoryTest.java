@@ -8,11 +8,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import ua.edu.ukma.springers.voltstore.inventory.PostgresTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
+import ua.edu.ukma.springers.voltstore.inventory.specifications.StockItemSpecifications;
 
 import java.util.List;
 import java.util.Optional;
@@ -143,6 +146,55 @@ class StockItemRepositoryTest {
         List<StockItemEntity> found = repository.findAllByIdsForUpdate(List.of(c, a, b));
 
         assertThat(found).extracting(StockItemEntity::getProductId).containsExactly(a, b, c);
+    }
+
+    @Test
+    void packagingConfiguredSpecification_matchesJavaDerivationForEveryNullCombination() {
+        // The CHECK constraints forbid zero/negative values, so a "missing" dimension is NULL in the database.
+        // All 16 combinations of present/missing are stored and each side of the filter must agree with the entity.
+        Integer[] values = {null, 1};
+        for (Integer weight : values) {
+            for (Integer length : values) {
+                for (Integer width : values) {
+                    for (Integer height : values) {
+                        repository.saveAndFlush(StockItemEntity.builder().productId(UUID.randomUUID())
+                                .grossWeightGrams(weight).lengthCm(length).widthCm(width).heightCm(height).build());
+                    }
+                }
+            }
+        }
+        List<StockItemEntity> all = repository.findAll();
+        assertThat(all).hasSize(16);
+
+        List<StockItemEntity> configured = repository.findAll(StockItemSpecifications.packagingConfigured(true));
+        List<StockItemEntity> notConfigured = repository.findAll(StockItemSpecifications.packagingConfigured(false));
+
+        assertThat(configured).hasSize(1).allMatch(StockItemEntity::isPackagingConfigured);
+        assertThat(notConfigured).hasSize(15).noneMatch(StockItemEntity::isPackagingConfigured);
+    }
+
+    @Test
+    void findAll_withSpecificationAndPageable_pagesFilteredItemsInStableOrder() {
+        UUID a = UUID.fromString("00000000-0000-0000-0000-00000000000a");
+        UUID b = UUID.fromString("00000000-0000-0000-0000-00000000000b");
+        UUID c = UUID.fromString("00000000-0000-0000-0000-00000000000c");
+        UUID d = UUID.fromString("00000000-0000-0000-0000-00000000000d");
+        for (UUID id : List.of(d, b, c, a)) {
+            // a and b carry the same quantity: the productId tiebreaker must order them
+            repository.saveAndFlush(StockItemEntity.builder().productId(id)
+                    .availableQuantity(id.equals(d) ? 9 : 4).build());
+        }
+        Sort sort = Sort.by(Sort.Order.desc("availableQuantity"), Sort.Order.asc("productId"));
+
+        var firstPage = repository.findAll(StockItemSpecifications.packagingConfigured(false), PageRequest.of(0, 3, sort));
+        var secondPage = repository.findAll(StockItemSpecifications.packagingConfigured(false), PageRequest.of(1, 3, sort));
+        var configuredOnly = repository.findAll(StockItemSpecifications.packagingConfigured(true), PageRequest.of(0, 3, sort));
+
+        assertThat(firstPage.getContent()).extracting(StockItemEntity::getProductId).containsExactly(d, a, b);
+        assertThat(secondPage.getContent()).extracting(StockItemEntity::getProductId).containsExactly(c);
+        assertThat(firstPage.getTotalElements()).isEqualTo(4);
+        assertThat(configuredOnly.getContent()).isEmpty();
+        assertThat(configuredOnly.getTotalElements()).isZero();
     }
 
     private void assertPackagingRejected(StockItemEntity.StockItemEntityBuilder builder) {

@@ -18,6 +18,7 @@ import ua.edu.ukma.springers.voltstore.inventory.exceptions.InsufficientStockFor
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.PackagingNotConfiguredException;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.ReservationAlreadyExistsException;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.StockItemNotFoundException;
+import ua.edu.ukma.springers.voltstore.inventory.paging.InvalidQueryParameterException;
 
 import java.net.URI;
 import java.time.Instant;
@@ -60,6 +61,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problem = problem(HttpStatus.UNPROCESSABLE_ENTITY, "packaging-not-configured",
                 "Packaging not configured", ex.getMessage());
         problem.setProperty("reason", "packaging_data_missing");
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidQueryParameterException.class)
+    public ProblemDetail handleInvalidQueryParameter(InvalidQueryParameterException ex) {
+        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "validation", "Validation failed", ex.getMessage());
+        problem.setProperty("errors", Map.of(ex.getParameter(), List.of(ex.getMessage())));
         return problem;
     }
 
