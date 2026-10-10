@@ -3,6 +3,7 @@ package ua.edu.ukma.springers.voltstore.inventory.repositories;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -31,4 +32,12 @@ public interface StockItemRepository extends JpaRepository<StockItemEntity, UUID
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from StockItemEntity s where s.productId = :id")
     Optional<StockItemEntity> findByIdForUpdate(@Param("id") UUID id);
+
+    // Idempotent create with column defaults (zero quantities, no packaging).
+    // Unlike save(), concurrent first-time callers do not fail with a duplicate key:
+    // the second insert waits for the first transaction and then does nothing.
+    @Modifying
+    @Query(value = "INSERT INTO stock_items (product_id) VALUES (:id) ON CONFLICT (product_id) DO NOTHING",
+            nativeQuery = true)
+    int insertIfAbsent(@Param("id") UUID id);
 }
