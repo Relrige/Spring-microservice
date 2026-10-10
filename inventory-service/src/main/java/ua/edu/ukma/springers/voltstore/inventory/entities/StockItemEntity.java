@@ -32,4 +32,15 @@ public class StockItemEntity {
     private Integer widthCm;
 
     private Integer heightCm;
+
+    public boolean isPackagingConfigured() {
+        return grossWeightGrams != null && grossWeightGrams > 0
+                && lengthCm != null && lengthCm > 0
+                && widthCm != null && widthCm > 0
+                && heightCm != null && heightCm > 0;
+    }
+
+    public Integer getTotalQuantity() {
+        return availableQuantity + reservedQuantity;
+    }
 }
