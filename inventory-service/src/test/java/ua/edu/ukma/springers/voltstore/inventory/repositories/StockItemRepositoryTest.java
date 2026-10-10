@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import ua.edu.ukma.springers.voltstore.inventory.TestcontainersConfiguration;
+import ua.edu.ukma.springers.voltstore.inventory.PostgresTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
 
 import java.util.List;
@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers
-@Import(TestcontainersConfiguration.class)
+@Import(PostgresTestContainerConfig.class)
 class StockItemRepositoryTest {
     @Autowired
     private StockItemRepository repository;

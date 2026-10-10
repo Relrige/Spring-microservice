@@ -7,6 +7,20 @@ spring:
   mvc:
     problem-details:
       enabled: true
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+    consumer:
+      group-id: inventory-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # Values are read as JSON text; the target class is taken from each @KafkaListener
+      # parameter by the message converter in KafkaConfig (so one consumer can handle several event types)
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 management:
   endpoint:
     health:
