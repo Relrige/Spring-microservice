@@ -7,6 +7,9 @@ spring:
   mvc:
     problem-details:
       enabled: true
+  autoconfigure:
+    # Callers are identified by gateway headers; there is no username/password login, so no default in-memory user
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   kafka:
     bootstrap-servers: localhost:9092
     producer:
@@ -21,6 +24,10 @@ spring:
       # Values are read as JSON text; the target class is taken from each @KafkaListener
       # parameter by the message converter in KafkaConfig (so one consumer can handle several event types)
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+auth:
+  internal:
+    # Shared secret of service-to-service calls (X-Internal-Token); supplied by the INTERNAL_TOKEN environment variable
+    token: ${INTERNAL_TOKEN}
 management:
   endpoint:
     health:

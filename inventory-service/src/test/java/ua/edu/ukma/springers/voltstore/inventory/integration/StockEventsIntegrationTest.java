@@ -24,6 +24,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import ua.edu.ukma.springers.voltstore.inventory.support.TrustedHeaders;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -88,6 +90,7 @@ class StockEventsIntegrationTest {
 
     private org.springframework.test.web.servlet.ResultActions adjust(UUID productId, int delta) throws Exception {
         return mockMvc.perform(post("/inventory/stock/" + productId + "/adjust")
+                .headers(TrustedHeaders.asUser("INVENTORY_WORKER"))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"delta\":" + delta + "}"));
     }
 

@@ -24,6 +24,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import ua.edu.ukma.springers.voltstore.inventory.support.TrustedHeaders;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -55,6 +57,7 @@ class AdjustStockIntegrationTest {
         UUID productId = UUID.randomUUID();
 
         mockMvc.perform(post("/inventory/stock/" + productId + "/adjust")
+                .headers(TrustedHeaders.asUser("INVENTORY_WORKER"))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"delta\":10}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.newAvailableQuantity").value(10));
@@ -71,6 +74,7 @@ class AdjustStockIntegrationTest {
         stockService.adjustStock(productId, 3);
 
         mockMvc.perform(post("/inventory/stock/" + productId + "/adjust")
+                .headers(TrustedHeaders.asUser("INVENTORY_WORKER"))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"delta\":-4}"))
                 .andExpect(status().isUnprocessableContent());
 
@@ -82,6 +86,7 @@ class AdjustStockIntegrationTest {
         UUID productId = UUID.randomUUID();
 
         mockMvc.perform(post("/inventory/stock/" + productId + "/adjust")
+                .headers(TrustedHeaders.asUser("INVENTORY_WORKER"))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"delta\":-1}"))
                 .andExpect(status().isUnprocessableContent());
 

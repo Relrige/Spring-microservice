@@ -1,5 +1,5 @@
 ---
-status: TODO
+status: DONE
 service: inventory-service
 ---
 # Trusted-Header Security (Copy from Auth Service)
@@ -9,14 +9,14 @@ Inventory Service has worker-only routes (`INVENTORY_WORKER`) and several `Inter
 *References:* [Security Model](../../design/services-requirements/security-model.md), [Trusted-Header Authentication (pilot)](../auth-service/08-trusted-header-authentication.md), [Catalog security task](../catalog-service/12-trusted-header-security.md), [API Gateway Spec — Route Table](../../design/services-specs/api-gateway-spec.md)
 
 ## Acceptance Criteria
-- [ ] Add `spring-boot-starter-security` and `spring-boot-starter-security-test`; exclude `UserDetailsServiceAutoConfiguration` in `application.yml`.
-- [ ] Copy the `security` package from auth-service (`AuthenticatedUser`, `TrustedHeaderAuthenticationFilter`, `InternalTokenAuthenticationFilter`, `InternalTokenProperties`, `SecurityErrorHandlers`, `SecurityConfig`), adapt package names and the role enum (`CUSTOMER`, `CATALOG_MANAGER`, `INVENTORY_WORKER`, `ADMIN`). Leave out the JWT classes.
-- [ ] `SecurityConfig` is stateless (no CSRF, sessions, form login, HTTP Basic), registers both filters, permits the health probes, and ends with `anyRequest().denyAll()`.
-- [ ] Route rule for the existing endpoint: `POST /inventory/stock/{productId}/adjust` → `hasRole("INVENTORY_WORKER")`.
-- [ ] `401` for anonymous access to a protected route, `403` for a wrong role (including `ADMIN`, `CATALOG_MANAGER`, `CUSTOMER`), rendered as `ProblemDetail` with the shape from [task 03](03-error-handling-and-validation.md). The role check runs before body validation.
-- [ ] Add `auth.internal.token` configuration (`INTERNAL_TOKEN`, not blank, at least 32 characters, never logged) to `.env`, `.env.example`, `docker-compose.yml`, and test properties.
-- [ ] Existing tests (including the Kafka publish test from [task 06](06-stock-events-publish-and-listen.md)) send the trusted headers and still pass.
-- [ ] Tests: unit tests for both filters (adapted from auth-service); `401`/`403`/success tests for each protected endpoint; a slice test proving the `denyAll()` fallback; a **route coverage test** like auth-service's `RouteSecurityRulesTest`.
+- [x] Add `spring-boot-starter-security` and `spring-boot-starter-security-test`; exclude `UserDetailsServiceAutoConfiguration` in `application.yml`.
+- [x] Copy the `security` package from auth-service (`AuthenticatedUser`, `TrustedHeaderAuthenticationFilter`, `InternalTokenAuthenticationFilter`, `InternalTokenProperties`, `SecurityErrorHandlers`, `SecurityConfig`), adapt package names and the role enum (`CUSTOMER`, `CATALOG_MANAGER`, `INVENTORY_WORKER`, `ADMIN`). Leave out the JWT classes.
+- [x] `SecurityConfig` is stateless (no CSRF, sessions, form login, HTTP Basic), registers both filters, permits the health probes, and ends with `anyRequest().denyAll()`.
+- [x] Route rule for the existing endpoint: `POST /inventory/stock/{productId}/adjust` → `hasRole("INVENTORY_WORKER")`.
+- [x] `401` for anonymous access to a protected route, `403` for a wrong role (including `ADMIN`, `CATALOG_MANAGER`, `CUSTOMER`), rendered as `ProblemDetail` with the shape from [task 03](03-error-handling-and-validation.md). The role check runs before body validation.
+- [x] Add `auth.internal.token` configuration (`INTERNAL_TOKEN`, not blank, at least 32 characters, never logged) to `.env`, `.env.example`, `docker-compose.yml`, and test properties.
+- [x] Existing tests (including the Kafka publish test from [task 06](06-stock-events-publish-and-listen.md)) send the trusted headers and still pass.
+- [x] Tests: unit tests for both filters (adapted from auth-service); `401`/`403`/success tests for each protected endpoint; a slice test proving the `denyAll()` fallback; a **route coverage test** like auth-service's `RouteSecurityRulesTest`.
 
 ## Technical Notes / Constraints
 - **Planned rules for later endpoints** (each task adds its own line and tests):

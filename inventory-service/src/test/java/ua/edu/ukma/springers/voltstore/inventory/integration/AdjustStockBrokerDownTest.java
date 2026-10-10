@@ -12,6 +12,8 @@ import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemRepositor
 
 import java.util.UUID;
 
+import ua.edu.ukma.springers.voltstore.inventory.support.TrustedHeaders;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -36,6 +38,7 @@ class AdjustStockBrokerDownTest {
         UUID productId = UUID.randomUUID();
 
         mockMvc.perform(post("/inventory/stock/" + productId + "/adjust")
+                .headers(TrustedHeaders.asUser("INVENTORY_WORKER"))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"delta\":10}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.newAvailableQuantity").value(10));
