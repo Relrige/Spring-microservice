@@ -4,13 +4,17 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ua.edu.ukma.springers.voltstore.inventory.dto.AdjustStockRequest;
 import ua.edu.ukma.springers.voltstore.inventory.dto.AdjustStockResponse;
+import ua.edu.ukma.springers.voltstore.inventory.dto.SetPackagingRequest;
 import ua.edu.ukma.springers.voltstore.inventory.dto.StockBalanceResponse;
 import ua.edu.ukma.springers.voltstore.inventory.paging.PageResponse;
 import ua.edu.ukma.springers.voltstore.inventory.paging.PageableParser;
@@ -46,5 +50,12 @@ public class StockController {
     public AdjustStockResponse adjustStock(@PathVariable UUID productId,
                                            @Valid @RequestBody AdjustStockRequest request) {
         return new AdjustStockResponse(stockService.adjustStock(productId, request.delta()));
+    }
+
+    @PutMapping("/{productId}/packaging")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void setPackaging(@PathVariable UUID productId, @Valid @RequestBody SetPackagingRequest request) {
+        stockService.setPackaging(productId, request.grossWeightGrams(), request.lengthCm(),
+                request.widthCm(), request.heightCm());
     }
 }

@@ -39,13 +39,8 @@ public class StockService {
      */
     @Transactional
     public int adjustStock(UUID productId, int delta) {
-        // TEMPORARY deviation from the spec (EP-INV-02): the StockItem is created on demand without
-        // checking that the product exists in Catalog. The Catalog check is added in task 19
-        // (docs/tasks/inventory-service/19-catalog-product-existence-client.md).
-        // If the delta is rejected below, the transaction rolls back and the row is not kept.
-        stockItemRepository.insertIfAbsent(productId);
-
-        StockItemEntity item = stockItemRepository.findByIdForUpdate(productId).orElseThrow();
+        // If the delta is rejected below, the transaction rolls back and a row created here is not kept.
+        StockItemEntity item = getOrCreateForUpdate(productId);
 
         // before/after are computed inside the locked transaction, so the zero-crossing check below
         // sees a consistent pair. The publisher delivers the event only after this transaction commits.
@@ -58,5 +53,30 @@ public class StockService {
         item.setAvailableQuantity(after);
         StockEvents.forTransition(productId, before, after).ifPresent(stockEventPublisher::publish);
         return after;
+    }
+
+    /**
+     * Replaces all four packaging values at once. Quantities are untouched and no event is emitted.
+     */
+    @Transactional
+    public void setPackaging(UUID productId, int grossWeightGrams, int lengthCm, int widthCm, int heightCm) {
+        StockItemEntity item = getOrCreateForUpdate(productId);
+        item.setGrossWeightGrams(grossWeightGrams);
+        item.setLengthCm(lengthCm);
+        item.setWidthCm(widthCm);
+        item.setHeightCm(heightCm);
+    }
+
+    /**
+     * Returns the row-locked StockItem, creating it (with zero quantities and no packaging) if it is absent.
+     * Concurrent first-time callers end up with exactly one row; the lock serializes their updates.
+     * <p>
+     * TEMPORARY deviation from the spec (EP-INV-02, EP-INV-03): the StockItem is created on demand without
+     * checking that the product exists in Catalog. The Catalog check is added here, in this one place, in task 19
+     * (docs/tasks/inventory-service/19-catalog-product-existence-client.md).
+     */
+    private StockItemEntity getOrCreateForUpdate(UUID productId) {
+        stockItemRepository.insertIfAbsent(productId);
+        return stockItemRepository.findByIdForUpdate(productId).orElseThrow();
     }
 }
