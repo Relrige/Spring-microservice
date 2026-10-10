@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
+import ua.edu.ukma.springers.voltstore.inventory.events.StockEventPublisher;
+import ua.edu.ukma.springers.voltstore.inventory.events.StockEvents;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.InsufficientStockException;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemRepository;
 
@@ -13,6 +15,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class StockService {
     private final StockItemRepository stockItemRepository;
+    private final StockEventPublisher stockEventPublisher;
 
     /**
      * Applies a signed delta to the available quantity and returns the new quantity.
@@ -27,8 +30,8 @@ public class StockService {
 
         StockItemEntity item = stockItemRepository.findByIdForUpdate(productId).orElseThrow();
 
-        // before/after are computed inside the locked transaction so that stock events
-        // (task 06) can detect threshold crossings here without restructuring.
+        // before/after are computed inside the locked transaction, so the zero-crossing check below
+        // sees a consistent pair. The publisher delivers the event only after this transaction commits.
         int before = item.getAvailableQuantity();
         int after = before + delta;
         if (after < 0) {
@@ -36,6 +39,7 @@ public class StockService {
         }
 
         item.setAvailableQuantity(after);
+        StockEvents.forTransition(productId, before, after).ifPresent(stockEventPublisher::publish);
         return after;
     }
 }

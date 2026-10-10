@@ -2,10 +2,15 @@ package ua.edu.ukma.springers.voltstore.inventory.services;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
+import ua.edu.ukma.springers.voltstore.inventory.events.ProductStockDepletedEvent;
+import ua.edu.ukma.springers.voltstore.inventory.events.ProductStockReplenishedEvent;
+import ua.edu.ukma.springers.voltstore.inventory.events.StockEvent;
+import ua.edu.ukma.springers.voltstore.inventory.events.StockEventPublisher;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.InsufficientStockException;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemRepository;
 
@@ -14,7 +19,9 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -23,6 +30,9 @@ class StockServiceTest {
 
     @Mock
     private StockItemRepository stockItemRepository;
+
+    @Mock
+    private StockEventPublisher stockEventPublisher;
 
     @InjectMocks
     private StockService stockService;
@@ -74,6 +84,48 @@ class StockServiceTest {
 
         verify(stockItemRepository).insertIfAbsent(PRODUCT_ID);
         assertThat(result).isEqualTo(4);
+    }
+
+    @Test
+    void adjustStock_restockFromZero_publishesReplenished() {
+        when(stockItemRepository.findByIdForUpdate(PRODUCT_ID)).thenReturn(Optional.of(stockItem(0)));
+
+        stockService.adjustStock(PRODUCT_ID, 5);
+
+        ArgumentCaptor<StockEvent> captor = ArgumentCaptor.forClass(StockEvent.class);
+        verify(stockEventPublisher).publish(captor.capture());
+        assertThat(captor.getValue()).isInstanceOf(ProductStockReplenishedEvent.class);
+        assertThat(captor.getValue().productId()).isEqualTo(PRODUCT_ID);
+    }
+
+    @Test
+    void adjustStock_writeOffToZero_publishesDepleted() {
+        when(stockItemRepository.findByIdForUpdate(PRODUCT_ID)).thenReturn(Optional.of(stockItem(5)));
+
+        stockService.adjustStock(PRODUCT_ID, -5);
+
+        ArgumentCaptor<StockEvent> captor = ArgumentCaptor.forClass(StockEvent.class);
+        verify(stockEventPublisher).publish(captor.capture());
+        assertThat(captor.getValue()).isInstanceOf(ProductStockDepletedEvent.class);
+    }
+
+    @Test
+    void adjustStock_positiveToPositive_publishesNothing() {
+        when(stockItemRepository.findByIdForUpdate(PRODUCT_ID)).thenReturn(Optional.of(stockItem(5)));
+
+        stockService.adjustStock(PRODUCT_ID, 3);
+
+        verify(stockEventPublisher, never()).publish(any());
+    }
+
+    @Test
+    void adjustStock_rejectedWriteOff_publishesNothing() {
+        when(stockItemRepository.findByIdForUpdate(PRODUCT_ID)).thenReturn(Optional.of(stockItem(2)));
+
+        assertThatThrownBy(() -> stockService.adjustStock(PRODUCT_ID, -3))
+                .isInstanceOf(InsufficientStockException.class);
+
+        verify(stockEventPublisher, never()).publish(any());
     }
 
     private StockItemEntity stockItem(int available) {
