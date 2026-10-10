@@ -1,5 +1,5 @@
 ---
-status: TODO
+status: DONE
 service: inventory-service
 ---
 # Rework Draft Module into the Spec Foundation
@@ -27,13 +27,13 @@ This task prepares the module so the following tasks add features on a clean bas
 *References:* [Inventory Service Spec](../../design/services-specs/inventory-service-spec.md), [Domain Entities — Inventory](../../design/entities/entities.md), [Catalog Service foundation task](../catalog-service/01-rework-draft-to-spec-foundation.md)
 
 ## Acceptance Criteria
-- [ ] Remove draft code that contradicts the spec: `InventoryController`, `InventoryService`, `IdempotencyRecord` (+ repository), `StockReservation` (replaced in [task 12](12-stock-reservation-entity-and-persistence.md)), `StockItem` as drafted (replaced in [task 02](02-stock-item-entity-and-persistence.md)), `InsufficientStockException` as drafted, and the draft repositories.
-- [ ] Align the package layout with `auth-service` (`controllers`, `services`, `repositories`, `entities`, `dto`, `exceptions`, `config`, `security`). Rename `domain.entity` → `entities`.
-- [ ] Update `pom.xml`: add `spring-boot-starter-validation` and matching test starters (`validation-test`, `actuator-test`) as in `auth-service`. Remove `spring-boot-devtools` if the other services do not use it. Spring Security is added in [task 07](07-trusted-header-security.md).
-- [ ] `application.yml`: `ddl-auto: validate`; keep the actuator probes.
-- [ ] Test `TestcontainersConfiguration` uses `postgres:18-alpine` (the version in `docker-compose.yml` and `k8s/`), not `postgres:latest`.
-- [ ] A context-load smoke test passes against a real PostgreSQL (no entities yet, so `validate` has nothing to check).
-- [ ] `.env`, `.env.example` and `k8s/inventory/app-config.yaml` stay consistent (database settings only; Kafka settings come in [task 05](05-kafka-spring-setup-and-topic.md), `INTERNAL_TOKEN` in [task 07](07-trusted-header-security.md)).
+- [x] Remove draft code that contradicts the spec: `InventoryController`, `InventoryService`, `IdempotencyRecord` (+ repository), `StockReservation` (replaced in [task 12](12-stock-reservation-entity-and-persistence.md)), `StockItem` as drafted (replaced in [task 02](02-stock-item-entity-and-persistence.md)), `InsufficientStockException` as drafted, and the draft repositories.
+- [x] Align the package layout with `auth-service` (`controllers`, `services`, `repositories`, `entities`, `dto`, `exceptions`, `config`, `security`). Rename `domain.entity` → `entities`.
+- [x] Update `pom.xml`: add `spring-boot-starter-validation` and matching test starters (`validation-test`, `actuator-test`) as in `auth-service`. Remove `spring-boot-devtools` if the other services do not use it. Spring Security is added in [task 07](07-trusted-header-security.md).
+- [x] `application.yml`: `ddl-auto: validate`; keep the actuator probes.
+- [x] Test `TestcontainersConfiguration` uses `postgres:18-alpine` (the version in `docker-compose.yml` and `k8s/`), not `postgres:latest`.
+- [x] A context-load smoke test passes against a real PostgreSQL (no entities yet, so `validate` has nothing to check).
+- [x] `.env`, `.env.example` and `k8s/inventory/app-config.yaml` stay consistent (database settings only; Kafka settings come in [task 05](05-kafka-spring-setup-and-topic.md), `INTERNAL_TOKEN` in [task 07](07-trusted-header-security.md)).
 
 ## Technical Notes / Constraints
 - Deleting the draft is intended; nothing outside this module should depend on the draft `/api/v1/...` endpoints. Check `order-service` for any copy of the old inventory contract (`/reserve`, `/confirm-reservation`, `/cancel-reservation`, `Idempotency-Key`) and note what must be aligned later.
