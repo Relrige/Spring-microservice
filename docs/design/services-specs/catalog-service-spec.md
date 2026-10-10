@@ -27,7 +27,7 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 1. Validate request body: `title` non-empty; `description` non-empty; `categoryId` valid UUID; `basePrice` > 0.
 2. Verify that `categoryId` exists in the `categories` table. If not → `422`.
 3. Persist `Product(id=UUID, title, description, categoryId, basePrice, status=NOT_ACTIVE, stockStatus=OUT_OF_STOCK)`.
-4. Publish event `ProductCreated { productId, timestamp }` to the message broker.
+4. Publish event `ProductCreated { eventId, productId, timestamp }` to the message broker (topic `catalog.product-events`, key `productId`) after the transaction commits.
 5. Return `201 Created { productId }`.
 
 > Products are always created in `NOT_ACTIVE` state. This allows the catalog manager to prepare the listing before publishing it to customers.
@@ -38,7 +38,7 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 - `title` or `description` blank → `400 Bad Request`
 
 **External calls:** none (synchronous); event published asynchronously
-**Emits:** `ProductCreated { productId, timestamp }` → consumed by Inventory Service (EP-INV-EVT-01)
+**Emits:** `ProductCreated { eventId, productId, timestamp }` → consumed by Inventory Service (EP-INV-EVT-01)
 **Refs:** US-CM-01, SCN-CM01, N-01, N-02
 
 ---

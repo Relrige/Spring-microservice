@@ -1,0 +1,888 @@
+{
+  "info": {
+    "name": "VoltStore Catalog Service API",
+    "description": "Tests for the Catalog Service endpoints implemented so far (EP-CAT-01, 02, 06, 07, 08), in the spec's /catalog/... routes. Run the whole collection in order with the Collection Runner: requests store IDs in collection variables for the following ones. Every error response is checked for the shared RFC 9457 problem shape by the collection-level test script.\n\nbaseUrl: http://localhost:8081 when the service runs in Compose (host port 8081). If localhost:8081 is taken by another program on your machine (e.g. the IIT EUSAProcess agent), use http://[::1]:8081.\n\nNo auth headers yet: security is added in task 12.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8081", "type": "string" },
+    { "key": "runId", "value": "", "type": "string" },
+    { "key": "categoryId", "value": "", "type": "string" },
+    { "key": "categoryName", "value": "", "type": "string" },
+    { "key": "secondCategoryId", "value": "", "type": "string" },
+    { "key": "secondCategoryName", "value": "", "type": "string" },
+    { "key": "emptyCategoryId", "value": "", "type": "string" },
+    { "key": "productId", "value": "", "type": "string" },
+    { "key": "unknownId", "value": "00000000-0000-0000-0000-000000000000", "type": "string" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Unique suffix per run, so category names do not collide with data from earlier runs",
+          "if (!pm.collectionVariables.get('runId')) {",
+          "    pm.collectionVariables.set('runId', Date.now().toString());",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Shared error format (RFC 9457 ProblemDetail) for every 4xx/5xx response",
+          "if (pm.response.code >= 400 && pm.response.text().length > 0) {",
+          "    pm.test('Error body has the shared problem shape', function () {",
+          "        pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+          "        const body = pm.response.json();",
+          "        pm.expect(body).to.include.all.keys('type', 'title', 'status', 'detail', 'timestamp', 'service');",
+          "        pm.expect(body.status).to.eql(pm.response.code);",
+          "        pm.expect(body.service).to.eql('catalog-service');",
+          "        pm.expect(body.type).to.match(/^https:\\/\\/voltstore\\.com\\/errors\\//);",
+          "        pm.expect(body).to.not.have.property('trace');",
+          "    });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Health",
+      "item": [
+        {
+          "name": "Readiness probe is UP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Readiness is UP', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/actuator/health/readiness", "host": ["{{baseUrl}}"], "path": ["actuator", "health", "readiness"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Categories — create (EP-CAT-06)",
+      "item": [
+        {
+          "name": "Create category → 201",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('categoryName', 'Laptops ' + pm.collectionVariables.get('runId'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('Returns categoryId (not id) and the trimmed name', () => {",
+                  "    pm.expect(body.categoryId).to.match(/^[0-9a-f-]{36}$/);",
+                  "    pm.expect(body).to.not.have.property('id');",
+                  "    pm.expect(body.name).to.eql(pm.collectionVariables.get('categoryName'));",
+                  "});",
+                  "pm.collectionVariables.set('categoryId', body.categoryId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"  {{categoryName}}  \"\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/categories", "host": ["{{baseUrl}}"], "path": ["catalog", "categories"] }
+          }
+        },
+        {
+          "name": "Create duplicate name (other case + spaces) → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Detail explains the conflict', () => pm.expect(pm.response.json().detail).to.eql('Category name already in use'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \" LAPTOPS {{runId}} \"\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/categories", "host": ["{{baseUrl}}"], "path": ["catalog", "categories"] }
+          }
+        },
+        {
+          "name": "Create blank name → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Field error for name', () => pm.expect(pm.response.json().errors.name).to.be.an('array').that.is.not.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"   \"\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/categories", "host": ["{{baseUrl}}"], "path": ["catalog", "categories"] }
+          }
+        },
+        {
+          "name": "Create name longer than 100 chars → 400",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set('longName', 'x'.repeat(101));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Field error for name', () => pm.expect(pm.response.json().errors).to.have.property('name'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"{{longName}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/categories", "host": ["{{baseUrl}}"], "path": ["catalog", "categories"] }
+          }
+        },
+        {
+          "name": "Create second category → 201",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('secondCategoryName', 'Phones ' + pm.collectionVariables.get('runId'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('secondCategoryId', pm.response.json().categoryId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"{{secondCategoryName}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/categories", "host": ["{{baseUrl}}"], "path": ["catalog", "categories"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Categories — rename (EP-CAT-07)",
+      "item": [
+        {
+          "name": "Rename category → 200",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('categoryName', 'Notebooks ' + pm.collectionVariables.get('runId'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Same categoryId, new name', () => {",
+                  "    pm.expect(body.categoryId).to.eql(pm.collectionVariables.get('categoryId'));",
+                  "    pm.expect(body.name).to.eql(pm.collectionVariables.get('categoryName'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"{{categoryName}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/categories/{{categoryId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "categories", "{{categoryId}}"] }
+          }
+        },
+        {
+          "name": "Rename to own name in other casing → 200 (not a conflict)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Casing change is stored', () => pm.expect(pm.response.json().name).to.eql('NOTEBOOKS ' + pm.collectionVariables.get('runId')));",
+                  "pm.collectionVariables.set('categoryName', pm.response.json().name);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"NOTEBOOKS {{runId}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/categories/{{categoryId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "categories", "{{categoryId}}"] }
+          }
+        },
+        {
+          "name": "Rename to another category's name → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"phones {{runId}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/categories/{{categoryId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "categories", "{{categoryId}}"] }
+          }
+        },
+        {
+          "name": "Rename with blank name → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Field error for name', () => pm.expect(pm.response.json().errors).to.have.property('name'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"\"\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/categories/{{categoryId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "categories", "{{categoryId}}"] }
+          }
+        },
+        {
+          "name": "Rename unknown category → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Anything\"\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/categories/{{unknownId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "categories", "{{unknownId}}"] }
+          }
+        },
+        {
+          "name": "Rename unknown category with blank name → 404 (existence checked first)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404, not 400', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \" \"\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/categories/{{unknownId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "categories", "{{unknownId}}"] }
+          }
+        },
+        {
+          "name": "Rename with non-UUID id → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Anything\"\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/categories/not-a-uuid", "host": ["{{baseUrl}}"], "path": ["catalog", "categories", "not-a-uuid"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Products — create (EP-CAT-01)",
+      "item": [
+        {
+          "name": "Create product → 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('Returns only productId', () => {",
+                  "    pm.expect(body.productId).to.match(/^[0-9a-f-]{36}$/);",
+                  "    pm.expect(Object.keys(body)).to.eql(['productId']);",
+                  "});",
+                  "pm.collectionVariables.set('productId', body.productId);",
+                  "// A ProductCreated event is published to Kafka: check the catalog-service log for",
+                  "// 'Received ProductCreated: key=<productId>, partition=..., offset=...'"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"MacBook Pro 16\",\n  \"description\": \"M3 Max, 36GB RAM, 1TB SSD\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"basePrice\": 3499.99\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/products", "host": ["{{baseUrl}}"], "path": ["catalog", "products"] }
+          }
+        },
+        {
+          "name": "Create with status/stockStatus in body → 201 (fields ignored)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "// The stored status is checked by 'Update product → 200' further down: it is still NOT_ACTIVE"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Dell XPS 13\",\n  \"description\": \"Intel Core Ultra 7\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"basePrice\": 1299,\n  \"status\": \"ACTIVE\",\n  \"stockStatus\": \"IN_STOCK\"\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/products", "host": ["{{baseUrl}}"], "path": ["catalog", "products"] }
+          }
+        },
+        {
+          "name": "Create with invalid fields → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Field errors for every invalid field', () => {",
+                  "    pm.expect(pm.response.json().errors).to.include.all.keys('title', 'description', 'categoryId', 'basePrice');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"\",\n  \"description\": \"   \",\n  \"basePrice\": 0\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/products", "host": ["{{baseUrl}}"], "path": ["catalog", "products"] }
+          }
+        },
+        {
+          "name": "Create with negative price → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Field error for basePrice', () => pm.expect(pm.response.json().errors).to.have.property('basePrice'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Laptop\",\n  \"description\": \"A laptop\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"basePrice\": -10\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/products", "host": ["{{baseUrl}}"], "path": ["catalog", "products"] }
+          }
+        },
+        {
+          "name": "Create with 3 decimal places in price → 400 (not rounded)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Field error for basePrice', () => pm.expect(pm.response.json().errors).to.have.property('basePrice'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Laptop\",\n  \"description\": \"A laptop\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"basePrice\": 10.999\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/products", "host": ["{{baseUrl}}"], "path": ["catalog", "products"] }
+          }
+        },
+        {
+          "name": "Create with categoryId that is not a UUID → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Field error for categoryId', () => pm.expect(pm.response.json().errors).to.have.property('categoryId'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Laptop\",\n  \"description\": \"A laptop\",\n  \"categoryId\": \"abc\",\n  \"basePrice\": 10\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/products", "host": ["{{baseUrl}}"], "path": ["catalog", "products"] }
+          }
+        },
+        {
+          "name": "Create with malformed JSON → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Type is bad-request', () => pm.expect(pm.response.json().type).to.eql('https://voltstore.com/errors/bad-request'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Laptop\",\n" },
+            "url": { "raw": "{{baseUrl}}/catalog/products", "host": ["{{baseUrl}}"], "path": ["catalog", "products"] }
+          }
+        },
+        {
+          "name": "Create in unknown category → 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 422', () => pm.response.to.have.status(422));",
+                  "pm.test('Title is Category not found', () => pm.expect(pm.response.json().title).to.eql('Category not found'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Laptop\",\n  \"description\": \"A laptop\",\n  \"categoryId\": \"{{unknownId}}\",\n  \"basePrice\": 10\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/products", "host": ["{{baseUrl}}"], "path": ["catalog", "products"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Products — update (EP-CAT-02)",
+      "item": [
+        {
+          "name": "Update product (move to second category) → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Returns the updated product', () => {",
+                  "    pm.expect(body.productId).to.eql(pm.collectionVariables.get('productId'));",
+                  "    pm.expect(body.title).to.eql('MacBook Pro 16 (2026)');",
+                  "    pm.expect(body.description).to.eql('M4 Max, 48GB RAM, 2TB SSD');",
+                  "    pm.expect(body.categoryId).to.eql(pm.collectionVariables.get('secondCategoryId'));",
+                  "    pm.expect(body.basePrice).to.eql(3999.5);",
+                  "});",
+                  "pm.test('New products are NOT_ACTIVE and OUT_OF_STOCK', () => {",
+                  "    pm.expect(body.status).to.eql('NOT_ACTIVE');",
+                  "    pm.expect(body.stockStatus).to.eql('OUT_OF_STOCK');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \" MacBook Pro 16 (2026) \",\n  \"description\": \"M4 Max, 48GB RAM, 2TB SSD\",\n  \"categoryId\": \"{{secondCategoryId}}\",\n  \"basePrice\": 3999.50\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "products", "{{productId}}"] }
+          }
+        },
+        {
+          "name": "Update with status/stockStatus in body → 200 (fields unchanged)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('status and stockStatus are not editable here', () => {",
+                  "    pm.expect(body.status).to.eql('NOT_ACTIVE');",
+                  "    pm.expect(body.stockStatus).to.eql('OUT_OF_STOCK');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"MacBook Pro 16 (2026)\",\n  \"description\": \"M4 Max, 48GB RAM, 2TB SSD\",\n  \"categoryId\": \"{{secondCategoryId}}\",\n  \"basePrice\": 3999.50,\n  \"status\": \"ACTIVE\",\n  \"stockStatus\": \"IN_STOCK\"\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "products", "{{productId}}"] }
+          }
+        },
+        {
+          "name": "Update with partial body → 400 (PUT replaces all fields)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Missing fields reported', () => {",
+                  "    pm.expect(pm.response.json().errors).to.include.all.keys('description', 'categoryId', 'basePrice');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Only the title\"\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "products", "{{productId}}"] }
+          }
+        },
+        {
+          "name": "Update unknown product → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Laptop\",\n  \"description\": \"A laptop\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"basePrice\": 10\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/products/{{unknownId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "products", "{{unknownId}}"] }
+          }
+        },
+        {
+          "name": "Update unknown product with invalid body → 404 (existence checked first)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404, not 400', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"\",\n  \"description\": \"\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"basePrice\": -1\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/products/{{unknownId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "products", "{{unknownId}}"] }
+          }
+        },
+        {
+          "name": "Update with invalid body and unknown category → 400 (validation before 422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400, not 422', () => pm.response.to.have.status(400));",
+                  "pm.test('Field error for title', () => pm.expect(pm.response.json().errors).to.have.property('title'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"\",\n  \"description\": \"A laptop\",\n  \"categoryId\": \"{{unknownId}}\",\n  \"basePrice\": 10\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "products", "{{productId}}"] }
+          }
+        },
+        {
+          "name": "Update into unknown category → 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Laptop\",\n  \"description\": \"A laptop\",\n  \"categoryId\": \"{{unknownId}}\",\n  \"basePrice\": 10\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "products", "{{productId}}"] }
+          }
+        },
+        {
+          "name": "Update with non-UUID id → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Laptop\",\n  \"description\": \"A laptop\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"basePrice\": 10\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/products/123", "host": ["{{baseUrl}}"], "path": ["catalog", "products", "123"] }
+          }
+        },
+        {
+          "name": "Delete product → 405 (hard deletes are forbidden)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 405', () => pm.response.to.have.status(405));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/catalog/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "products", "{{productId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Categories — delete (EP-CAT-08)",
+      "item": [
+        {
+          "name": "Delete category that still has products → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Detail explains why', () => pm.expect(pm.response.json().detail).to.include('Category has associated products'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/catalog/categories/{{secondCategoryId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "categories", "{{secondCategoryId}}"] }
+          }
+        },
+        {
+          "name": "Delete category with only an inactive product → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// The first category still holds the 'Dell XPS 13' product (NOT_ACTIVE): any status blocks deletion",
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/catalog/categories/{{categoryId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "categories", "{{categoryId}}"] }
+          }
+        },
+        {
+          "name": "Create empty category → 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('emptyCategoryId', pm.response.json().categoryId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Temporary {{runId}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/catalog/categories", "host": ["{{baseUrl}}"], "path": ["catalog", "categories"] }
+          }
+        },
+        {
+          "name": "Delete empty category → 200 (no body)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200 (spec says 200, not 204)', () => pm.response.to.have.status(200));",
+                  "pm.test('Body is empty', () => pm.expect(pm.response.text()).to.eql(''));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/catalog/categories/{{emptyCategoryId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "categories", "{{emptyCategoryId}}"] }
+          }
+        },
+        {
+          "name": "Delete the same category again → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/catalog/categories/{{emptyCategoryId}}", "host": ["{{baseUrl}}"], "path": ["catalog", "categories", "{{emptyCategoryId}}"] }
+          }
+        },
+        {
+          "name": "Delete with non-UUID id → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/catalog/categories/abc", "host": ["{{baseUrl}}"], "path": ["catalog", "categories", "abc"] }
+          }
+        }
+      ]
+    }
+  ]
+}

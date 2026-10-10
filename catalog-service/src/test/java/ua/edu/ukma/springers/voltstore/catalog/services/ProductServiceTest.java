@@ -12,6 +12,10 @@ import ua.edu.ukma.springers.voltstore.catalog.dto.ProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.entities.Product;
 import ua.edu.ukma.springers.voltstore.catalog.entities.ProductStatus;
 import ua.edu.ukma.springers.voltstore.catalog.entities.StockStatus;
+import ua.edu.ukma.springers.voltstore.catalog.events.ProductCreatedEvent;
+import ua.edu.ukma.springers.voltstore.catalog.dto.CreateProductResponse;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.util.ReflectionTestUtils;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.CategoryNotFoundForProductException;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.ProductNotFoundException;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.RequestValidationException;
@@ -42,13 +46,16 @@ class ProductServiceTest {
     @Mock
     private CategoryRepository categoryRepository;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private ProductService productService;
 
     @BeforeEach
     void setUp() {
         RequestValidator requestValidator = new RequestValidator(
                 Validation.buildDefaultValidatorFactory().getValidator());
-        productService = new ProductService(productRepository, categoryRepository, requestValidator);
+        productService = new ProductService(productRepository, categoryRepository, requestValidator, eventPublisher);
     }
 
     // --- create ---
@@ -56,6 +63,7 @@ class ProductServiceTest {
     @Test
     void createProduct_persistsWithDefaultsAndTrimmedText() {
         when(categoryRepository.existsById(CATEGORY_ID)).thenReturn(true);
+        assignIdOnSave(UUID.randomUUID());
 
         productService.createProduct(request(" Phone ", " A phone ", CATEGORY_ID, "199.9"));
 
@@ -71,12 +79,29 @@ class ProductServiceTest {
     }
 
     @Test
+    void createProduct_publishesProductCreatedForTheSavedProduct() {
+        UUID productId = UUID.randomUUID();
+        when(categoryRepository.existsById(CATEGORY_ID)).thenReturn(true);
+        assignIdOnSave(productId);
+
+        CreateProductResponse response = productService.createProduct(validRequest());
+
+        assertThat(response.getProductId()).isEqualTo(productId);
+        ArgumentCaptor<ProductCreatedEvent> published = ArgumentCaptor.forClass(ProductCreatedEvent.class);
+        verify(eventPublisher).publishEvent(published.capture());
+        assertThat(published.getValue().productId()).isEqualTo(productId);
+        assertThat(published.getValue().eventId()).isNotNull();
+        assertThat(published.getValue().timestamp()).isNotNull();
+    }
+
+    @Test
     void createProduct_missingCategory_throwsAndDoesNotSave() {
         when(categoryRepository.existsById(CATEGORY_ID)).thenReturn(false);
 
         assertThatThrownBy(() -> productService.createProduct(validRequest()))
                 .isInstanceOf(CategoryNotFoundForProductException.class);
         verify(productRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -86,6 +111,27 @@ class ProductServiceTest {
 
         assertThatThrownBy(() -> productService.createProduct(validRequest()))
                 .isInstanceOf(CategoryNotFoundForProductException.class);
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void updateProduct_doesNotPublishEvents() {
+        UUID id = UUID.randomUUID();
+        when(productRepository.findById(id)).thenReturn(Optional.of(existingProduct()));
+        when(categoryRepository.existsById(CATEGORY_ID)).thenReturn(true);
+
+        productService.updateProduct(id, validRequest());
+
+        verifyNoInteractions(eventPublisher);
+    }
+
+    // Simulates Hibernate generating the ID when the entity is persisted
+    private void assignIdOnSave(UUID id) {
+        when(productRepository.saveAndFlush(any(Product.class))).thenAnswer(invocation -> {
+            Product product = invocation.getArgument(0);
+            ReflectionTestUtils.setField(product, "id", id);
+            return product;
+        });
     }
 
     // --- update ---

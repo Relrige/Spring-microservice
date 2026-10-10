@@ -19,6 +19,11 @@ public final class CatalogTestData {
         jdbc.update("DELETE FROM categories");
     }
 
+    // A valid EP-CAT-01 request body
+    public static String productJson(UUID categoryId) {
+        return "{\"title\":\"Laptop\",\"description\":\"A laptop\",\"categoryId\":\"" + categoryId + "\",\"basePrice\":999.99}";
+    }
+
     public static UUID insertCategory(JdbcTemplate jdbc, String name) {
         UUID id = UUID.randomUUID();
         jdbc.update("INSERT INTO categories (id, name) VALUES (?, ?)", id, name);

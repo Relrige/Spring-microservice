@@ -6,4 +6,6 @@ metadata:
 data:
   POSTGRES_DB: "catalog-service"
   SPRING_DATASOURCE_URL: "jdbc:postgresql://catalog-service-postgres:5432/catalog-service"
+  # Kafka broker Service from k8s/kafka
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -Xlog:gc*"

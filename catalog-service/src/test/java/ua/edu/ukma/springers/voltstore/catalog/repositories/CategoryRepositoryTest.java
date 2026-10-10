@@ -7,7 +7,7 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import ua.edu.ukma.springers.voltstore.catalog.TestcontainersConfiguration;
+import ua.edu.ukma.springers.voltstore.catalog.PostgresContainerConfiguration;
 import ua.edu.ukma.springers.voltstore.catalog.entities.Category;
 import ua.edu.ukma.springers.voltstore.catalog.utils.ConstraintViolations;
 
@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers
-@Import(TestcontainersConfiguration.class)
+@Import(PostgresContainerConfiguration.class)
 class CategoryRepositoryTest {
     @Autowired
     private CategoryRepository categoryRepository;

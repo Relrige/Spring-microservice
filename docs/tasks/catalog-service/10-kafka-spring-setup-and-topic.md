@@ -1,5 +1,5 @@
 ---
-status: TODO
+status: DONE
 service: catalog-service
 ---
 # Spring Kafka Setup and Declarative Topic
@@ -11,16 +11,20 @@ Catalog Service will emit `ProductCreated` and later consume stock events. This 
 *References:* [Event Catalogue](../../design/services-requirements/events-catalogue.md), [Catalog Spec — Events](../../design/services-specs/catalog-service-spec.md)
 
 ## Acceptance Criteria
-- [ ] Add the Spring Kafka starter (and its test support) to `pom.xml`, using the versions managed by the Spring Boot 4.1 parent.
-- [ ] Bootstrap servers come from `SPRING_KAFKA_BOOTSTRAP_SERVERS`, documented in `.env.example`, `docker-compose.yml` and `k8s/catalog/app-config.yaml`; `catalog-service` waits for the broker to be healthy in Compose.
-- [ ] The topic is declared **in configuration code** with a `NewTopic` bean built by `TopicBuilder`, with **3 partitions** and a replication factor valid for the single broker. Topic names are constants in one place.
-- [ ] JSON (de)serialization is configured for producer and consumer (check the serializer class names for the Spring Kafka version in Boot 4.1; Jackson 3 is used). Keys are strings (the product UUID). Consumers ignore unknown properties and do not depend on Java type headers carrying the producer's class name.
-- [ ] Integration tests start Kafka with Testcontainers (`@ServiceConnection`), reusing the pattern used for PostgreSQL in `TestcontainersConfiguration`.
-- [ ] A connection smoke test: the application context starts, the topic exists with exactly 3 partitions (assert through the admin client), a message sent with `KafkaTemplate` to it is received by a test listener.
-- [ ] Behaviour when the broker is down at application start is checked and documented (the service must still start and its readiness probe must not depend on Kafka unless the team decides otherwise).
+- [x] Add the Spring Kafka starter (and its test support) to `pom.xml`, using the versions managed by the Spring Boot 4.1 parent.
+- [x] Bootstrap servers come from `SPRING_KAFKA_BOOTSTRAP_SERVERS`, documented in `.env.example`, `docker-compose.yml` and `k8s/catalog/app-config.yaml`; `catalog-service` waits for the broker to be healthy in Compose.
+- [x] The topic is declared **in configuration code** with a `NewTopic` bean built by `TopicBuilder`, with **3 partitions** and a replication factor valid for the single broker. Topic names are constants in one place.
+- [x] JSON (de)serialization is configured for producer and consumer (check the serializer class names for the Spring Kafka version in Boot 4.1; Jackson 3 is used). Keys are strings (the product UUID). Consumers ignore unknown properties and do not depend on Java type headers carrying the producer's class name.
+- [x] Integration tests start Kafka with Testcontainers (`@ServiceConnection`), reusing the pattern used for PostgreSQL in `TestcontainersConfiguration`.
+- [x] A connection smoke test: the application context starts, the topic exists with exactly 3 partitions (assert through the admin client), a message sent with `KafkaTemplate` to it is received by a test listener.
+- [x] Behaviour when the broker is down at application start is checked and documented (the service must still start and its readiness probe must not depend on Kafka unless the team decides otherwise).
 
 ## Technical Notes / Constraints
 - **Topic naming and layout decision (needed here, used by tasks 11 and 18):** one topic per event type vs. one topic per aggregate. Kafka guarantees order only within a partition, and a partition is chosen from the message key. Events that must be applied in order for one product (`ProductStockReplenished` then `ProductStockDepleted`) therefore need the same topic and `productId` as key. Decide the naming convention (for example `catalog.product-events`) and record it. The producing service owns and declares its topics.
 - Why 3 partitions: with the key `productId`, all events of one product land in one partition (ordering is preserved), while three partitions allow up to three consumers of one group to share the load. Mention this reasoning in a comment next to the bean.
 - Keep the Kafka configuration in a `config` class of its own, separate from business code.
 - Do not add Kafka to other services in this task.
+- **Topic naming (decision):** one topic per aggregate, named `<owning-service>.<aggregate>-events`. Catalog owns `catalog.product-events` (constant in `config/KafkaTopics`). Inventory will own its own topic for the stock events (task 18), keyed by `productId`, so Replenished/Depleted for one product stay ordered. Because a topic can carry several event types, the producer adds a logical `eventType` header (not a Java class name).
+- **Serialization:** Spring Kafka 4.1.1 / kafka-clients 4.2.1. The producer uses `JacksonJsonSerializer` (Jackson 3; the `Json*` classes are the deprecated Jackson 2 variants) with `spring.json.add.type.headers=false`. The consumer uses `ErrorHandlingDeserializer` delegating to `JacksonJsonDeserializer` with `spring.json.use.type.headers=false`. The target type is set per listener with `spring.json.value.default.type`, and unknown properties are ignored (unit and integration tests).
+- **Test containers:** split into `PostgresContainerConfiguration` and `KafkaContainerConfiguration` (`apache/kafka:4.1.0`, auto-creation disabled). `TestcontainersConfiguration` imports both; repository slices use Postgres only.
+- **Broker down at startup (checked):** the application starts, and readiness is `UP` (Spring Boot has no Kafka health indicator, so readiness does not depend on Kafka). `KafkaAdmin` blocks startup for at most `spring.kafka.admin.operation-timeout` (set to 10 s), then logs `Could not configure topics`. **Gap:** the topic is then only created on the next startup with a reachable broker, and sends fail until then. Acceptable for now, because Compose waits for a healthy broker and Kubernetes restarts pods. The listener container keeps retrying the connection and logs warnings. Covered by `KafkaUnavailableIntegrationTest`.

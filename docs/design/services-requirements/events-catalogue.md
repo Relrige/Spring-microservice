@@ -12,13 +12,16 @@
 - **Producer:** Catalog Service
 - **Consumers:** Inventory Service
 - **Trigger:** A new product is created by the Catalog Manager.
+- **Topic / key:** `catalog.product-events` (3 partitions), message key = `productId`; header `eventType: ProductCreated`.
 - **Payload:**
   ```json
   {
+    "eventId": "uuid",
     "productId": "uuid",
     "timestamp": "2023-10-01T12:00:00Z"
   }
   ```
+  `eventId` is unique per event, so consumers can deduplicate redelivered messages. `timestamp` is an ISO-8601 UTC instant.
 
 ### `ProductStockReplenished`
 - **Producer:** Inventory Service

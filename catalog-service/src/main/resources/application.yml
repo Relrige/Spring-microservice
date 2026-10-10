@@ -7,6 +7,39 @@ spring:
   mvc:
     problem-details:
       enabled: true
+  kafka:
+    # Overridden by SPRING_KAFKA_BOOTSTRAP_SERVERS (kafka:9092 in Compose/Kubernetes); this default is
+    # the broker's host listener from docker-compose.yml, for running the service from the IDE
+    bootstrap-servers: localhost:9094
+    admin:
+      # If the broker is down at startup, topic declaration gives up after this long, logs an error and the
+      # application starts anyway (the topic is then created on the next startup with a reachable broker)
+      operation-timeout: 10s
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      # Same values as the kafka-clients 4.x defaults, stated explicitly because delivery guarantees
+      # are a design decision: wait for all in-sync replicas, and let retries never duplicate a message
+      acks: all
+      properties:
+        enable.idempotence: true
+        # How long send() may block waiting for broker metadata (default 60 s); keeps a dead broker
+        # from tying up the publishing thread for a minute
+        max.block.ms: 5000
+        # Consumers must not depend on the producer's Java class names
+        spring.json.add.type.headers: false
+    consumer:
+      # Start from the beginning when a consumer group has no committed offset yet, so events
+      # published before the group first connects are not skipped
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # A message that cannot be deserialized is handed to the error handler instead of being
+      # re-polled forever (poison pill)
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+        # The target type is set per listener (spring.json.value.default.type), never taken from headers
+        spring.json.use.type.headers: false
 
 management:
   endpoint:
