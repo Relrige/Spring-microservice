@@ -3,10 +3,11 @@ spring:
     name: catalog-service
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
   mvc:
     problem-details:
       enabled: true
+
 management:
   endpoint:
     health:

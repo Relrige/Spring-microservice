@@ -1,5 +1,5 @@
 ---
-status: TODO
+status: DONE
 service: catalog-service
 ---
 # EP-CAT-06: Create Category
@@ -9,12 +9,12 @@ A Catalog Manager creates categories before assigning products to them.
 *References:* [Catalog Spec — EP-CAT-06](../../design/services-specs/catalog-service-spec.md), [Catalog Manager Scenarios (SCN-CM05)](../../design/scenarios/catalog-manager-scenarios.md), [Category persistence](02-category-entity-and-persistence.md)
 
 ## Acceptance Criteria
-- [ ] `POST /catalog/categories` accepts `{ name }` and returns `201 Created { categoryId, name }`.
-- [ ] Request DTO is validated: `name` is non-blank (and has a maximum length matching the column) → otherwise `400` with field errors.
-- [ ] A category with the same `name` (ignoring case and surrounding whitespace) already exists → `409 Conflict` ("Category name already in use").
-- [ ] Concurrent requests with the same name result in one `201` and one `409` (not a `500`).
-- [ ] Separate request and response DTOs; the entity is never serialized.
-- [ ] Tests: service unit tests (duplicate, trimming, case-insensitive duplicate) and controller/integration tests for `201`, `400`, `409`.
+- [x] `POST /catalog/categories` accepts `{ name }` and returns `201 Created { categoryId, name }`.
+- [x] Request DTO is validated: `name` is non-blank (and has a maximum length matching the column) → otherwise `400` with field errors.
+- [x] A category with the same `name` (ignoring case and surrounding whitespace) already exists → `409 Conflict` ("Category name already in use").
+- [x] Concurrent requests with the same name result in one `201` and one `409` (not a `500`).
+- [x] Separate request and response DTOs; the entity is never serialized.
+- [x] Tests: service unit tests (duplicate, trimming, case-insensitive duplicate) and controller/integration tests for `201`, `400`, `409`.
 
 ## Technical Notes / Constraints
 - Apply the name-normalization decision from [task 02](02-category-entity-and-persistence.md) in a single place.
