@@ -10,6 +10,8 @@ import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
 import ua.edu.ukma.springers.voltstore.inventory.events.StockEventPublisher;
 import ua.edu.ukma.springers.voltstore.inventory.events.StockEvents;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.InsufficientStockException;
+import ua.edu.ukma.springers.voltstore.inventory.exceptions.PackagingNotConfiguredException;
+import ua.edu.ukma.springers.voltstore.inventory.exceptions.StockItemNotFoundException;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemRepository;
 import ua.edu.ukma.springers.voltstore.inventory.specifications.StockItemSpecifications;
 
@@ -65,6 +67,19 @@ public class StockService {
         item.setLengthCm(lengthCm);
         item.setWidthCm(widthCm);
         item.setHeightCm(heightCm);
+    }
+
+    /**
+     * Succeeds only if the StockItem exists and its packaging is fully configured; used by Catalog before a
+     * product is activated. Read-only: a missing StockItem is reported, never created, and no event is emitted.
+     */
+    @Transactional(readOnly = true)
+    public void checkReadiness(UUID productId) {
+        StockItemEntity item = stockItemRepository.findById(productId)
+                .orElseThrow(() -> new StockItemNotFoundException(productId));
+        if (!item.isPackagingConfigured()) {
+            throw new PackagingNotConfiguredException(productId);
+        }
     }
 
     /**

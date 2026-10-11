@@ -52,6 +52,9 @@ public class SecurityConfig {
                                 .hasRole(UserRole.INVENTORY_WORKER.name())
                         .requestMatchers(HttpMethod.POST, "/inventory/stock/{productId}/adjust")
                                 .hasRole(UserRole.INVENTORY_WORKER.name())
+                        // Internal-only (Catalog, via X-Internal-Token); not routed by the API Gateway
+                        .requestMatchers(HttpMethod.GET, "/inventory/stock/{productId}/readiness")
+                                .hasRole("SERVICE")
                         // Fail closed: a route nobody wrote a rule for is unreachable until a rule is added
                         .anyRequest().denyAll())
                 // Internal token first: if present and valid, the request is a service call and user headers are ignored

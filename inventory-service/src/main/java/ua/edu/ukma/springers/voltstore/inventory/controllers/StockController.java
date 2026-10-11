@@ -52,6 +52,16 @@ public class StockController {
         return new AdjustStockResponse(stockService.adjustStock(productId, request.delta()));
     }
 
+    /**
+     * Internal (Catalog): 204 if the product is ready for activation; otherwise 404 (no StockItem) or
+     * 422 (packaging not configured) from the exception handler.
+     */
+    @GetMapping("/{productId}/readiness")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void checkReadiness(@PathVariable UUID productId) {
+        stockService.checkReadiness(productId);
+    }
+
     @PutMapping("/{productId}/packaging")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void setPackaging(@PathVariable UUID productId, @Valid @RequestBody SetPackagingRequest request) {
