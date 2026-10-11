@@ -17,7 +17,14 @@ minikube image load voltstore/inventory-service:latest
 minikube image load voltstore/order-service:latest
 minikube image load voltstore/payment-service:latest
 
+# Ordering: "apply -R" goes through folders alphabetically, so "auth" comes before "base" (the namespace).
+# Apply the namespace first, then the Kafka broker (services start without it, but log connection
+# warnings until it is ready), then everything else.
+kubectl apply -f C:\Users\stasp\Desktop\uni\course4sem1\microserv\Spring-microservice\k8s\base\
+kubectl apply -f C:\Users\stasp\Desktop\uni\course4sem1\microserv\Spring-microservice\k8s\kafka\
 kubectl apply -f C:\Users\stasp\Desktop\uni\course4sem1\microserv\Spring-microservice\k8s\ -R
+
+# Kafka broker address inside the cluster: kafka:9092 (SPRING_KAFKA_BOOTSTRAP_SERVERS)
 
 kubectl get pods -n voltstore
 
