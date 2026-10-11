@@ -49,6 +49,7 @@ class AdjustStockIntegrationTest {
 
     @BeforeEach
     void cleanTable() {
+        jdbcTemplate.update("DELETE FROM stock_item_reservations");
         jdbcTemplate.update("DELETE FROM stock_items");
     }
 

@@ -88,6 +88,27 @@ class StockEventsIntegrationTest {
         assertThat(records.get(0).offset()).isLessThan(records.get(1).offset());
     }
 
+    @Test
+    void reserveLastUnits_publishesDepletedOnlyForProductThatReachesZero() throws Exception {
+        UUID depleted = UUID.randomUUID();
+        UUID stillAvailable = UUID.randomUUID();
+        adjust(depleted, 2).andExpect(status().isOk());
+        adjust(stillAvailable, 5).andExpect(status().isOk());
+
+        mockMvc.perform(post("/inventory/reservations")
+                        .headers(TrustedHeaders.asInternalService())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderId\":\"" + UUID.randomUUID() + "\",\"items\":["
+                                + "{\"productId\":\"" + depleted + "\",\"quantity\":2},"
+                                + "{\"productId\":\"" + stillAvailable + "\",\"quantity\":1}]}"))
+                .andExpect(status().isNoContent());
+
+        await().atMost(Duration.ofSeconds(15)).untilAsserted(() ->
+                assertThat(typesFor(depleted)).containsExactly("ProductStockReplenished", "ProductStockDepleted"));
+        // 5 -> 4 crosses no boundary: only the initial restock event (checked after Depleted has arrived)
+        assertThat(typesFor(stillAvailable)).containsExactly("ProductStockReplenished");
+    }
+
     private org.springframework.test.web.servlet.ResultActions adjust(UUID productId, int delta) throws Exception {
         return mockMvc.perform(post("/inventory/stock/" + productId + "/adjust")
                 .headers(TrustedHeaders.asUser("INVENTORY_WORKER"))

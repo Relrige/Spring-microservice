@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+import ua.edu.ukma.springers.voltstore.inventory.services.ReservationService;
 import ua.edu.ukma.springers.voltstore.inventory.services.StockService;
 import ua.edu.ukma.springers.voltstore.inventory.support.TrustedHeaders;
 
@@ -42,6 +43,9 @@ class RouteSecurityRulesTest {
 
     @MockitoBean
     private StockService stockService;
+
+    @MockitoBean
+    private ReservationService reservationService;
 
     @Test
     void everyApplicationRouteHasAnExplicitRule() throws Exception {
