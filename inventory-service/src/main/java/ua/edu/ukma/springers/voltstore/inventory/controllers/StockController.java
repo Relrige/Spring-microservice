@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ua.edu.ukma.springers.voltstore.inventory.dto.AdjustStockRequest;
 import ua.edu.ukma.springers.voltstore.inventory.dto.AdjustStockResponse;
+import ua.edu.ukma.springers.voltstore.inventory.dto.PackagingResponse;
 import ua.edu.ukma.springers.voltstore.inventory.dto.SetPackagingRequest;
 import ua.edu.ukma.springers.voltstore.inventory.dto.StockBalanceResponse;
 import ua.edu.ukma.springers.voltstore.inventory.paging.PageResponse;
@@ -60,6 +61,14 @@ public class StockController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void checkReadiness(@PathVariable UUID productId) {
         stockService.checkReadiness(productId);
+    }
+
+    /**
+     * Internal (Delivery): the packaging values; 404 (no StockItem) or 422 (packaging not configured) otherwise.
+     */
+    @GetMapping("/{productId}/packaging")
+    public PackagingResponse getPackaging(@PathVariable UUID productId) {
+        return PackagingResponse.from(stockService.getPackaging(productId));
     }
 
     @PutMapping("/{productId}/packaging")

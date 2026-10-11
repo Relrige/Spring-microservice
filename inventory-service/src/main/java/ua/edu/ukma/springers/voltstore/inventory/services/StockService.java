@@ -75,11 +75,25 @@ public class StockService {
      */
     @Transactional(readOnly = true)
     public void checkReadiness(UUID productId) {
+        getWithConfiguredPackaging(productId);
+    }
+
+    /**
+     * Returns the StockItem whose packaging values Delivery needs for TTN generation. Same outcomes as
+     * {@link #checkReadiness}: missing StockItem or incomplete packaging is reported; nothing is created or emitted.
+     */
+    @Transactional(readOnly = true)
+    public StockItemEntity getPackaging(UUID productId) {
+        return getWithConfiguredPackaging(productId);
+    }
+
+    private StockItemEntity getWithConfiguredPackaging(UUID productId) {
         StockItemEntity item = stockItemRepository.findById(productId)
                 .orElseThrow(() -> new StockItemNotFoundException(productId));
         if (!item.isPackagingConfigured()) {
             throw new PackagingNotConfiguredException(productId);
         }
+        return item;
     }
 
     /**

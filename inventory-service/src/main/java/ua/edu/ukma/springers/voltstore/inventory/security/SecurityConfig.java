@@ -55,6 +55,9 @@ public class SecurityConfig {
                         // Internal-only (Catalog, via X-Internal-Token); not routed by the API Gateway
                         .requestMatchers(HttpMethod.GET, "/inventory/stock/{productId}/readiness")
                                 .hasRole("SERVICE")
+                        // Internal-only (Delivery); the PUT on the same path keeps its worker rule above
+                        .requestMatchers(HttpMethod.GET, "/inventory/stock/{productId}/packaging")
+                                .hasRole("SERVICE")
                         // Fail closed: a route nobody wrote a rule for is unreachable until a rule is added
                         .anyRequest().denyAll())
                 // Internal token first: if present and valid, the request is a service call and user headers are ignored
