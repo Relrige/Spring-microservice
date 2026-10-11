@@ -33,15 +33,16 @@
 
 | Method | Path | Auth Role | Description |
 |--------|------|-----------|-------------|
-| `GET` | `/catalog/products` | None/`CATALOG_MANAGER`| Paginated search. Customers see only ACTIVE. Managers can filter by `status`. <br> **Query:** `categoryId, search, minPrice, status, ...` <br> **Res:** `200 OK [{id, title, basePrice, stockStatus}]` |
-| `GET` | `/catalog/products/{id}` | None | Get product details (ACTIVE only). <br> **Res:** `200 OK {id, title, desc, basePrice, stockStatus}` |
+| `GET` | `/catalog/products` | None/`CATALOG_MANAGER`| Paginated search. Customers see only ACTIVE. Managers can filter by `status`. <br> **Query:** `search, categoryId, minPrice, maxPrice, sortBy (title\|basePrice[,asc\|desc]), status, page (zero-based), size (default 20, max 100)` <br> **Res:** `200 OK {content: [{productId, title, basePrice, categoryId, status, stockStatus}], page, totalElements}` |
+| `GET` | `/catalog/products/{id}` | None | Get product details (ACTIVE only; inactive → same `404` as missing). <br> **Res:** `200 OK {productId, title, description, categoryId, basePrice, stockStatus}` |
 | `POST` | `/catalog/products` | `CATALOG_MANAGER`| Create product in NOT_ACTIVE state. <br> **Req:** `{title, description, categoryId, basePrice}` <br> **Res:** `201 Created {productId}` |
 | `PUT` | `/catalog/products/{id}` | `CATALOG_MANAGER`| Update product details. <br> **Req:** `{title, desc, categoryId, basePrice}` <br> **Res:** `200 OK` |
 | `PATCH`| `/catalog/products/{id}/status`| `CATALOG_MANAGER`| Activate/Deactivate product. <br> **Req:** `{status}` <br> **Res:** `200 OK` or `422 Unprocessable` (if activation fails readiness check) |
+| `GET` | `/catalog/categories` | None | List/search categories (EP-CAT-10, added to the original spec). <br> **Query:** `search, page (zero-based), size (default 20, max 100)` <br> **Res:** `200 OK {content: [{categoryId, name}], page, totalElements}` |
 | `POST` | `/catalog/categories` | `CATALOG_MANAGER`| Create category. <br> **Req:** `{name}` <br> **Res:** `201 Created {categoryId}` |
 | `PUT` | `/catalog/categories/{id}`| `CATALOG_MANAGER`| Rename category. <br> **Req:** `{name}` <br> **Res:** `200 OK` |
 | `DELETE`|`/catalog/categories/{id}`| `CATALOG_MANAGER`| Delete category. <br> **Res:** `200 OK` or `409 Conflict` (if products attached) |
-| `GET` | `/catalog/products/batch-get`| Internal | Fetch current prices for Order Service snapshotting. <br> **Query:** `?ids=uuid1,uuid2` <br> **Res:** `200 OK [{productId, price}]` |
+| `GET` | `/catalog/products/batch-get`| Internal | Fetch current prices and status for Order Service snapshotting. <br> **Query:** `?ids=uuid1,uuid2` (1–100 IDs) <br> **Res:** `200 OK [{productId, title, basePrice, status}]` — a flat array of the products that exist, in any status; unknown IDs are simply absent (the spec's `notFound` list was dropped on purpose). |
 
 ---
 

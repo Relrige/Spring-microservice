@@ -7,8 +7,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Sort;
+import ua.edu.ukma.springers.voltstore.catalog.dto.BatchProductResponse;
+import ua.edu.ukma.springers.voltstore.catalog.dto.ProductDetailsResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductRequest;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductResponse;
+import ua.edu.ukma.springers.voltstore.catalog.dto.ProductSearchQuery;
+import ua.edu.ukma.springers.voltstore.catalog.dto.ProductStatusRequest;
+import ua.edu.ukma.springers.voltstore.catalog.security.UserRole;
 import ua.edu.ukma.springers.voltstore.catalog.entities.Product;
 import ua.edu.ukma.springers.voltstore.catalog.entities.ProductStatus;
 import ua.edu.ukma.springers.voltstore.catalog.entities.StockStatus;
@@ -24,8 +30,11 @@ import ua.edu.ukma.springers.voltstore.catalog.repositories.ProductRepository;
 import ua.edu.ukma.springers.voltstore.catalog.utils.RequestValidator;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -189,6 +198,232 @@ class ProductServiceTest {
                 .isInstanceOf(CategoryNotFoundForProductException.class);
         assertThat(product.getTitle()).isEqualTo("Old");
         verify(productRepository, never()).saveAndFlush(any());
+    }
+
+    // --- EP-CAT-03: change status ---
+
+    @Test
+    void changeStatus_deactivate_setsNotActiveAndKeepsStockStatus() {
+        UUID id = UUID.randomUUID();
+        Product product = activeProduct();
+        when(productRepository.findById(id)).thenReturn(Optional.of(product));
+
+        productService.changeStatus(id, statusRequest(ProductStatus.NOT_ACTIVE));
+
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.NOT_ACTIVE);
+        assertThat(product.getStockStatus()).isEqualTo(StockStatus.IN_STOCK);
+        verifyNoInteractions(eventPublisher);
+    }
+
+    // Change this test in task 21: activation must then depend on the Inventory readiness check
+    @Test
+    void changeStatus_activate_setsActiveWithoutReadinessCheck_untilTask21() {
+        UUID id = UUID.randomUUID();
+        Product product = existingProduct();
+        when(productRepository.findById(id)).thenReturn(Optional.of(product));
+
+        productService.changeStatus(id, statusRequest(ProductStatus.ACTIVE));
+
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.ACTIVE);
+        assertThat(product.getStockStatus()).isEqualTo(StockStatus.OUT_OF_STOCK);
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void changeStatus_sameStatusAgain_isIdempotent() {
+        UUID id = UUID.randomUUID();
+        Product product = activeProduct();
+        when(productRepository.findById(id)).thenReturn(Optional.of(product));
+
+        productService.changeStatus(id, statusRequest(ProductStatus.ACTIVE));
+        productService.changeStatus(id, statusRequest(ProductStatus.ACTIVE));
+
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.ACTIVE);
+    }
+
+    @Test
+    void changeStatus_notFound_throwsBeforeValidatingBody() {
+        UUID id = UUID.randomUUID();
+        when(productRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productService.changeStatus(id, new ProductStatusRequest()))
+                .isInstanceOf(ProductNotFoundException.class);
+    }
+
+    @Test
+    void changeStatus_missingStatus_throwsValidationError() {
+        UUID id = UUID.randomUUID();
+        when(productRepository.findById(id)).thenReturn(Optional.of(existingProduct()));
+
+        assertThatThrownBy(() -> productService.changeStatus(id, new ProductStatusRequest()))
+                .isInstanceOfSatisfying(RequestValidationException.class,
+                        e -> assertThat(e.getErrors()).containsOnlyKeys("status"));
+    }
+
+    // --- EP-CAT-05: product details ---
+
+    @Test
+    void getActiveProduct_active_returnsCustomerView() {
+        UUID id = UUID.randomUUID();
+        when(productRepository.findById(id)).thenReturn(Optional.of(activeProduct()));
+
+        ProductDetailsResponse response = productService.getActiveProduct(id);
+
+        assertThat(response.getTitle()).isEqualTo("Old");
+        assertThat(response.getStockStatus()).isEqualTo(StockStatus.IN_STOCK);
+    }
+
+    @Test
+    void getActiveProduct_missing_throwsNotFound() {
+        UUID id = UUID.randomUUID();
+        when(productRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productService.getActiveProduct(id))
+                .isInstanceOf(ProductNotFoundException.class)
+                .hasMessage("Product with ID " + id + " not found");
+    }
+
+    @Test
+    void getActiveProduct_inactive_throwsTheSameNotFoundAsMissing() {
+        UUID id = UUID.randomUUID();
+        when(productRepository.findById(id)).thenReturn(Optional.of(existingProduct()));
+
+        assertThatThrownBy(() -> productService.getActiveProduct(id))
+                .isInstanceOf(ProductNotFoundException.class)
+                .hasMessage("Product with ID " + id + " not found");
+    }
+
+    // --- EP-CAT-04: browse ---
+
+    @Test
+    void visibleStatus_managerSeesEverythingOrTheRequestedStatus() {
+        assertThat(ProductService.visibleStatus(null, UserRole.CATALOG_MANAGER)).isNull();
+        assertThat(ProductService.visibleStatus(ProductStatus.NOT_ACTIVE, UserRole.CATALOG_MANAGER))
+                .isEqualTo(ProductStatus.NOT_ACTIVE);
+    }
+
+    @Test
+    void visibleStatus_everyoneElseSeesOnlyActive_evenWhenAskingForNotActive() {
+        for (UserRole role : new UserRole[]{null, UserRole.CUSTOMER, UserRole.ADMIN, UserRole.INVENTORY_WORKER}) {
+            assertThat(ProductService.visibleStatus(null, role)).isEqualTo(ProductStatus.ACTIVE);
+            assertThat(ProductService.visibleStatus(ProductStatus.NOT_ACTIVE, role)).isEqualTo(ProductStatus.ACTIVE);
+        }
+    }
+
+    @Test
+    void parseSort_defaultIsTitleThenId() {
+        assertThat(ProductService.parseSort(null)).isEqualTo(Sort.by("title", "id"));
+        assertThat(ProductService.parseSort(" ")).isEqualTo(Sort.by("title", "id"));
+    }
+
+    @Test
+    void parseSort_acceptsWhitelistedFieldWithOptionalDirection() {
+        assertThat(ProductService.parseSort("basePrice"))
+                .isEqualTo(Sort.by(Sort.Direction.ASC, "basePrice").and(Sort.by("id")));
+        assertThat(ProductService.parseSort("basePrice,DESC"))
+                .isEqualTo(Sort.by(Sort.Direction.DESC, "basePrice").and(Sort.by("id")));
+        assertThat(ProductService.parseSort("title,asc"))
+                .isEqualTo(Sort.by(Sort.Direction.ASC, "title").and(Sort.by("id")));
+    }
+
+    @Test
+    void parseSort_rejectsUnknownFieldsAndDirections() {
+        for (String sortBy : new String[]{"status", "id", "description,asc", "title,up", "title,asc,desc", ","}) {
+            assertThatThrownBy(() -> ProductService.parseSort(sortBy))
+                    .as(sortBy)
+                    .isInstanceOfSatisfying(RequestValidationException.class,
+                            e -> assertThat(e.getErrors()).containsOnlyKeys("sortBy"));
+        }
+    }
+
+    @Test
+    void browseProducts_minPriceAboveMaxPrice_throwsWithoutQuerying() {
+        ProductSearchQuery query = new ProductSearchQuery();
+        query.setMinPrice(new BigDecimal("100"));
+        query.setMaxPrice(new BigDecimal("50"));
+
+        assertThatThrownBy(() -> productService.browseProducts(query, null))
+                .isInstanceOfSatisfying(RequestValidationException.class,
+                        e -> assertThat(e.getErrors()).containsOnlyKeys("minPrice"));
+        verifyNoInteractions(productRepository);
+    }
+
+    // --- EP-CAT-09: batch get ---
+
+    @Test
+    void batchGetProducts_returnsFoundProductsOnceInRequestOrder() {
+        Product first = withId(existingProduct(), UUID.randomUUID());
+        Product second = withId(activeProduct(), UUID.randomUUID());
+        UUID unknown = UUID.randomUUID();
+        when(productRepository.findAllById(any())).thenReturn(List.of(second, first));
+
+        List<BatchProductResponse> result = productService.batchGetProducts(
+                List.of(first.getId(), unknown, second.getId(), first.getId()));
+
+        assertThat(result).extracting(BatchProductResponse::getProductId).containsExactly(first.getId(), second.getId());
+        assertThat(result).extracting(BatchProductResponse::getStatus)
+                .containsExactly(ProductStatus.NOT_ACTIVE, ProductStatus.ACTIVE);
+    }
+
+    @Test
+    void batchGetProducts_queriesEachIdOnce() {
+        UUID id = UUID.randomUUID();
+        when(productRepository.findAllById(any())).thenReturn(List.of());
+
+        assertThat(productService.batchGetProducts(List.of(id, id))).isEmpty();
+
+        ArgumentCaptor<Iterable<UUID>> ids = ArgumentCaptor.captor();
+        verify(productRepository).findAllById(ids.capture());
+        assertThat(ids.getValue()).containsExactly(id);
+    }
+
+    @Test
+    void batchGetProducts_emptyOrNullElement_throwsValidationError() {
+        List<UUID> withNull = new ArrayList<>();
+        withNull.add(UUID.randomUUID());
+        withNull.add(null);
+
+        for (List<UUID> ids : List.of(List.<UUID>of(), withNull)) {
+            assertThatThrownBy(() -> productService.batchGetProducts(ids))
+                    .isInstanceOfSatisfying(RequestValidationException.class,
+                            e -> assertThat(e.getErrors()).containsOnlyKeys("ids"));
+        }
+        verifyNoInteractions(productRepository);
+    }
+
+    @Test
+    void batchGetProducts_moreThanTheLimit_throwsValidationError() {
+        List<UUID> ids = Stream.generate(UUID::randomUUID).limit(ProductService.BATCH_GET_MAX_IDS + 1).toList();
+
+        assertThatThrownBy(() -> productService.batchGetProducts(ids))
+                .isInstanceOf(RequestValidationException.class);
+        verifyNoInteractions(productRepository);
+    }
+
+    @Test
+    void batchGetProducts_exactlyTheLimit_isAccepted() {
+        List<UUID> ids = Stream.generate(UUID::randomUUID).limit(ProductService.BATCH_GET_MAX_IDS).toList();
+        when(productRepository.findAllById(any())).thenReturn(List.of());
+
+        assertThat(productService.batchGetProducts(ids)).isEmpty();
+    }
+
+    private static Product activeProduct() {
+        Product product = existingProduct();
+        product.activate();
+        ReflectionTestUtils.setField(product, "stockStatus", StockStatus.IN_STOCK);
+        return product;
+    }
+
+    private static Product withId(Product product, UUID id) {
+        ReflectionTestUtils.setField(product, "id", id);
+        return product;
+    }
+
+    private static ProductStatusRequest statusRequest(ProductStatus status) {
+        ProductStatusRequest request = new ProductStatusRequest();
+        request.setStatus(status);
+        return request;
     }
 
     private static Product existingProduct() {

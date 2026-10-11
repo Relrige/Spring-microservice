@@ -3,20 +3,26 @@ package ua.edu.ukma.springers.voltstore.catalog.controllers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.mockito.ArgumentCaptor;
 import ua.edu.ukma.springers.voltstore.catalog.dto.CategoryResponse;
+import ua.edu.ukma.springers.voltstore.catalog.dto.CategorySearchQuery;
+import ua.edu.ukma.springers.voltstore.catalog.dto.PageResponse;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.CategoryHasProductsException;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.CategoryNameAlreadyInUseException;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.CategoryNotFoundException;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.RequestValidationException;
+import ua.edu.ukma.springers.voltstore.catalog.security.SecurityConfig;
 import ua.edu.ukma.springers.voltstore.catalog.services.CategoryService;
 
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -24,13 +30,16 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asManager;
 
 @WebMvcTest(CategoryController.class)
+@Import(SecurityConfig.class)
 class CategoryControllerTest {
     private static final String URL = "/catalog/categories";
 
@@ -40,12 +49,56 @@ class CategoryControllerTest {
     @MockitoBean
     private CategoryService categoryService;
 
+    // --- EP-CAT-10: list ---
+
+    @Test
+    void list_anonymous_returnsPagingEnvelope() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(categoryService.listCategories(any()))
+                .thenReturn(new PageResponse<>(List.of(new CategoryResponse(id, "Laptops")), 1, 21));
+
+        mockMvc.perform(get(URL).param("search", "lap").param("page", "1").param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].categoryId").value(id.toString()))
+                .andExpect(jsonPath("$.content[0].name").value("Laptops"))
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.totalElements").value(21));
+
+        ArgumentCaptor<CategorySearchQuery> query = ArgumentCaptor.forClass(CategorySearchQuery.class);
+        verify(categoryService).listCategories(query.capture());
+        assertThat(query.getValue().getSearch()).isEqualTo("lap");
+        assertThat(query.getValue().getPage()).isEqualTo(1);
+        assertThat(query.getValue().getSize()).isEqualTo(20);
+    }
+
+    @Test
+    void list_noMatch_returnsEmptyContent() throws Exception {
+        when(categoryService.listCategories(any())).thenReturn(new PageResponse<>(List.of(), 0, 0));
+
+        mockMvc.perform(get(URL).param("search", "nothing"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty())
+                .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    @Test
+    void list_invalidPaging_returns400WithFieldErrors() throws Exception {
+        String[][] invalid = {{"page", "-1"}, {"page", "x"}, {"size", "0"}, {"size", "-5"}, {"size", "101"}, {"page", "30000000"}};
+        for (String[] param : invalid) {
+            mockMvc.perform(get(URL).param(param[0], param[1]))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/validation"))
+                    .andExpect(jsonPath("$.errors." + param[0]).isNotEmpty());
+        }
+        verify(categoryService, never()).listCategories(any());
+    }
+
     @Test
     void create_valid_returns201WithCategory() throws Exception {
         UUID id = UUID.randomUUID();
         when(categoryService.createCategory(any())).thenReturn(new CategoryResponse(id, "Laptops"));
 
-        mockMvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Laptops\"}"))
+        mockMvc.perform(post(URL).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Laptops\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.categoryId").value(id.toString()))
                 .andExpect(jsonPath("$.name").value("Laptops"))
@@ -54,7 +107,7 @@ class CategoryControllerTest {
 
     @Test
     void create_blankName_returns400WithFieldError() throws Exception {
-        mockMvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"  \"}"))
+        mockMvc.perform(post(URL).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"  \"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/validation"))
                 .andExpect(jsonPath("$.errors.name").isNotEmpty())
@@ -67,7 +120,7 @@ class CategoryControllerTest {
     @Test
     void create_nameTooLong_returns400() throws Exception {
         String name = "x".repeat(101);
-        mockMvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + name + "\"}"))
+        mockMvc.perform(post(URL).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + name + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.name").isNotEmpty());
     }
@@ -76,7 +129,7 @@ class CategoryControllerTest {
     void create_duplicateName_returns409() throws Exception {
         when(categoryService.createCategory(any())).thenThrow(new CategoryNameAlreadyInUseException());
 
-        mockMvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Laptops\"}"))
+        mockMvc.perform(post(URL).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Laptops\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/conflict"))
@@ -89,7 +142,7 @@ class CategoryControllerTest {
         UUID id = UUID.randomUUID();
         when(categoryService.renameCategory(eq(id), any())).thenReturn(new CategoryResponse(id, "Notebooks"));
 
-        mockMvc.perform(put(URL + "/" + id).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Notebooks\"}"))
+        mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Notebooks\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.categoryId").value(id.toString()))
                 .andExpect(jsonPath("$.name").value("Notebooks"));
@@ -100,7 +153,7 @@ class CategoryControllerTest {
         UUID id = UUID.randomUUID();
         when(categoryService.renameCategory(eq(id), any())).thenThrow(new CategoryNotFoundException(id));
 
-        mockMvc.perform(put(URL + "/" + id).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"X\"}"))
+        mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"X\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/not-found"));
     }
@@ -111,7 +164,7 @@ class CategoryControllerTest {
         when(categoryService.renameCategory(eq(id), any()))
                 .thenThrow(new RequestValidationException(Map.of("name", List.of("must not be blank"))));
 
-        mockMvc.perform(put(URL + "/" + id).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"\"}"))
+        mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/validation"))
                 .andExpect(jsonPath("$.errors.name[0]").value("must not be blank"));
@@ -119,7 +172,7 @@ class CategoryControllerTest {
 
     @Test
     void rename_nonUuidId_returns400() throws Exception {
-        mockMvc.perform(put(URL + "/not-a-uuid").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"X\"}"))
+        mockMvc.perform(put(URL + "/not-a-uuid").headers(asManager()).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"X\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.service").value("catalog-service"));
     }
@@ -128,7 +181,7 @@ class CategoryControllerTest {
     void delete_success_returns200WithoutBody() throws Exception {
         UUID id = UUID.randomUUID();
 
-        mockMvc.perform(delete(URL + "/" + id))
+        mockMvc.perform(delete(URL + "/" + id).headers(asManager()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(""));
 
@@ -140,7 +193,7 @@ class CategoryControllerTest {
         UUID id = UUID.randomUUID();
         doThrow(new CategoryHasProductsException()).when(categoryService).deleteCategory(id);
 
-        mockMvc.perform(delete(URL + "/" + id))
+        mockMvc.perform(delete(URL + "/" + id).headers(asManager()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value(
                         "Category has associated products. Reassign or remove all products before deletion."));

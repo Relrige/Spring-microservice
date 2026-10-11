@@ -112,7 +112,7 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 **Auth:** None required; role determines which products are visible
 
 **Steps:**
-1. Parse optional query parameters: `search` (title/description keyword), `categoryId`, `minPrice`, `maxPrice`, `sortBy`, `page`, `size`.
+1. Parse optional query parameters: `search` (title/description keyword), `categoryId`, `minPrice`, `maxPrice`, `sortBy`, `page`, `size`. `sortBy` is `field` or `field,direction` with field `title` or `basePrice` and direction `asc` (default) or `desc`; the default order is by `title`. `page` is zero-based; `size` defaults to `20` (maximum `100`).
 2. Determine caller role from the `X-User-Role` header (or absent header for anonymous):
    - **Customer / anonymous**: filter to `status = ACTIVE` only.
    - **Catalog Manager**: no status filter — all products (`ACTIVE` and `NOT_ACTIVE`) are returned. An additional optional `status` query param may be used to filter.
@@ -122,6 +122,8 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 
 **Edge cases:**
 - `minPrice` > `maxPrice` → `400 Bad Request`
+- Invalid `status`, `sortBy`, `page` or `size` → `400 Bad Request`
+- A non-manager caller sends `status` → the parameter is ignored (only `ACTIVE` products are returned)
 - `categoryId` not found → return empty result (not a 404; a non-existent category simply matches nothing)
 - No products match the filters → return `200 OK` with empty `content` array
 
@@ -231,16 +233,43 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 **Steps:**
 1. Parse the `ids` query parameter as a comma-separated list of UUIDs.
 2. Query all `Product` records whose `id` is in the list.
-3. Return `200 OK [ { productId, title, basePrice, status } ]` — including the current `status` field so Order Service can also validate `ACTIVE` status in the same call.
-4. If some requested `productId` values are not found in the catalog, return them in a separate `notFound` list (do not fail the entire request).
+3. Return `200 OK [ { productId, title, basePrice, status } ]` — a flat array, including the current `status` field so Order Service can also validate `ACTIVE` status in the same call.
+4. If some requested `productId` values are not found in the catalog, they are simply absent from the array (do not fail the entire request). The caller detects missing products by comparing IDs.
+
+> **Agreed change:** an earlier version of this card returned a wrapper object with a `products` array and a separate `notFound` list. The team dropped the wrapper and the `notFound` list; the contract is the flat array above (see [api-contracts.md](../services-requirements/api-contracts.md)).
 
 **Edge cases:**
-- Empty `ids` list → `400 Bad Request`
-- All requested IDs not found → `200 OK` with empty `products` array and all IDs in `notFound` list
+- Missing or empty `ids`, or a malformed UUID in the list → `400 Bad Request`
+- More than 100 distinct IDs → `400 Bad Request`
+- Duplicate IDs → each product appears once
+- All requested IDs not found → `200 OK` with `[]`
 
 **External calls:** none
 **Emits:** none
 **Refs:** SCN-C14 (step 2), api-contracts.md
+
+---
+
+## EP-CAT-10: List & Search Categories
+
+**Type:** `HTTP GET /catalog/categories`
+**Caller:** Anyone: Catalog Manager (to pick a `categoryId` for a product), Customer / anonymous (for the `categoryId` filter of EP-CAT-04)
+**Auth:** None
+
+> Added to the original spec by team agreement: without it, category IDs could not be discovered.
+
+**Steps:**
+1. Parse optional query parameters: `search` (case-insensitive substring of `name`), `page` (zero-based, default `0`), `size` (default `20`, maximum `100`).
+2. Query categories ordered by `name` (then `id`), applying `search` if present. `%` and `_` in `search` are matched literally.
+3. Return `200 OK { content: [ { categoryId, name } ], page, totalElements }` (the same paging envelope as EP-CAT-04).
+
+**Edge cases:**
+- No category matches → `200 OK` with empty `content`
+- Negative `page`, `size` ≤ 0 or `size` > 100, non-numeric values → `400 Bad Request`
+
+**External calls:** none
+**Emits:** none
+**Refs:** US-CM-05, EP-CAT-04
 
 ---
 

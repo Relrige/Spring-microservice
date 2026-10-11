@@ -70,8 +70,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                                                                   WebRequest request) {
         Map<String, List<String>> fieldErrors = new TreeMap<>();
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
+            // A query parameter of the wrong type (e.g. ?page=abc) is a binding failure, whose default message
+            // is a conversion stack description; report it like a wrong JSON value instead
             fieldErrors.computeIfAbsent(error.getField(), field -> new ArrayList<>())
-                    .add(error.getDefaultMessage());
+                    .add(error.isBindingFailure() ? "Invalid value" : error.getDefaultMessage());
         }
         return handleExceptionInternal(ex, validationProblem(fieldErrors), headers, status, request);
     }

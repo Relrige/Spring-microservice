@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static ua.edu.ukma.springers.voltstore.catalog.support.CatalogTestData.clean;
 import static ua.edu.ukma.springers.voltstore.catalog.support.CatalogTestData.insertCategory;
 import static ua.edu.ukma.springers.voltstore.catalog.support.CatalogTestData.productJson;
+import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asManager;
 
 // The broker is unreachable for the whole test: nothing listens on localhost:1
 @SpringBootTest(properties = {
@@ -48,7 +49,7 @@ class KafkaUnavailableIntegrationTest {
         UUID categoryId = insertCategory(jdbc, "Laptops");
 
         long start = System.nanoTime();
-        mockMvc.perform(post("/catalog/products").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/catalog/products").headers(asManager()).contentType(MediaType.APPLICATION_JSON)
                         .content(productJson(categoryId)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.productId").isNotEmpty());

@@ -1,5 +1,5 @@
 ---
-status: TODO
+status: DONE
 service: catalog-service
 ---
 # EP-CAT-03: Change Product Status (Activate / Deactivate) — Without Readiness Check
@@ -11,16 +11,18 @@ According to the spec, activation must first call Inventory Service synchronousl
 *References:* [Catalog Spec — EP-CAT-03](../../design/services-specs/catalog-service-spec.md), [Catalog Manager Scenarios (SCN-CM02, SCN-CM03)](../../design/scenarios/catalog-manager-scenarios.md)
 
 ## Acceptance Criteria
-- [ ] `PATCH /catalog/products/{id}/status` accepts `{ status }` and returns `200 OK`.
-- [ ] Product `id` not found → `404`. `status` missing, not one of `ACTIVE` / `NOT_ACTIVE`, or an unreadable body → `400` (never `500`).
-- [ ] Setting `NOT_ACTIVE` and setting `ACTIVE` change only `Product.status`. Setting the status the product already has is an idempotent `200`.
-- [ ] No HTTP client, no readiness interface, and no placeholder bean for Inventory is introduced.
-- [ ] The endpoint publishes no event and does not touch `stockStatus`.
-- [ ] Route rule `PATCH /catalog/products/{id}/status` → `hasRole("CATALOG_MANAGER")`; `401`/`403` tests (this task comes after [task 12](12-trusted-header-security.md)).
-- [ ] The temporary spec deviation is marked in the code with a short comment pointing at task 21, and a test named so that it is obviously the one to change when the readiness check arrives.
-- [ ] Tests: service unit tests (activate, deactivate, idempotent repeat); controller tests for each status code above.
+- [x] `PATCH /catalog/products/{id}/status` accepts `{ status }` and returns `200 OK`.
+- [x] Product `id` not found → `404`. `status` missing, not one of `ACTIVE` / `NOT_ACTIVE`, or an unreadable body → `400` (never `500`).
+- [x] Setting `NOT_ACTIVE` and setting `ACTIVE` change only `Product.status`. Setting the status the product already has is an idempotent `200`.
+- [x] No HTTP client, no readiness interface, and no placeholder bean for Inventory is introduced.
+- [x] The endpoint publishes no event and does not touch `stockStatus`.
+- [x] Route rule `PATCH /catalog/products/{id}/status` → `hasRole("CATALOG_MANAGER")`; `401`/`403` tests (this task comes after [task 12](12-trusted-header-security.md)).
+- [x] The temporary spec deviation is marked in the code with a short comment pointing at task 21, and a test named so that it is obviously the one to change when the readiness check arrives.
+- [x] Tests: service unit tests (activate, deactivate, idempotent repeat); controller tests for each status code above.
 
 ## Technical Notes / Constraints
 - Write the service method so the activation branch is easy to extend later (a clearly separate `activate` path), but do not build abstractions for a call that does not exist yet.
 - Activated products become visible through [task 15](15-get-product-details.md) and [task 16](16-browse-and-filter-products.md); this endpoint is what makes those testable end to end.
 - Concurrency: a deactivation racing with an activation is last-write-wins. That is acceptable for this project; state it.
+- **For the PR — temporary spec deviation:** activation does not call Inventory yet, so a product can be activated without stock or packaging data. The code says so in `ProductService.activate` (pointing at task 21); the test to change then is `ProductServiceTest.changeStatus_activate_setsActiveWithoutReadinessCheck_untilTask21`.
+- **Implemented:** `200 OK` with no body (as in the spec). Checks follow the spec: `404`, then body validation (`400`, service-side as in EP-CAT-02); an unknown enum value or an unreadable body is rejected while the JSON is read (`400`). `@DynamicUpdate` means only `status` is written; an unchanged status issues no `UPDATE`. Concurrent activation/deactivation is last-write-wins.

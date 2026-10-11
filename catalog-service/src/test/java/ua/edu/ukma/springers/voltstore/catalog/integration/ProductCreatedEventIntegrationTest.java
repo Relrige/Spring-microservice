@@ -40,6 +40,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static ua.edu.ukma.springers.voltstore.catalog.support.CatalogTestData.clean;
 import static ua.edu.ukma.springers.voltstore.catalog.support.CatalogTestData.productJson;
+import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asManager;
 
 // Task 11: creating a product publishes ProductCreated, and the in-service listener receives it
 @SpringBootTest
@@ -112,11 +113,11 @@ class ProductCreatedEventIntegrationTest {
     void failedCreates_publishNoEvent() throws Exception {
         try (TopicProbe probe = new TopicProbe(kafka.getBootstrapServers(), KafkaTopics.PRODUCT_EVENTS)) {
             // 400: validation failure
-            mockMvc.perform(post("/catalog/products").contentType(MediaType.APPLICATION_JSON)
+            mockMvc.perform(post("/catalog/products").headers(asManager()).contentType(MediaType.APPLICATION_JSON)
                             .content("{\"title\":\"\",\"description\":\"\"}"))
                     .andExpect(status().isBadRequest());
             // 422: unknown category
-            mockMvc.perform(post("/catalog/products").contentType(MediaType.APPLICATION_JSON)
+            mockMvc.perform(post("/catalog/products").headers(asManager()).contentType(MediaType.APPLICATION_JSON)
                             .content(productJson(UUID.randomUUID())))
                     .andExpect(status().isUnprocessableContent());
 
@@ -145,7 +146,7 @@ class ProductCreatedEventIntegrationTest {
     }
 
     private UUID createCategory(String name) throws Exception {
-        String body = mockMvc.perform(post("/catalog/categories").contentType(MediaType.APPLICATION_JSON)
+        String body = mockMvc.perform(post("/catalog/categories").headers(asManager()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"" + name + "\"}"))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
@@ -153,7 +154,7 @@ class ProductCreatedEventIntegrationTest {
     }
 
     private String createProduct(UUID categoryId) throws Exception {
-        String body = mockMvc.perform(post("/catalog/products").contentType(MediaType.APPLICATION_JSON)
+        String body = mockMvc.perform(post("/catalog/products").headers(asManager()).contentType(MediaType.APPLICATION_JSON)
                         .content(productJson(categoryId)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
