@@ -3,10 +3,35 @@ spring:
     name: inventory-service
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
   mvc:
     problem-details:
       enabled: true
+  autoconfigure:
+    # Callers are identified by gateway headers; there is no username/password login, so no default in-memory user
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  jackson:
+    deserialization:
+      # Reject 1.5 for an integer field instead of silently truncating it to 1
+      accept-float-as-int: false
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+    consumer:
+      group-id: inventory-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # Values are read as JSON text; the target class is taken from each @KafkaListener
+      # parameter by the message converter in KafkaConfig (so one consumer can handle several event types)
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+auth:
+  internal:
+    # Shared secret of service-to-service calls (X-Internal-Token); supplied by the INTERNAL_TOKEN environment variable
+    token: ${INTERNAL_TOKEN}
 management:
   endpoint:
     health:

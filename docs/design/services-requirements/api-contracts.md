@@ -41,21 +41,24 @@
 | `POST` | `/catalog/categories` | `CATALOG_MANAGER`| Create category. <br> **Req:** `{name}` <br> **Res:** `201 Created {categoryId}` |
 | `PUT` | `/catalog/categories/{id}`| `CATALOG_MANAGER`| Rename category. <br> **Req:** `{name}` <br> **Res:** `200 OK` |
 | `DELETE`|`/catalog/categories/{id}`| `CATALOG_MANAGER`| Delete category. <br> **Res:** `200 OK` or `409 Conflict` (if products attached) |
-| `GET` | `/catalog/products/batch-get`| Internal | Fetch current prices for Order Service snapshotting. <br> **Query:** `?ids=uuid1,uuid2` <br> **Res:** `200 OK [{productId, price}]` |
+| `GET` | `/catalog/categories` | None | List categories (paginated, search by name). <br> **Query:** `search, page, size` <br> **Res:** `200 OK {content: [{categoryId, name}], page, totalElements}` |
+| `GET` | `/catalog/products/batch-get`| Internal | Fetch current product data for Order Service snapshotting and for Inventory's existence check. Returns products in any status; unknown IDs are simply absent. <br> **Query:** `?ids=uuid1,uuid2` <br> **Res:** `200 OK [{productId, title, basePrice, status}]` or `400` (empty/malformed `ids`) |
 
 ---
 
 ## 4. Inventory Service
 
+> Errors use the shared `ProblemDetail` shape. A success with nothing to return is `204 No Content`. Internal routes require `X-Internal-Token` (role `SERVICE`) and are not routed by the API Gateway. Full rules: [Inventory Service Spec](../services-specs/inventory-service-spec.md).
+
 | Method | Path | Auth Role | Description |
 |--------|------|-----------|-------------|
-| `GET` | `/inventory/stock/{id}/readiness`| Internal | (Used by Catalog sync) Check if packaging is configured. <br> **Res:** `200 OK` or `422 Unprocessable {reason}` |
-| `GET` | `/inventory/stock/{id}/packaging`| Internal | (Used by Delivery sync) Get physical dimensions. <br> **Res:** `200 OK {totalWeightGrams, lengthCm, ...}` |
-| `POST` | `/inventory/reservations` | Internal | (Used by Order sync) Hard reserve stock. <br> **Req:** `{orderId, items: [{productId, quantity}]}` <br> **Res:** `200 OK` or `422` (Insufficient stock) |
-| `POST` | `/inventory/reservations/{orderId}/release`| Internal| (Used by Order Saga/TTL) Release reservations. <br> **Res:** `200 OK` |
-| `GET` | `/inventory/stock` | `INVENTORY_WORKER`| View stock balances. <br> **Res:** `200 OK [{productId, availableQuantity, ...}]` |
-| `POST` | `/inventory/stock/{id}/adjust`| `INVENTORY_WORKER`| Update stock (+/- delta). <br> **Req:** `{delta}` <br> **Res:** `200 OK {newAvailableQuantity}` |
-| `PUT` | `/inventory/stock/{id}/packaging`| `INVENTORY_WORKER`| Set physical dimensions. <br> **Req:** `{grossWeightGrams, lengthCm, widthCm, heightCm}` <br> **Res:** `200 OK` |
+| `GET` | `/inventory/stock/{id}/readiness`| Internal | (Used by Catalog sync) Check that a stock item exists and its packaging is configured. <br> **Res:** `204 No Content` (ready) or `404` (no stock item) or `422 {reason: "packaging_data_missing"}` |
+| `GET` | `/inventory/stock/{id}/packaging`| Internal | (Used by Delivery sync) Get physical dimensions. <br> **Res:** `200 OK {grossWeightGrams, lengthCm, widthCm, heightCm}` or `404` (no stock item) or `422 {reason: "packaging_data_missing"}` |
+| `POST` | `/inventory/reservations` | Internal | (Used by Order sync) Hard reserve stock, all or nothing. <br> **Req:** `{orderId, items: [{productId, quantity}]}` (1–100 items, each `productId` once, `quantity ≥ 1`) <br> **Res:** `204 No Content` (Order Service owns the reservation TTL and finds reservations by `orderId`) or `400` or `409` (order already has active reservations; for a retry this means "already reserved") or `422 {insufficientItems: [{productId, requested, available}]}` |
+| `POST` | `/inventory/reservations/{orderId}/release`| Internal| (Used by Order Saga/TTL) Release the order's active reservations; idempotent. <br> **Res:** `204 No Content` (also when nothing was active) |
+| `GET` | `/inventory/stock` | `INVENTORY_WORKER`| View stock balances. <br> **Query:** `?packagingConfigured=true\|false&page=0&size=20&sortBy=field[,asc\|desc]` (`sortBy`: `productId`, `availableQuantity`, `reservedQuantity`) <br> **Res:** `200 OK {content: [{productId, availableQuantity, reservedQuantity, totalQuantity, packagingConfigured}], page, size, totalElements}` or `400` |
+| `POST` | `/inventory/stock/{id}/adjust`| `INVENTORY_WORKER`| Update stock (+/- delta). <br> **Req:** `{delta}` (non-zero integer) <br> **Res:** `200 OK {newAvailableQuantity}` or `400` or `404` (product not in Catalog) or `422` (write-off below zero) or `503` (Catalog unavailable) |
+| `PUT` | `/inventory/stock/{id}/packaging`| `INVENTORY_WORKER`| Set physical dimensions (all four replaced at once). <br> **Req:** `{grossWeightGrams, lengthCm, widthCm, heightCm}` (positive integers) <br> **Res:** `204 No Content` or `400` or `404` (product not in Catalog) or `503` (Catalog unavailable) |
 
 ---
 

@@ -2,16 +2,17 @@ package ua.edu.ukma.springers.voltstore.inventory.exceptions;
 
 import lombok.Getter;
 
+import java.util.UUID;
+
+/**
+ * Thrown when a write-off would drive the available quantity below zero.
+ */
 @Getter
 public class InsufficientStockException extends RuntimeException {
-    private final String sku;
-    private final Integer available;
-    private final Integer requested;
+    private final UUID productId;
 
-    public InsufficientStockException(String sku, Integer available, Integer requested) {
-        super(String.format("Insufficient stock for SKU: %s. Requested: %d, Available: %d", sku, requested, available));
-        this.sku = sku;
-        this.available = available;
-        this.requested = requested;
+    public InsufficientStockException(UUID productId) {
+        super("Insufficient available stock for write-off");
+        this.productId = productId;
     }
 }
