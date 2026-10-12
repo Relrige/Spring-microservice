@@ -1,0 +1,26 @@
+---
+status: TODO
+service: infrastructure
+---
+# Kafka: Inventory Wiring and First Minikube Run
+
+## Context
+The [Kafka broker task](kafka-broker-setup.md) added the broker to Compose and Kubernetes and connected Catalog to it. Inventory [task 05](../inventory-service/05-kafka-spring-setup-and-topic.md) had deferred its own Compose/Kubernetes Kafka wiring to the broker task, but that part was not done, so Inventory cannot reach the broker when it runs in a container. The Kubernetes manifests for the broker have also never been applied to minikube. This task closes both gaps so that Catalog and Inventory can exchange events through Kafka in Compose and in Kubernetes. It contains no business logic: the real consumers are Catalog [task 18](../catalog-service/18-consume-stock-events.md) and Inventory [task 15](../inventory-service/15-consume-product-created.md).
+*References:* [Kafka broker task](kafka-broker-setup.md), [Inventory Spring Kafka setup](../inventory-service/05-kafka-spring-setup-and-topic.md), [Catalog Spring Kafka setup](../catalog-service/10-kafka-spring-setup-and-topic.md)
+
+## Acceptance Criteria
+- [ ] `docker-compose.yml`: `inventory-service` has `depends_on: kafka: condition: service_healthy`, like `catalog-service`.
+- [ ] `inventory-service/.env.example`: `SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092`, with the same comment as `catalog-service/.env.example` (from the IDE use `localhost:9094`). Each developer updates their local `.env` the same way.
+- [ ] `inventory-service/src/main/resources/application.yml`: the default `bootstrap-servers` is the broker's host listener `localhost:9094`, with a comment like Catalog's.
+- [ ] `k8s/inventory/app-config.yaml`: `SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"`, with the same comment as `k8s/catalog/app-config.yaml`.
+- [ ] `k8s.txt`: the `kubectl apply` commands use paths relative to the repository root (`k8s\base\`, `k8s\kafka\`, `k8s\`) instead of a machine-specific absolute path.
+- [ ] **Compose check:** `docker compose up` starts the broker, both services and their databases. `kafka-topics.sh --list` on `kafka:9092` shows `catalog.product-events` and `inventory.stock-events`, so both services connected and declared their topics. Creating a product in Catalog and adjusting stock 0 → 10 in Inventory each produce a log line from that service's temporary demo listener (if the demo listeners are already removed, read the topics with `kafka-console-consumer.sh` instead).
+- [ ] **Minikube check (broker):** after applying `k8s/base/` and `k8s/kafka/`, the `kafka-data` PVC is `Bound`, the `kafka-0` pod is ready, and a console produce/consume on `kafka:9092` works from inside the cluster (for example with `kubectl exec` into `kafka-0`). After deleting the pod, it comes back with the same topics (fixed `CLUSTER_ID`, data on the volume).
+- [ ] **Minikube check (services):** the Catalog and Inventory pods connect to `kafka:9092` and the two topics exist. The results of both checks are recorded in the PR.
+
+## Technical Notes / Constraints
+- Why `localhost:9092` fails: inside a container `localhost` is the container itself, and from the host Compose publishes only the `EXTERNAL` listener on `9094`. Services in Compose and Kubernetes use `kafka:9092`; only processes on the host use `localhost:9094`.
+- **Inventory pod and `INTERNAL_TOKEN`:** `application.yml` requires `${INTERNAL_TOKEN}`, and no Kubernetes secret provides it yet, so the Inventory pod fails at startup. The proper fix (an `inventory-secrets` secret, auth-service split) belongs to [Inventory task 18](../inventory-service/18-containerization-and-deployment.md). Either do that secret split first, or record the Inventory part of the minikube check as blocked in the PR; do not put the token in the ConfigMap.
+- **Storage on minikube:** the StatefulSet sets `fsGroup: 1000`, but minikube's default storage provisioner creates hostPath volumes, for which `fsGroup` is not applied; the broker relies on the provisioner's directory permissions. If the broker fails with a permission error on `/var/lib/kafka/data`, an init container that `chown`s the directory is the usual fix.
+- Resource limits stay small: minikube runs the broker next to all services and their databases.
+- **Out of scope:** the end-to-end Catalog ↔ Inventory event flow (product created → stock item; stock 0 ↔ positive → `stockStatus`), which needs the consumer tasks and is checked in [Inventory task 18](../inventory-service/18-containerization-and-deployment.md); topic-name variables for consumed topics (added with the consumer tasks).
