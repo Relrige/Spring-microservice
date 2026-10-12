@@ -1,5 +1,5 @@
 ---
-status: IN_PROGRESS
+status: DONE
 service: inventory-service
 ---
 # EP-INV-EVT-02: Consume `OrderShipped`
@@ -18,7 +18,7 @@ Order Service may not exist yet; tests publish the event with the payload from t
 - [x] Duplicate delivery, also concurrent, deducts exactly once.
 - [x] A reservation that has been `RELEASED` is never consumed (a shipped event after a cancellation does not touch stock).
 - [x] Malformed payloads and transient failures follow the same dead-letter and retry policy as [task 15](15-consume-product-created.md); missing topic is not fatal.
-- [ ] Tests (Testcontainers Kafka + PostgreSQL): multi-item order consumed; unknown order warns and acknowledges; duplicate event is a no-op; released reservation stays released; `CHECK (reserved_quantity >= 0)` never violated.
+- [x] Tests (Testcontainers Kafka + PostgreSQL): multi-item order consumed; unknown order warns and acknowledges; duplicate event is a no-op; released reservation stays released; `CHECK (reserved_quantity >= 0)` never violated.
 
 ## Technical Notes / Constraints
 - Idempotency comes from the status filter (`ACTIVE` only), not from an extra "processed events" table; discuss when such a table would be needed (non-state-based handlers).
@@ -38,4 +38,4 @@ Order Service may not exist yet; tests publish the event with the payload from t
 - **Event-type filter (contract with Order):** the topic will carry all order events (`OrderPlaced`, `OrderCancelled`, …), so only records with header `eventType: OrderShipped` are consumed (`KafkaConfig.orderShippedOnly`). Without the filter, any order event would be read as "shipped" and consume the reservations.
 - **Processed-events table, when needed:** not needed here: the `ACTIVE` status filter makes the handler idempotent (state-based). A table of processed `eventId`s is needed when the effect is not visible in the state, e.g. "add N to a counter" or "send an e-mail".
 - Errors, ack mode and missing topic: as in task 15 (DLT `inventory.order.order-events.dlt`).
-- **Open:** `ConsumedEventsIntegrationTest` (multi-item order, duplicate, unknown order, released order, other event type, concurrent duplicates) is written but **not run yet** (Docker unavailable). Unit tests (`ReservationServiceConsumeTest`) pass.
+- **Verified (2026-10-12):** `ConsumedEventsIntegrationTest` passes against Testcontainers Kafka + PostgreSQL; unit tests (`ReservationServiceConsumeTest`) pass.

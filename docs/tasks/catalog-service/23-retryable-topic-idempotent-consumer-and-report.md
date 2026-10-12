@@ -1,72 +1,48 @@
 ---
-status: TODO
+status: DONE
 service: catalog-service
 ---
-# Fault-Tolerant Stock-Event Consumer: `@RetryableTopic`, Idempotent Consumer, Failure Experiment and Report
+# Group Assignment: Fault-Tolerant Messaging (Catalog → Inventory), Experiment and Report
 
 ## Context
-This task closes the group assignment "Fault-tolerant inter-service messaging with the Transactional Outbox". Status after tasks 10–22:
+Closes the group assignment "Fault-tolerant inter-service messaging with the Transactional Outbox": asynchronous Kafka exchange between two services, a transactional outbox in the producer, `@RetryableTopic` + DLT and an Idempotent Consumer (keys in the database) in the consumer, a DLT integration test, a consumer-failure experiment, and a report.
 
-| Assignment requirement | Status |
-|---|---|
-| Asynchronous Kafka exchange between two team services | Done: Inventory → Catalog (`inventory.stock-events`). Catalog → Inventory (`ProductCreated`) is not consumed yet ([Inventory task 15](../inventory-service/15-consume-product-created.md)). |
-| Transactional Outbox in the producer (one `TransactionManager` for entity and event) | Done in Catalog for `ProductCreated` ([task 19](19-transactional-outbox.md)). **Missing in Inventory** for the stock events ([Inventory task 17](../inventory-service/17-transactional-outbox.md)). |
-| Consumer retries and error isolation with `@RetryableTopic` and a DLT | Partly: [task 18](18-consume-stock-events.md) uses blocking retries (`DefaultErrorHandler` + `DeadLetterPublishingRecoverer`), not `@RetryableTopic`. |
-| Idempotent Consumer with keys stored in the database | Missing: the stock update is idempotent by nature, but processed event IDs are not recorded. |
-| Integration test proving an unprocessable event reaches the DLT | Exists for the blocking handler; must be redone for `@RetryableTopic`. |
-| Experiment with an artificial consumer failure, no duplicated business effects | Missing. |
-| Report on topic topology and fault-tolerance results | Missing. |
+**Decision (team, 2026-10-12): the demonstrated pair is Catalog → Inventory (`ProductCreated`).** Catalog is the producer; its outbox already exists ([task 19](19-transactional-outbox.md)). Inventory is the consumer; its `ProductCreated` handler ([Inventory task 15](../inventory-service/15-consume-product-created.md)) is rebuilt with `@RetryableTopic` and the Idempotent Consumer. The alternative (Inventory → Catalog stock events) was not chosen: it would need Inventory's outbox ([Inventory task 17](../inventory-service/17-transactional-outbox.md)) and non-blocking retries on an ordered stream.
 
-This task covers the **consumer side in Catalog**, the **experiment** and the **report**. For the demonstrated service pair (Inventory → Catalog) to also have an outbox on the producer side, [Inventory task 17](../inventory-service/17-transactional-outbox.md) must be done as well (see the first decision below).
-
-*References:* [Task 18 — stock-event consumer](18-consume-stock-events.md), [Task 19 — transactional outbox](19-transactional-outbox.md), [Event Catalogue](../../design/services-requirements/events-catalogue.md), [Inventory Spec — Stock Events](../../design/services-specs/inventory-service-spec.md)
-
-## Decisions to Make First (Team)
-1. **Which pair is presented as the end-to-end demonstration?**
-   - (a) **Inventory → Catalog** (stock events): the Catalog consumer exists and is rebuilt here; needs Inventory task 17 (outbox) for the producer side. *Suggested:* the consumer side is the larger part of the assignment, and most of it already exists in Catalog.
-   - (b) **Catalog → Inventory** (`ProductCreated`): the Catalog outbox is done; needs Inventory task 15 built with the same consumer pattern (`@RetryableTopic`, DLT, idempotent consumer).
-   Record the choice in the report. Both directions should eventually follow the same conventions.
-2. **Ordering vs. non-blocking retries.** `@RetryableTopic` moves a failing record to a retry topic and continues with the next records, so **per-product ordering is lost** while a record is being retried. Example: `Replenished` fails, `Depleted` for the same product is applied, then the retried `Replenished` arrives and leaves the read-model at `IN_STOCK` although stock is 0. Choose and document a guard. *Suggested:* store the event `timestamp` of the last applied stock event per product (`stock_status_changed_at`) and ignore older events. Alternative: keep blocking retries for this topic and argue why. That still fails the assignment's explicit `@RetryableTopic` requirement, so it needs the teacher's agreement.
+*References:* [Report](../../reports/messaging-fault-tolerance.md), [Event Catalogue](../../design/services-requirements/events-catalogue.md), [Inventory Spec — EP-INV-EVT-01](../../design/services-specs/inventory-service-spec.md)
 
 ## Acceptance Criteria
 
-### Consumer with `@RetryableTopic` and DLT
-- [ ] `StockEventListener` uses `@RetryableTopic` (Spring Kafka 4.1): bounded attempts (e.g. 4) with exponential back-off, retry topics created by the framework, and a `@DltHandler` that logs key, partition, offset, `eventId` and the failure cause.
-- [ ] Topic naming is explicit and documented (retry topic and DLT suffixes, e.g. `inventory.stock-events-catalog-retry-0…`, `…-catalog-dlt`), because several consumer groups may retry the same source topic. The DLT name from task 18 (`catalog.stock-events-dlt`) is either kept via configuration or replaced, and the change is reflected in the Event Catalogue.
-- [ ] Non-retryable errors go straight to the DLT without retry topics: deserialization failures (`ErrorHandlingDeserializer`), a payload without `productId` or `eventId`, an unknown `eventType` is still just skipped (not an error).
-- [ ] Transient errors (e.g. a database exception) go through the retry topics and are applied once the cause disappears.
-- [ ] The blocking `DefaultErrorHandler` bean from task 18 is removed or limited, so the two mechanisms do not both act on the same listener. State which one applies where.
-- [ ] Unknown `productId` is still logged and acknowledged (not retried, not dead-lettered).
+### Producer (Catalog) — already in place
+- [x] `ProductCreated` is written to `outbox_events` in the same transaction as the product (one `JpaTransactionManager`); a relay publishes it with key `productId` and headers `eventType`, `eventId` (task 19).
+- [x] Atomicity, broker outage and recovery, `SKIP LOCKED` with two relays: `OutboxIntegrationTest`.
 
-### Idempotent Consumer
-- [ ] `StockEvent` contains a mandatory `eventId` (Inventory already sends it; update the Event Catalogue example if needed).
-- [ ] Flyway migration `V4__create_processed_events_table.sql`: `processed_events(event_id UUID, consumer VARCHAR, processed_at TIMESTAMPTZ, PRIMARY KEY (event_id, consumer))`.
-- [ ] Recording the event ID and applying the stock change happen in **one database transaction**. A second delivery of the same `eventId` is detected (insert conflicts, e.g. `INSERT … ON CONFLICT DO NOTHING` returning 0 rows) and skipped with an `INFO`/`DEBUG` log line, without changing data.
-- [ ] The ordering guard from decision 2 is applied in the same transaction.
-- [ ] Old `processed_events` rows are deleted after a retention period that is longer than the longest possible redelivery window (retry topics + outbox retries). Configurable and tested, similar to the outbox cleanup.
+### Consumer (Inventory) — `@RetryableTopic` and DLT
+- [x] `ProductCreatedListener` uses `@RetryableTopic` (4 attempts: source topic + `catalog.product-events-inventory-retry-0/1/2` after 1, 2, 4 s) and a `@DltHandler` on `catalog.product-events-inventory-dlt` that logs key, partition, offset and the exception from the `kafka_exception-*` headers.
+- [x] Retry topics and DLT carry the consumer's name and are created by Inventory (3 partitions, replication 1); broker auto-creation stays off.
+- [x] Conversion failures (not JSON, missing `eventId` or `productId`) are fatal: straight to the DLT. Database errors go through the retry topics.
+- [x] Retry forwarding uses a text `KafkaTemplate` (`defaultRetryTopicKafkaTemplate`), so the forwarded JSON is not encoded a second time.
+- [x] Other Inventory listeners keep the blocking `DefaultErrorHandler` + DLT (`OrderShipped`: per-order ordering).
 
-### Tests (Testcontainers Kafka + PostgreSQL)
-- [ ] An undeserializable message and a message without `eventId` end up in the DLT; later messages for the same product are still applied.
-- [ ] A transient failure (repository spy throwing once) goes through a retry topic and is then applied exactly once.
-- [ ] The same event delivered twice (same `eventId`) changes data once; `processed_events` has one row.
-- [ ] Out-of-order delivery (older `Replenished` after newer `Depleted`) does not overwrite the newer state.
-- [ ] The DLT test from task 18 is replaced, not duplicated.
+### Consumer (Inventory) — Idempotent Consumer
+- [x] `eventId` is mandatory in Inventory's `ProductCreatedEvent`.
+- [x] Flyway `V3__create_processed_events_table.sql` in Inventory: `processed_events(event_id, consumer, processed_at)`, primary key `(event_id, consumer)`.
+- [x] `StockService.applyProductCreated`: `INSERT … ON CONFLICT DO NOTHING` into `processed_events` and the `StockItem` insert in one transaction; a duplicate inserts no key and skips the change. A failed attempt rolls back its key.
+- [x] Keys older than `inventory.idempotency.retention` (30 days) are deleted by a scheduled job.
 
-### Failure Experiment (manual, recorded in the report)
-- [ ] Inject a consumer failure **after the database commit but before the offset commit** (e.g. a test-only property that throws once after the transaction, or killing the container at that point). The broker redelivers the event, and the idempotent consumer skips it. Show the log lines and the `processed_events` count.
-- [ ] Repeat with the producer side: stop Kafka, change stock / create a product, start Kafka again. The outbox delivers the event late, exactly one business effect is observed.
-- [ ] Optional: run two Catalog instances (two replicas or two local processes) to show the consumer group sharing partitions and no double processing after a rebalance.
+### Tests
+- [x] DLT test (Testcontainers Kafka + PostgreSQL): non-JSON, no `productId`, no `eventId` → DLT, not via retry topics; later events still applied.
+- [x] Transient failure → `-retry-0` → applied once; DLT empty.
+- [x] Same `eventId` twice → business method once, one key.
+- [x] Failure after commit (`FailAfterCommitExperimentTest`) → redelivered via the retry topic → skipped → one effect.
 
-### Report
-- [ ] `docs/reports/messaging-fault-tolerance.md` (English) with:
-  - topic topology: every topic with owner, partitions, key, headers, producers, consumer groups, retry topics and DLTs (a table and a small diagram);
-  - delivery guarantees per hop (outbox: at-least-once; consumer: at-least-once + idempotency = effectively once), and where duplicates and reordering can still appear;
-  - test results (which tests prove which requirement) and the experiment protocol with observed output;
-  - known limits and open points (e.g. CDC instead of polling, DLT re-processing procedure).
+### Experiment and Report
+- [x] Docker Compose run with real Catalog and Inventory (overlay `docs/reports/messaging-experiment.compose.yml`): normal flow, broker outage on the producer side, consumer failure after commit, poison message. Output recorded.
+- [x] Report [`docs/reports/messaging-fault-tolerance.md`](../../reports/messaging-fault-tolerance.md): topic topology, delivery guarantees per hop, test mapping, experiment protocol, known limits.
 
 ## Technical Notes / Constraints
-- Check the `@RetryableTopic` API and defaults in the Spring Kafka version managed by Spring Boot 4.1 (attribute names, auto-created topic settings, `autoCreateTopics`, `numPartitions`, `replicationFactor = 1` for the single broker, and that broker auto-creation is off: retry topics must be created by the framework's admin, not the broker).
-- `@RetryableTopic` retries are asynchronous: integration tests must wait with Awaitility, never `Thread.sleep`.
-- The idempotency check and the business update must use the same `DataSource`/`TransactionManager`; do not use Kafka transactions for this.
-- DLT messages need a documented manual procedure (inspect, fix, re-publish to the source topic). The re-published event keeps its `eventId`, so the idempotent consumer still protects against double application.
-- Keep `INTERNAL_TOKEN` and other secrets out of logs, including DLT handler logs and headers.
+- **Ordering:** non-blocking retries give up per-key ordering while a record is retried. Fine for `ProductCreated` (one event per product, idempotent effect); the ordered streams (stock events in Catalog, `OrderShipped` in Inventory) keep blocking retries. Documented in the report.
+- **Main topic creation:** `@RetryableTopic` with `autoCreateTopics` also creates the source topic `catalog.product-events` if it is missing, with the same 3 partitions Catalog declares; KafkaAdmin never changes an existing topic.
+- **Second KafkaTemplate:** declaring the retry template switches off Spring Boot's auto-configured `kafkaTemplate`, so Inventory now declares that one explicitly (`@Primary`, same producer factory).
+- **Experiment switch:** `inventory.experiments.fail-after-commit` (default `false`) exists only for the experiment.
+- **Not covered here:** Inventory's own outbox for stock events ([Inventory task 17](../inventory-service/17-transactional-outbox.md)) and permanent Kafka wiring of Inventory in Compose/Kubernetes ([Inventory task 18](../inventory-service/18-containerization-and-deployment.md)).

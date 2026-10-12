@@ -1,0 +1,27 @@
+# Overlay for the fault-tolerance experiment (docs/reports/messaging-fault-tolerance.md). Connects Inventory to the
+# Compose Kafka broker until inventory task 18 wires this permanently.
+#
+#   docker compose -f docker-compose.yml -f docs/reports/messaging-experiment.compose.yml up -d --build \
+#       kafka catalog-service inventory-service
+#
+# FAIL_AFTER_COMMIT=true (phase C) makes Inventory fail every first delivery of ProductCreated after its database
+# commit, so the redelivery and the Idempotent Consumer can be observed. Never use it outside the experiment.
+services:
+  inventory-service:
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      # Any value of at least 32 characters; this flow makes no internal HTTP call
+      INTERNAL_TOKEN: ${EXPERIMENT_INTERNAL_TOKEN:-change-me-local-internal-token-at-least-32-chars}
+      INVENTORY_EXPERIMENTS_FAIL_AFTER_COMMIT: ${FAIL_AFTER_COMMIT:-false}
+
+  # A fresh database for the experiment, so a local volume left over from the pre-Flyway draft schema is not used
+  # (and not modified)
+  inventory-service-postgres:
+    volumes:
+      - inventory-experiment-postgres:/var/lib/postgresql
+
+volumes:
+  inventory-experiment-postgres:

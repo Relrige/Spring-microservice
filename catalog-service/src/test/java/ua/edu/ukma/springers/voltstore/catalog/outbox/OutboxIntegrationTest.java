@@ -22,6 +22,7 @@ import ua.edu.ukma.springers.voltstore.catalog.TestcontainersConfiguration;
 import ua.edu.ukma.springers.voltstore.catalog.config.KafkaTopics;
 import ua.edu.ukma.springers.voltstore.catalog.support.TopicProbe;
 
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -106,8 +107,8 @@ class OutboxIntegrationTest {
 
             // Broker back; skip the back-off wait instead of sleeping
             doCallRealMethod().when(kafkaTemplate).send(any(ProducerRecord.class));
-            // Clearly in the past: the relay compares with the JVM clock, which may lag the database container's clock
-            jdbc.update("UPDATE outbox_events SET next_attempt_at = now() - interval '1 hour'");
+            // Due now by the JVM clock, which is the only clock the relay uses (a Docker VM clock can be off by hours)
+            jdbc.update("UPDATE outbox_events SET next_attempt_at = ?", Timestamp.from(Instant.now().minusSeconds(1)));
             relay.publishDueEvents();
 
             assertThat(jdbc.queryForObject("SELECT published_at IS NOT NULL FROM outbox_events", Boolean.class)).isTrue();

@@ -28,6 +28,7 @@ import ua.edu.ukma.springers.voltstore.inventory.PostgresTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.inventory.config.KafkaTopics;
 import ua.edu.ukma.springers.voltstore.inventory.entities.ReservationStatus;
 import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
+import ua.edu.ukma.springers.voltstore.inventory.idempotency.ProcessedEvents;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemRepository;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemReservationRepository;
 import ua.edu.ukma.springers.voltstore.inventory.services.ReservationService;
@@ -47,6 +48,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mockingDetails;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -58,6 +60,9 @@ import static org.mockito.Mockito.verify;
 class ConsumedEventsIntegrationTest {
     private static final String PRODUCT_EVENTS = "catalog.product-events";
     private static final String ORDER_EVENTS = "order.order-events";
+    // Created by @RetryableTopic for the ProductCreated listener
+    private static final String PRODUCT_EVENTS_RETRY_0 = "catalog.product-events-inventory-retry-0";
+    private static final String PRODUCT_EVENTS_DLT = "catalog.product-events-inventory-dlt";
     private static final Duration WAIT = Duration.ofSeconds(30);
 
     // The source topics belong to Catalog and Order; the broker does not auto-create topics, so the test does
@@ -89,6 +94,9 @@ class ConsumedEventsIntegrationTest {
     @Autowired
     private StockItemReservationRepository reservationRepository;
 
+    @Autowired
+    private ProcessedEvents processedEvents;
+
     // Lets a test make the database fail once, like a short outage
     @MockitoSpyBean
     private StockItemRepository stockItemRepository;
@@ -97,6 +105,7 @@ class ConsumedEventsIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        jdbc.update("DELETE FROM processed_events");
         jdbc.update("DELETE FROM stock_item_reservations");
         jdbc.update("DELETE FROM stock_items");
         producer = new KafkaProducer<>(Map.of(
@@ -159,14 +168,36 @@ class ConsumedEventsIntegrationTest {
         UUID productId = UUID.randomUUID();
         String key = productId.toString();
 
+        String withoutEventId = "{\"productId\":\"" + productId + "\",\"timestamp\":\"2026-10-12T10:00:00Z\"}";
         send(PRODUCT_EVENTS, productId, "ProductCreated", "this is not JSON");
         send(PRODUCT_EVENTS, productId, "ProductCreated", "{\"timestamp\":\"2026-10-12T10:00:00Z\"}");
+        // Without an idempotency key the event cannot be deduplicated, so it is rejected as well
+        send(PRODUCT_EVENTS, productId, "ProductCreated", withoutEventId);
         send(PRODUCT_EVENTS, productId, "ProductCreated", productCreated(productId));
 
         await().atMost(WAIT).until(() -> stockItemRepository.findById(productId).isPresent());
         await().atMost(WAIT).untilAsserted(() ->
-                assertThat(deadLetters(KafkaTopics.deadLetterTopicOf(PRODUCT_EVENTS), key))
-                        .containsExactly("this is not JSON", "{\"timestamp\":\"2026-10-12T10:00:00Z\"}"));
+                assertThat(deadLetters(PRODUCT_EVENTS_DLT, key)).containsExactly(
+                        "this is not JSON", "{\"timestamp\":\"2026-10-12T10:00:00Z\"}", withoutEventId));
+        // Never retryable: they skipped the retry topics
+        assertThat(deadLetters(PRODUCT_EVENTS_RETRY_0, key)).isEmpty();
+    }
+
+    @Test
+    void sameEventDeliveredTwice_isAppliedOnce() throws Exception {
+        UUID productId = UUID.randomUUID();
+        String event = productCreated(productId);
+
+        // e.g. the Catalog outbox re-sent it after a timed-out acknowledgment
+        send(PRODUCT_EVENTS, productId, "ProductCreated", event);
+        send(PRODUCT_EVENTS, productId, "ProductCreated", event);
+        UUID marker = sendMarkerAfter(productId);
+
+        await().atMost(WAIT).until(() -> stockItemRepository.findById(marker).isPresent());
+        // The business change ran once; the duplicate stopped at the idempotency key
+        verify(stockItemRepository, times(1)).insertIfAbsent(eq(productId));
+        assertThat(count("SELECT count(*) FROM processed_events WHERE event_id = ?::uuid", eventIdOf(event)))
+                .isEqualTo(1);
     }
 
     @Test
@@ -177,11 +208,30 @@ class ConsumedEventsIntegrationTest {
         doThrow(new TransientDataAccessResourceException("database restarting")).doAnswer(real)
                 .when(stockItemRepository).insertIfAbsent(eq(productId));
 
-        send(PRODUCT_EVENTS, productId, "ProductCreated", productCreated(productId));
+        String event = productCreated(productId);
+        send(PRODUCT_EVENTS, productId, "ProductCreated", event);
 
         await().atMost(WAIT).until(() -> stockItemRepository.findById(productId).isPresent());
         verify(stockItemRepository, atLeast(2)).insertIfAbsent(eq(productId));
-        assertThat(deadLetters(KafkaTopics.deadLetterTopicOf(PRODUCT_EVENTS), productId.toString())).isEmpty();
+        // Non-blocking retry: the failed record went through the first retry topic, not the DLT
+        assertThat(deadLetters(PRODUCT_EVENTS_RETRY_0, productId.toString())).hasSize(1);
+        assertThat(deadLetters(PRODUCT_EVENTS_DLT, productId.toString())).isEmpty();
+        // The failed attempt rolled back its idempotency key together with the insert, so the retry was not
+        // mistaken for a duplicate: exactly one key, and the StockItem exists
+        assertThat(count("SELECT count(*) FROM processed_events WHERE event_id = ?::uuid", eventIdOf(event)))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void processedEventKeys_areDeletedAfterTheRetention() {
+        UUID old = UUID.randomUUID();
+        UUID recent = UUID.randomUUID();
+        jdbc.update("INSERT INTO processed_events VALUES (?, 'product-created', now() - interval '31 days')", old);
+        jdbc.update("INSERT INTO processed_events VALUES (?, 'product-created', now() - interval '1 day')", recent);
+
+        assertThat(processedEvents.deleteExpired()).isEqualTo(1);
+
+        assertThat(jdbc.queryForList("SELECT event_id FROM processed_events", UUID.class)).containsExactly(recent);
     }
 
     @Test
@@ -318,6 +368,10 @@ class ConsumedEventsIntegrationTest {
     private static String productCreated(UUID productId) {
         return "{\"eventId\":\"" + UUID.randomUUID() + "\",\"productId\":\"" + productId
                 + "\",\"timestamp\":\"2026-10-12T10:00:00Z\"}";
+    }
+
+    private static String eventIdOf(String productCreatedJson) {
+        return productCreatedJson.substring(productCreatedJson.indexOf(":\"") + 2, productCreatedJson.indexOf("\","));
     }
 
     private static String orderShipped(UUID orderId) {

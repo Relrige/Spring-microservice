@@ -1,5 +1,5 @@
 ---
-status: IN_PROGRESS
+status: DONE
 service: inventory-service
 ---
 # EP-INV-EVT-01: Consume `ProductCreated`
@@ -19,7 +19,7 @@ Catalog may not publish yet in a given environment; tests publish the event them
 - [x] Malformed or undeserializable payloads do not block the partition: after a bounded number of attempts they go to a dead-letter topic (or are skipped and logged; document the choice). Transient database failures are retried with bounded back-off.
 - [x] The consumer starts and the application stays healthy when the Catalog topic does not exist yet (missing topics are not fatal for the listener container).
 - [x] The temporary demonstration listener from [task 06](06-stock-events-publish-and-listen.md) is removed.
-- [ ] Tests (Testcontainers Kafka + PostgreSQL): a new product creates a `StockItem`; the same event twice creates one; an event for an existing `StockItem` (with quantities) changes nothing; a poison message does not stop later messages.
+- [x] Tests (Testcontainers Kafka + PostgreSQL): a new product creates a `StockItem`; the same event twice creates one; an event for an existing `StockItem` (with quantities) changes nothing; a poison message does not stop later messages.
 
 ## Technical Notes / Constraints
 - Offsets are committed only after the database transaction succeeded; state the acknowledgment mode used and why.
@@ -45,4 +45,5 @@ What already exists and should be reused rather than rebuilt:
 - **Ack mode:** container default `BATCH`: a poll's offsets are committed after the listener returned for its records, i.e. after the transaction committed. A redelivery after a crash is absorbed by the idempotent insert.
 - **Missing topic:** `missing-topics-fatal` stays at its default `false`; `MissingSourceTopicsStartupTest` checks that the listeners run and readiness is `UP` without the topic.
 - The demo listener from task 06 was removed.
-- **Open:** the Testcontainers tests (`ConsumedEventsIntegrationTest`, `MissingSourceTopicsStartupTest`) are written but were **not run yet**, because Docker was not available; the task stays `IN_PROGRESS` until they pass. Unit tests pass.
+- **Verified (2026-10-12):** all integration tests pass against Testcontainers Kafka + PostgreSQL.
+- **Reworked for the group assignment ([Catalog task 23](../catalog-service/23-retryable-topic-idempotent-consumer-and-report.md)):** the blocking error handler was replaced, for this listener only, by `@RetryableTopic` (source + `catalog.product-events-inventory-retry-0/1/2`, DLT `catalog.product-events-inventory-dlt`, `@DltHandler`). The DLT `inventory.catalog.product-events.dlt` from the first version is no longer used. `eventId` became mandatory, and the handler is an Idempotent Consumer (`processed_events`, `StockService.applyProductCreated`). Details and results: [report](../../reports/messaging-fault-tolerance.md).

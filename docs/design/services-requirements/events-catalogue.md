@@ -29,6 +29,7 @@
   ```
   `eventId` is unique per event, so consumers can deduplicate redelivered messages (it is also sent as the `eventId` header). `timestamp` is an ISO-8601 UTC instant.
 - **Delivery:** at-least-once, through Catalog's transactional outbox. A consumer may receive the same event more than once and must ignore repeats by `eventId`.
+- **Inventory consumer:** group `inventory-service`, Idempotent Consumer (`processed_events` keyed by `eventId`), non-blocking retries `catalog.product-events-inventory-retry-0/1/2` and DLT `catalog.product-events-inventory-dlt` (owned by Inventory). See the [fault-tolerance report](../../reports/messaging-fault-tolerance.md).
 
 ### `ProductStockReplenished`
 - **Producer:** Inventory Service

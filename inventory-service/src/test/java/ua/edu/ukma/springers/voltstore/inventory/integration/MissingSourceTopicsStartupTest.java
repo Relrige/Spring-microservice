@@ -36,8 +36,12 @@ class MissingSourceTopicsStartupTest {
     @Test
     void listenersRunAndServiceIsReady_withoutTheSourceTopics() throws Exception {
         try (AdminClient admin = AdminClient.create(kafkaAdmin.getConfigurationProperties())) {
+            // Order's topic does not exist; Catalog's is created by @RetryableTopic together with Inventory's retry
+            // topics and DLT, with the same 3 partitions Catalog declares (KafkaAdmin never changes an existing topic)
             assertThat(admin.listTopics().names().get(10, TimeUnit.SECONDS))
-                    .doesNotContain("catalog.product-events", "order.order-events");
+                    .doesNotContain("order.order-events")
+                    .contains("catalog.product-events", "catalog.product-events-inventory-retry-0",
+                            "catalog.product-events-inventory-dlt");
         }
 
         assertThat(listenerRegistry.getListenerContainers()).isNotEmpty()
