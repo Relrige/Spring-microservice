@@ -159,6 +159,24 @@ class StockServiceTest {
         verify(stockEventPublisher, never()).publish(any());
     }
 
+    @Test
+    void ensureStockItem_absent_createsAndPublishesNothing() {
+        when(stockItemRepository.insertIfAbsent(PRODUCT_ID)).thenReturn(1);
+
+        assertThat(stockService.ensureStockItem(PRODUCT_ID)).isTrue();
+
+        verify(stockEventPublisher, never()).publish(any());
+    }
+
+    @Test
+    void ensureStockItem_alreadyExists_reportsNotCreated() {
+        when(stockItemRepository.insertIfAbsent(PRODUCT_ID)).thenReturn(0);
+
+        assertThat(stockService.ensureStockItem(PRODUCT_ID)).isFalse();
+
+        verify(stockEventPublisher, never()).publish(any());
+    }
+
     private StockItemEntity stockItem(int available) {
         return StockItemEntity.builder().productId(PRODUCT_ID).availableQuantity(available).build();
     }

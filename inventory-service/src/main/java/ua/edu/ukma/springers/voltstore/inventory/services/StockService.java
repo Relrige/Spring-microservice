@@ -70,6 +70,17 @@ public class StockService {
     }
 
     /**
+     * Creates an empty StockItem (zero quantities, no packaging) if none exists; an existing one is not changed.
+     * Race-safe with concurrent on-demand creation. No event is emitted.
+     *
+     * @return true if a StockItem was created, false if it already existed
+     */
+    @Transactional
+    public boolean ensureStockItem(UUID productId) {
+        return stockItemRepository.insertIfAbsent(productId) > 0;
+    }
+
+    /**
      * Succeeds only if the StockItem exists and its packaging is fully configured; used by Catalog before a
      * product is activated. Read-only: a missing StockItem is reported, never created, and no event is emitted.
      */

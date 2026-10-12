@@ -1,5 +1,5 @@
 ---
-status: TODO
+status: DONE
 service: inventory-service
 ---
 # EP-INV-EVT-01: Consume `ProductCreated`
@@ -11,15 +11,15 @@ Catalog may not publish yet in a given environment; tests publish the event them
 *References:* [Inventory Spec — EP-INV-EVT-01](../../design/services-specs/inventory-service-spec.md), [Event Catalogue — `ProductCreated`](../../design/services-requirements/events-catalogue.md), [Catalog `ProductCreated` producer](../catalog-service/11-product-created-publish-and-listen.md), [StockItem persistence](02-stock-item-entity-and-persistence.md)
 
 ## Acceptance Criteria
-- [ ] `@KafkaListener` on the topic that Catalog owns for `ProductCreated` (name from configuration, matching the Catalog task 10 decision), in a dedicated consumer group (`inventory-service`).
-- [ ] The payload is read into Inventory's **own** record (`productId`, `timestamp`, optional `eventId`); unknown properties are ignored (tolerant reader), no shared event library.
-- [ ] If no `StockItem` exists for `productId` → create one with zero quantities and no packaging. If it exists → no action, acknowledge.
-- [ ] Duplicate delivery and a race with on-demand creation (adjust/packaging running at the same time) never fail the consumer and never create a second row: creation is race-safe at the database level (`INSERT … ON CONFLICT DO NOTHING` or catching the duplicate-key error and treating it as "already exists").
-- [ ] Creating a `StockItem` emits no event.
-- [ ] Malformed or undeserializable payloads do not block the partition: after a bounded number of attempts they go to a dead-letter topic (or are skipped and logged; document the choice). Transient database failures are retried with bounded back-off.
-- [ ] The consumer starts and the application stays healthy when the Catalog topic does not exist yet (missing topics are not fatal for the listener container).
-- [ ] The temporary demonstration listener from [task 06](06-stock-events-publish-and-listen.md) is removed.
-- [ ] Tests (Testcontainers Kafka + PostgreSQL): a new product creates a `StockItem`; the same event twice creates one; an event for an existing `StockItem` (with quantities) changes nothing; a poison message does not stop later messages.
+- [x] `@KafkaListener` on the topic that Catalog owns for `ProductCreated` (name from configuration, matching the Catalog task 10 decision), in a dedicated consumer group (`inventory-service`).
+- [x] The payload is read into Inventory's **own** record (`productId`, `timestamp`, optional `eventId`); unknown properties are ignored (tolerant reader), no shared event library.
+- [x] If no `StockItem` exists for `productId` → create one with zero quantities and no packaging. If it exists → no action, acknowledge.
+- [x] Duplicate delivery and a race with on-demand creation (adjust/packaging running at the same time) never fail the consumer and never create a second row: creation is race-safe at the database level (`INSERT … ON CONFLICT DO NOTHING` or catching the duplicate-key error and treating it as "already exists").
+- [x] Creating a `StockItem` emits no event.
+- [x] Malformed or undeserializable payloads do not block the partition: after a bounded number of attempts they go to a dead-letter topic (or are skipped and logged; document the choice). Transient database failures are retried with bounded back-off.
+- [x] The consumer starts and the application stays healthy when the Catalog topic does not exist yet (missing topics are not fatal for the listener container).
+- [x] The temporary demonstration listener from [task 06](06-stock-events-publish-and-listen.md) is removed.
+- [x] Tests (Testcontainers Kafka + PostgreSQL): a new product creates a `StockItem`; the same event twice creates one; an event for an existing `StockItem` (with quantities) changes nothing; a poison message does not stop later messages.
 
 ## Technical Notes / Constraints
 - Offsets are committed only after the database transaction succeeded; state the acknowledgment mode used and why.
@@ -38,3 +38,13 @@ What already exists and should be reused rather than rebuilt:
 - **Tests:** the Kafka test container has topic auto-creation **disabled** (`KafkaTestContainerConfig`), so tests must create the Catalog topic themselves (a test `NewTopic` bean or the admin client). Integration tests clean `stock_item_reservations` before `stock_items` (foreign key). `support/Concurrently` runs tasks at the same moment (useful for "event and on-demand adjust at once").
 - **Demo listener to remove:** `events/DemoStockEventListener` (group `inventory-stock-events-demo`). No test depends on it; `StockEventsIntegrationTest` has its own collector listener.
 - **Spec:** EP-INV-EVT-01 in the [Inventory spec](../../design/services-specs/inventory-service-spec.md) was updated at sprint end (payload includes `eventId`; topic from configuration; missing topic not fatal).
+
+## Implementation Notes / Decisions (2026-10-12)
+- **Listener:** `events/ProductCreatedListener`, topic from `inventory.kafka.topics.product-events` (env `CATALOG_PRODUCT_EVENTS_TOPIC`, default `catalog.product-events`), group `inventory-service` from `application.yml`. The logic is in `StockService.ensureStockItem(productId)` (`@Transactional`, `insertIfAbsent`); it returns whether a row was created, for logging only. No event is emitted.
+- **Payload:** Inventory's own `events/ProductCreatedEvent(eventId, productId, timestamp)`. Only `productId` is mandatory (checked in the record constructor), so `{}` or a missing `productId` fails conversion and is handled as a poison message; unknown properties are ignored by the converter.
+- **`eventType` filter:** a `RecordFilterStrategy` (`events/ProductCreatedFilter`, wired with `@KafkaListener(filter = ...)`) passes only `eventType = ProductCreated`. Other types are discarded at DEBUG (future events on Catalog's topic); a missing header is discarded at WARN (producer bug). The filter runs **before** JSON conversion, so another event's payload is never mistaken for a poison message. Discarded records are committed like processed ones.
+- **Error handling (all listeners of the service, `KafkaConfig.kafkaErrorHandler`):** `DefaultErrorHandler` with exponential back-off 1 s → 2 s → 4 s (3 retries) for retryable failures (e.g. database unavailable); conversion/deserialization failures are not retryable (Spring Kafka's default classification) and go straight to the recoverer. **Recoverer: log at ERROR and skip** (offset committed). Chosen over a dead-letter topic for now because a lost `ProductCreated` is healed by on-demand `StockItem` creation; a DLT is planned together with the transactional outbox ([task 17](17-transactional-outbox.md)).
+- **Ack mode: `BATCH`** (Spring default, stated explicitly in `application.yml`). Offsets are committed after the listener has returned for every record of a poll, i.e. after each database transaction committed. A crash mid-batch redelivers the uncommitted records, which is harmless because the handler is idempotent. Switch to `RECORD` later only if a consumer needs fewer redeliveries.
+- **Missing topic:** not fatal (`missing-topics-fatal` defaults to `false`); covered by `ProductCreatedMissingTopicTest`.
+- **Demo listener removed:** `events/DemoStockEventListener`.
+- **Tests:** `ProductCreatedConsumerIntegrationTest` (Testcontainers Kafka + PostgreSQL: new product, duplicate event, existing `StockItem` unchanged, poison messages and filtered records do not stop a later message on the same partition), `ProductCreatedMissingTopicTest`, `KafkaErrorHandlerTest` (retry classification: conversion → recoverer at once; database failure → 3 retries, then recoverer), `ProductCreatedFilterTest`, and `StockServiceTest` (`ensureStockItem`).

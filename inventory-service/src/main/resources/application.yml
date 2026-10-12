@@ -28,6 +28,15 @@ spring:
       # Values are read as JSON text; the target class is taken from each @KafkaListener
       # parameter by the message converter in KafkaConfig (so one consumer can handle several event types)
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      # Offsets are committed after every record of a poll has been processed (the default, stated explicitly).
+      # A crash mid-batch redelivers the uncommitted records; the consumers are idempotent, so that is harmless.
+      ack-mode: batch
+inventory:
+  kafka:
+    topics:
+      # Topic owned and declared by Catalog Service; Inventory only subscribes to it
+      product-events: ${CATALOG_PRODUCT_EVENTS_TOPIC:catalog.product-events}
 auth:
   internal:
     # Shared secret of service-to-service calls (X-Internal-Token); supplied by the INTERNAL_TOKEN environment variable
