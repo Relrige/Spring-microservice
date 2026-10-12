@@ -39,3 +39,4 @@ Agreed on 2026-10-11:
 - `ReservationController` `POST /{orderId}/release` → `204`; `SecurityConfig`: `hasRole("SERVICE")`.
 - Tests: `ReservationServiceReleaseTest`, release cases in `ReservationControllerTest`, `ReleaseReservationIntegrationTest` (restore + status, unknown order, twice, 6 concurrent releases restore once and never hit the `CHECK`, `CONSUMED` rows untouched, re-reserve after release), `StockEventsIntegrationTest#releaseFromZero_publishesReplenished`.
 - `support/Concurrently` test helper (shared by the reserve and release integration tests).
+- *Sprint-end spec update (2026-10-12):* these deviations are now part of the [Inventory spec](../../design/services-specs/inventory-service-spec.md) and `api-contracts.md`.

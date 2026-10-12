@@ -31,3 +31,4 @@ The spec uses `400`, `404`, `409`, `422` and (once Catalog is called) `503`. The
 - No generic "not ready" exception with a `reason` enum. Instead of `StockNotReadyException`, a dedicated `PackagingNotConfiguredException` (→ `422`) covers missing packaging data (gross weight **and** dimensions, not only dimensions).
 - The packaging response property is `reason: "packaging_data_missing"` (spec says `packaging_dimensions_missing`).
 - A missing stock item always uses `StockItemNotFoundException` → `404`, including on the readiness endpoint ([task 10](10-check-stock-readiness-internal.md)); the spec's `422 { reason: "stock_item_not_found" }` for readiness is dropped.
+- *Sprint-end spec update (2026-10-12):* these deviations are now part of the [Inventory spec](../../design/services-specs/inventory-service-spec.md) (*Responses and errors*).

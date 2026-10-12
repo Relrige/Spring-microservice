@@ -32,3 +32,4 @@ Same contract as agreed for [task 10](10-check-stock-readiness-internal.md) and 
 - `PackagingResponse` record and `StockController` `GET /{productId}/packaging`.
 - `SecurityConfig`: `GET /inventory/stock/{productId}/packaging` → `hasRole("SERVICE")`.
 - Tests: `StockServiceGetPackagingTest`, `StockGetPackagingControllerTest`, `GetPackagingIntegrationTest`.
+- *Sprint-end spec update (2026-10-12):* these deviations are now part of the [Inventory spec](../../design/services-specs/inventory-service-spec.md) and `api-contracts.md`.

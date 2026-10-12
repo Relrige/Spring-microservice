@@ -35,3 +35,4 @@ Agreed on 2026-10-11, following the deviations already recorded in [task 03](03-
 - `StockController` `GET /{productId}/readiness` → `204`.
 - `SecurityConfig`: `GET /inventory/stock/{productId}/readiness` → `hasRole("SERVICE")`.
 - Tests: `StockServiceReadinessTest`, `StockReadinessControllerTest`, `StockReadinessIntegrationTest`.
+- *Sprint-end spec update (2026-10-12):* these deviations are now part of the [Inventory spec](../../design/services-specs/inventory-service-spec.md) and `api-contracts.md`.

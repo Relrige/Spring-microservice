@@ -24,3 +24,10 @@ Order Service may not exist yet; tests publish the event with the payload from t
 - Idempotency comes from the status filter (`ACTIVE` only), not from an extra "processed events" table; discuss when such a table would be needed (non-state-based handlers).
 - Lock the stock rows in sorted `productId` order as in reserve/release.
 - Think about ordering relative to `OrderCancelled` (not consumed here): the Order state machine forbids cancelling a shipped order, so no extra guard is needed beyond the status filter.
+
+## Starting Point (from tasks 01–14, collected 2026-10-12)
+- **Reuse the release locking** ([task 14](14-release-reservation-internal.md)): `StockItemReservationRepository.findByOrderIdAndStatusForUpdate(orderId, ACTIVE)` locks the order's `ACTIVE` rows first; then `StockItemRepository.findAllByIdsForUpdate` locks the stock rows sorted by `productId`. A concurrent duplicate event waits on the reservation rows and then finds none, so the deduction happens exactly once. Using the same lock order as release also means consume and release of one order cannot deadlock.
+- **Where:** a `consume(orderId)` method next to `reserve` and `release` in `ReservationService`.
+- **No event:** consuming does not change `availableQuantity`, so `StockEvents.forTransition` is not called.
+- Listener error handling, topic-name property and missing-topic behaviour: reuse what [task 15](15-consume-product-created.md) sets up.
+- **Spec:** EP-INV-EVT-02 was updated at sprint end with this lock order.

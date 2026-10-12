@@ -32,5 +32,7 @@ Inventory Service has worker-only routes (`INVENTORY_WORKER`) and several `Inter
 
 - Rules are **method + path**: `GET` and `PUT` on `/inventory/stock/{productId}/packaging` have different rules (the first is internal and never routed by the gateway, the second is a worker endpoint). Declare matchers with the HTTP method.
 - The route coverage test calls every route as `ADMIN` and fails on `403`. Internal-only routes (`SERVICE`) must be excluded in that test and covered with a `SERVICE` caller instead.
+  - *Superseded (as implemented):* `RouteSecurityRulesTest` calls every route with every user role **and** the internal-service caller, and fails only if all of them get `403`. Internal routes therefore need no exclusion.
 - Do not use `@PreAuthorize`: the role check must run before binding and validation.
 - Roles are not hierarchical. The `INTERNAL_TOKEN` Kubernetes Secret is wired in [task 18](18-containerization-and-deployment.md); the sender side (the token on calls to Catalog) is in [task 19](19-catalog-product-existence-client.md).
+- *Sprint-end spec update (2026-10-12):* the full route/role table is in the [Inventory spec](../../design/services-specs/inventory-service-spec.md) (*Security and routing*).

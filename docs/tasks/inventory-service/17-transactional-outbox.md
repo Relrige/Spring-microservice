@@ -36,3 +36,9 @@ Unlike Catalog's single `ProductCreated` event, **Inventory's events are order-s
 - The outbox write must happen in the same method/transaction as the stock update (not in an `AFTER_COMMIT` listener).
 - Expose at least a log line or metric for "age of the oldest unpublished event".
 - The crossing logic (before/after quantity) from tasks 04, 13 and 14 stays unchanged; only where the event goes changes.
+
+## Starting Point (from tasks 01–14, collected 2026-10-12)
+- Callers already go through `StockEventPublisher.publish(StockEvent)` inside the locked transaction (adjust in `StockService`, reserve and release in `ReservationService`), so only the implementation changes. `KafkaStockEventPublisher` (after-commit send) is the class to replace.
+- The outbox row must keep everything the current record has: topic `inventory.stock-events`, key `productId`, the **`eventType` header** and the JSON payload `{ eventId, productId, timestamp }`. Consumers (Catalog task 18) depend on the header.
+- Reserve and release can emit several events in one transaction (one per product that crossed zero); the ordering test should include such a case.
+- **Extra motivation found during the sprint-end review:** the producer runs on Kafka client defaults (`max.block.ms` = 60 s, see the correction in [task 06](06-stock-events-publish-and-listen.md)), so with the broker down the current `send()` can block an HTTP request for up to about a minute. The outbox removes `send()` from the request path entirely.

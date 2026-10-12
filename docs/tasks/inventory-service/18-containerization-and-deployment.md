@@ -22,3 +22,9 @@ Inventory Service already has a Dockerfile, Compose entry and Kubernetes manifes
 - Ingress routing is left to the API Gateway work; do not extend the current Ingress.
 - `NetworkPolicy` is a cross-service concern from the Security Model; if it is not in place yet, note it in the PR instead of creating a single-service policy.
 - `INVENTORY_SERVICE_URL`-style settings for the Catalog client are added in [task 19](19-catalog-product-existence-client.md).
+
+## Starting Point (from tasks 01–14, collected 2026-10-12)
+- **Deferred to here from [task 05](05-kafka-spring-setup-and-topic.md):** `SPRING_KAFKA_BOOTSTRAP_SERVERS` in `docker-compose.yml` and `k8s/inventory/app-config.yaml`, and `depends_on` on a healthy broker. This needs the [Kafka broker task](../infrastructure/kafka-broker-setup.md) first.
+- **Deferred to here from [task 06](06-stock-events-publish-and-listen.md):** the manual end-to-end run with a real broker (adjust 0 → 10 → 0, events visible with key, partition and offset). The demo listener is gone after task 15, so read the topic with a console consumer or the broker's CLI instead.
+- **Smoke test expectations:** set packaging, readiness, reserve and release answer `204 No Content`; readiness for an unknown product is `404`. The full route/role table is in the [Inventory spec](../../design/services-specs/inventory-service-spec.md) (*Security and routing*).
+- Topic-name variables to add: the consumed Catalog and Order topics (tasks 15, 16). The stock-events topic is a code constant and needs no variable.

@@ -34,3 +34,4 @@ Agreed on 2026-10-11:
 - `db/migration/V2__create_stock_item_reservations_table.sql`: table, FK, checks, index `idx_stock_item_reservations_order_status`, partial unique index `uq_stock_item_reservations_active_order_product`.
 - `repositories/StockItemReservationRepository`: `findByOrderIdAndStatus`, `existsByOrderIdAndStatus`.
 - Test: `StockItemReservationRepositoryTest` (PostgreSQL Testcontainer).
+- *Sprint-end spec update (2026-10-12):* these deviations are now part of the [Inventory spec](../../design/services-specs/inventory-service-spec.md) and the [entity catalogue](../../design/entities/entities.md).

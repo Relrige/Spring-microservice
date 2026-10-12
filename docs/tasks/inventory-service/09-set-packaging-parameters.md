@@ -25,7 +25,7 @@ As in [task 04](04-adjust-stock-quantity.md), the spec requires a Catalog existe
 - Maximum values (for example weight in grams) should be bounded to reject typos; choose limits and document them.
 - The same path with `GET` is a different, internal endpoint ([task 11](11-get-packaging-dimensions-internal.md)); keep routes and security rules separate by method.
 - **Decisions:**
-  - Success returns `204 No Content` with an empty body (not `200 OK` as in the spec and `api-contracts.md`; those need updating at sprint end).
+  - Success returns `204 No Content` with an empty body (not `200 OK` as in the first spec version; the spec and `api-contracts.md` were updated at sprint end, 2026-10-12).
   - No upper bounds on the four values (only `> 0`); the "choose limits" note is intentionally not applied.
   - "Get or create" is the private `StockService.getOrCreateForUpdate` (insert-if-absent, then row lock), used by `adjustStock` and `setPackaging`. The temporary Catalog-check deviation comment lives there and points at task 19, so the check is added in one place. Packaging is written on the locked row, so a concurrent adjust cannot be lost.
   - Non-integer values such as `1.5` were silently truncated by Jackson; `spring.jackson.deserialization.accept-float-as-int: false` now makes them `400` for every endpoint (this also covers `delta` in the adjust endpoint).

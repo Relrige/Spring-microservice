@@ -36,4 +36,4 @@ The Inventory Worker sees all stock items with computed totals and whether packa
   - Filters are small composable `Specification`s (`StockItemSpecifications`); the repository extends `JpaSpecificationExecutor`, and the service combines only the filters that were supplied with AND. A new filter is one new method plus one `if`.
   - Bind `sortBy` as a plain `String` (not `List<String>`), because Spring splits comma-separated values for collection types.
   - Known limits: `totalQuantity` is computed in Java and not sortable or filterable; adding that would need either a custom `ORDER BY` expression in a Specification or a database-computed column.
-- **Docs still to update at sprint end:** Inventory spec (EP-INV-01) and `api-contracts.md` should replace the plain array and the "TBD" filters with the envelope, `packagingConfigured`, `page`/`size`/`sortBy`.
+- **Docs updated at sprint end (2026-10-12):** EP-INV-01 in the Inventory spec and `api-contracts.md` now describe the envelope, `packagingConfigured` and `page`/`size`/`sortBy`.

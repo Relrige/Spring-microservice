@@ -9,6 +9,10 @@
 ## 1. Catalog & Inventory Synchronization
 
 > **Conventions for this section:** every event carries a mandatory `eventId` (UUID, unique per event) so consumers can deduplicate at-least-once deliveries. The Kafka message key is `productId`; `ProductStockReplenished` and `ProductStockDepleted` share one topic so that events of one product keep their order. Consumers ignore unknown payload fields.
+>
+> **Stock events topic:** `inventory.stock-events`, owned and declared by Inventory Service (3 partitions). Both stock events have the same payload shape, so each record carries a Kafka header **`eventType`** with the value `ProductStockReplenished` or `ProductStockDepleted`; consumers choose the event type from this header. Records are JSON without Java type headers. Inventory publishes after the database commit; until the transactional outbox is in place, an event can be lost if the broker is down at that moment.
+>
+> **`ProductCreated` topic:** owned and declared by Catalog Service; consumers take its name from configuration.
 
 ### `ProductCreated`
 - **Producer:** Catalog Service
@@ -26,7 +30,7 @@
 ### `ProductStockReplenished`
 - **Producer:** Inventory Service
 - **Consumers:** Catalog Service
-- **Trigger:** `availableQuantity` of a product transitions from `0` to `> 0` (any product, regardless of its Catalog status).
+- **Trigger:** `availableQuantity` of a product transitions from `0` to `> 0` (any product, regardless of its Catalog status): a restock (EP-INV-02) or a reservation release (EP-INV-07).
 - **Payload:**
   ```json
   {
@@ -39,7 +43,7 @@
 ### `ProductStockDepleted`
 - **Producer:** Inventory Service
 - **Consumers:** Catalog Service
-- **Trigger:** `availableQuantity` of a product transitions from `> 0` to `0` (any product, regardless of its Catalog status).
+- **Trigger:** `availableQuantity` of a product transitions from `> 0` to `0` (any product, regardless of its Catalog status): a write-off (EP-INV-02) or a reservation (EP-INV-06). Shipping an order (`OrderShipped`) does not emit it, because shipping does not change `availableQuantity`.
 - **Payload:**
   ```json
   {
