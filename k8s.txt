@@ -1,4 +1,9 @@
-minikube start
+# Cluster size is fixed when the cluster is created. To change it: "minikube delete", then start again.
+# 6 CPUs / 6 GB fit inside Docker Desktop's default VM (about 7.4 GB on a 16 GB laptop) only if the
+# Docker Compose stack is stopped while minikube runs ("docker compose stop").
+minikube start --cpus=6 --memory=6g
+# The dashboard addon runs extra pods; enable it only when needed
+minikube addons disable dashboard
 
 
 docker build -t  voltstore/auth-service:latest .\auth-service
@@ -23,6 +28,18 @@ minikube image load voltstore/payment-service:latest
 kubectl apply -f k8s\base\
 kubectl apply -f k8s\kafka\
 kubectl apply -f k8s\ -R
+
+# Minimal stack: deploy only what is being tested instead of "apply -R", e.g. Catalog <-> Inventory messaging
+# (build and load only these two images above):
+#   kubectl apply -f k8s\base\
+#   kubectl apply -f k8s\kafka\
+#   kubectl apply -f k8s\catalog\
+#   kubectl apply -f k8s\inventory\
+# Images already built by Docker Compose can be reused instead of "docker build":
+#   docker tag spring-microservice-inventory-service:latest voltstore/inventory-service:latest
+
+# Every service runs with 1 replica. To test that several replicas share one consumer group, scale up
+# temporarily: kubectl scale deployment inventory-service -n voltstore --replicas=2
 
 # Kafka broker address inside the cluster: kafka:9092 (SPRING_KAFKA_BOOTSTRAP_SERVERS)
 

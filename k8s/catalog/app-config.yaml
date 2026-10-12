@@ -8,4 +8,6 @@ data:
   SPRING_DATASOURCE_URL: "jdbc:postgresql://catalog-service-postgres:5432/catalog-service"
   # Kafka broker Service from k8s/kafka
   SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -Xlog:gc*"
+  # JVM settings live here only (not in the Dockerfile). Heap up to 70% of the container memory limit;
+  # C1-only JIT and Serial GC: faster startup and less memory on a small local cluster
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:TieredStopAtLevel=1 -XX:+UseSerialGC"
