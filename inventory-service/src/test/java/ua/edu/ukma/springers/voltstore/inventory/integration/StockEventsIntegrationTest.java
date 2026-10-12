@@ -109,6 +109,30 @@ class StockEventsIntegrationTest {
         assertThat(typesFor(stillAvailable)).containsExactly("ProductStockReplenished");
     }
 
+    @Test
+    void releaseFromZero_publishesReplenished() throws Exception {
+        UUID productId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        adjust(productId, 3).andExpect(status().isOk());   // 0 -> 3: Replenished
+
+        mockMvc.perform(post("/inventory/reservations")
+                        .headers(TrustedHeaders.asInternalService())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderId\":\"" + orderId + "\",\"items\":["
+                                + "{\"productId\":\"" + productId + "\",\"quantity\":3}]}"))
+                .andExpect(status().isNoContent());   // 3 -> 0: Depleted
+        mockMvc.perform(post("/inventory/reservations/" + orderId + "/release")
+                        .headers(TrustedHeaders.asInternalService()))
+                .andExpect(status().isNoContent());   // 0 -> 3: Replenished
+        mockMvc.perform(post("/inventory/reservations/" + orderId + "/release")
+                        .headers(TrustedHeaders.asInternalService()))
+                .andExpect(status().isNoContent());   // nothing ACTIVE: no event
+
+        await().atMost(Duration.ofSeconds(15)).untilAsserted(() ->
+                assertThat(typesFor(productId)).containsExactly(
+                        "ProductStockReplenished", "ProductStockDepleted", "ProductStockReplenished"));
+    }
+
     private org.springframework.test.web.servlet.ResultActions adjust(UUID productId, int delta) throws Exception {
         return mockMvc.perform(post("/inventory/stock/" + productId + "/adjust")
                 .headers(TrustedHeaders.asUser("INVENTORY_WORKER"))

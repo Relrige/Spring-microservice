@@ -182,6 +182,40 @@ class ReservationControllerTest {
         verifyNotCalled();
     }
 
+    @Test
+    void release_returns204WithEmptyBody() throws Exception {
+        mockMvc.perform(post(URL + "/" + ORDER_ID + "/release").headers(SERVICE))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+
+        verify(reservationService).release(ORDER_ID);
+    }
+
+    @Test
+    void release_nonUuidOrderId_returns400() throws Exception {
+        mockMvc.perform(post(URL + "/not-a-uuid/release").headers(SERVICE))
+                .andExpect(status().isBadRequest());
+
+        verify(reservationService, never()).release(any());
+    }
+
+    @Test
+    void release_anonymous_returns401() throws Exception {
+        mockMvc.perform(post(URL + "/" + ORDER_ID + "/release"))
+                .andExpect(status().isUnauthorized());
+
+        verify(reservationService, never()).release(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ADMIN", "CATALOG_MANAGER", "INVENTORY_WORKER", "CUSTOMER"})
+    void release_anyUserRole_returns403(String role) throws Exception {
+        mockMvc.perform(post(URL + "/" + ORDER_ID + "/release").headers(TrustedHeaders.asUser(role)))
+                .andExpect(status().isForbidden());
+
+        verify(reservationService, never()).release(any());
+    }
+
     private ResultActions reserve(HttpHeaders headers, String body) throws Exception {
         return mockMvc.perform(post(URL).headers(headers).contentType(MediaType.APPLICATION_JSON).content(body));
     }

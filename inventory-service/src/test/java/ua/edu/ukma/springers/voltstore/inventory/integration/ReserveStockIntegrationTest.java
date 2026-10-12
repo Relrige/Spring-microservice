@@ -20,6 +20,7 @@ import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemRepositor
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemReservationRepository;
 import ua.edu.ukma.springers.voltstore.inventory.services.ReservationService;
 import ua.edu.ukma.springers.voltstore.inventory.services.StockService;
+import ua.edu.ukma.springers.voltstore.inventory.support.Concurrently;
 import ua.edu.ukma.springers.voltstore.inventory.support.TrustedHeaders;
 
 import java.util.ArrayList;
@@ -27,11 +28,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -125,7 +121,7 @@ class ReserveStockIntegrationTest {
         UUID productA = stocked(1);
         int threads = 8;
 
-        List<Object> outcomes = runConcurrently(threads,
+        List<Object> outcomes = Concurrently.run(threads,
                 () -> reserve(UUID.randomUUID(), Map.of(productA, 1)));
 
         assertThat(outcomes).filteredOn(o -> o == null).hasSize(1);
@@ -142,7 +138,7 @@ class ReserveStockIntegrationTest {
         UUID productB = stocked(10);
         int threads = 4;
 
-        List<Object> outcomes = runConcurrently(threads,
+        List<Object> outcomes = Concurrently.run(threads,
                 () -> reserve(orderId, Map.of(productA, 2, productB, 1)));
 
         assertThat(outcomes).filteredOn(o -> o == null).hasSize(1);
@@ -166,7 +162,7 @@ class ReserveStockIntegrationTest {
 
         List<Object> outcomes = new ArrayList<>();
         for (int round = 0; round < 5; round++) {
-            outcomes.addAll(runConcurrently(
+            outcomes.addAll(Concurrently.run(
                     () -> reserve(UUID.randomUUID(), ab),
                     () -> reserve(UUID.randomUUID(), ba)));
         }
@@ -197,43 +193,5 @@ class ReserveStockIntegrationTest {
         return mockMvc.perform(post("/inventory/reservations")
                 .headers(TrustedHeaders.asInternalService())
                 .contentType(MediaType.APPLICATION_JSON).content(body));
-    }
-
-    private List<Object> runConcurrently(int copies, Callable<?> task) throws Exception {
-        Callable<?>[] tasks = new Callable<?>[copies];
-        java.util.Arrays.fill(tasks, task);
-        return runConcurrently(tasks);
-    }
-
-    /**
-     * Starts all tasks at the same moment and returns each task's result or thrown exception.
-     */
-    private List<Object> runConcurrently(Callable<?>... tasks) throws Exception {
-        ExecutorService executor = Executors.newFixedThreadPool(tasks.length);
-        try {
-            CountDownLatch ready = new CountDownLatch(tasks.length);
-            CountDownLatch start = new CountDownLatch(1);
-            List<Future<Object>> futures = new ArrayList<>();
-            for (Callable<?> task : tasks) {
-                futures.add(executor.submit(() -> {
-                    ready.countDown();
-                    start.await();
-                    try {
-                        return task.call();
-                    } catch (Exception e) {
-                        return e;
-                    }
-                }));
-            }
-            ready.await();
-            start.countDown();
-            List<Object> results = new ArrayList<>();
-            for (Future<Object> future : futures) {
-                results.add(future.get());
-            }
-            return results;
-        } finally {
-            executor.shutdownNow();
-        }
     }
 }

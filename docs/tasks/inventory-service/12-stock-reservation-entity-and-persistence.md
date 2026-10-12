@@ -16,10 +16,10 @@ A reservation records stock held for an order. An order has **one or more** rese
 
 ## Technical Notes / Constraints
 - No `expiresAt`, no `reservationId` in any API response: the draft's expiry column is intentionally dropped (Order Service owns the TTL; the product decision is recorded in [task 13](13-reserve-stock-internal.md)).
-- The partial unique index is the database guard for the "order already has an `ACTIVE` reservation → `409`" rule under concurrent requests.
+- The partial unique index is the last-resort database guard against double reservation. The `409` itself comes from the existence check in [task 13](13-reserve-stock-internal.md), done after the stock rows are locked.
 - Reservation rows are history: never delete them. `RELEASED` and `CONSUMED` are terminal states.
 - Use the entity convention from [task 01](01-rework-draft-to-spec-foundation.md).
-- The partial unique index only conflicts when two `ACTIVE` rows share an order **and** a product. Two concurrent reserve calls for the same order with completely different product sets would not collide on it. Open point for [task 13](13-reserve-stock-internal.md): Order Service retries with the same items, so this is probably acceptable, but decide and document it there.
+- The partial unique index only conflicts when two `ACTIVE` rows share an order **and** a product. Two concurrent reserve calls for the same order with completely different product sets would not collide on it. Resolved in [task 13](13-reserve-stock-internal.md): an order's item list cannot change, so this case cannot occur.
 - Integration tests that clean `stock_items` with `DELETE` will have to delete `stock_item_reservations` first once task 13 creates real reservation rows (FK).
 
 ## Deviations from spec / task

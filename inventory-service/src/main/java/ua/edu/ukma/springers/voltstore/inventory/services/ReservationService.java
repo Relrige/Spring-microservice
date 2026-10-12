@@ -79,4 +79,36 @@ public class ReservationService {
 
         reservationRepository.saveAll(reservations);
     }
+
+    /**
+     * Returns the stock held by the order's ACTIVE reservations to available and marks them RELEASED, all at once.
+     * Idempotent: an order without ACTIVE reservations (never reserved, already released or shipped) is a no-op.
+     */
+    @Transactional
+    public void release(UUID orderId) {
+        // Lock the reservations first. A concurrent release of the same order waits here and, after the first one
+        // commits, finds no ACTIVE rows, so stock is restored exactly once.
+        List<StockItemReservationEntity> reservations =
+                reservationRepository.findByOrderIdAndStatusForUpdate(orderId, ReservationStatus.ACTIVE);
+        if (reservations.isEmpty()) {
+            return;
+        }
+
+        // Then lock the stock rows
+        Map<UUID, StockItemEntity> items = stockItemRepository.findAllByIdsForUpdate(reservations.stream()
+                        .map(StockItemReservationEntity::getProductId).toList()).stream()
+                .collect(Collectors.toMap(StockItemEntity::getProductId, Function.identity()));
+
+        for (StockItemReservationEntity reservation : reservations) {
+            // The foreign key guarantees a StockItem for every reservation
+            StockItemEntity item = items.get(reservation.getProductId());
+            int before = item.getAvailableQuantity();
+            int after = before + reservation.getQuantity();
+            item.setAvailableQuantity(after);
+            item.setReservedQuantity(item.getReservedQuantity() - reservation.getQuantity());
+            reservation.setStatus(ReservationStatus.RELEASED);
+            // Delivered only after the whole transaction commits
+            StockEvents.forTransition(reservation.getProductId(), before, after).ifPresent(stockEventPublisher::publish);
+        }
+    }
 }

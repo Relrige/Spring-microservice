@@ -61,6 +61,8 @@ public class SecurityConfig {
                         // Internal-only (Order)
                         .requestMatchers(HttpMethod.POST, "/inventory/reservations")
                                 .hasRole("SERVICE")
+                        .requestMatchers(HttpMethod.POST, "/inventory/reservations/{orderId}/release")
+                                .hasRole("SERVICE")
                         // Fail closed: a route nobody wrote a rule for is unreachable until a rule is added
                         .anyRequest().denyAll())
                 // Internal token first: if present and valid, the request is a service call and user headers are ignored
