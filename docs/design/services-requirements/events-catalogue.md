@@ -97,6 +97,7 @@
 - **Producer:** Order Service
 - **Consumers:** Inventory Service, Notification Service
 - **Trigger:** Inventory worker dispatches the parcel.
+- **Topic / key:** owned by Order Service; provisionally `order.order-events` (key `orderId`). Every message must carry the header `eventType: OrderShipped`: the topic holds all order events, and Inventory consumes only records with this header.
 - **Consumer Actions:**
   - *Inventory:* Permanently deducts `reservedQuantity` (consumes the reservation).
   - *Notification:* Sends tracking email.

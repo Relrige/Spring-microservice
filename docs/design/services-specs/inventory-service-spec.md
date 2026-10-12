@@ -350,7 +350,7 @@ Lists use the shared paging envelope `{ content, page, size, totalElements }` (`
 |---|---|
 | EP-INV-01 … EP-INV-07 | Implemented (tasks 01–14) |
 | Catalog existence check in EP-INV-02/03 | Pending ([task 19](../../tasks/inventory-service/19-catalog-product-existence-client.md)); until then a missing `StockItem` is created on demand **without** checking Catalog |
-| EP-INV-EVT-01, EP-INV-EVT-02 | Pending (tasks 15, 16) |
+| EP-INV-EVT-01, EP-INV-EVT-02 | Implemented (tasks 15, 16): consumer group `inventory-service`, topics from `inventory.kafka.topics.*` (`catalog.product-events`; Order topic provisionally `order.order-events`), only records with the matching `eventType` header; poison messages and exhausted retries go to `inventory.<source topic>.dlt` |
 | Transactional outbox for stock events | Pending ([task 17](../../tasks/inventory-service/17-transactional-outbox.md)) |
 | Compose / Kubernetes Kafka wiring | Pending ([broker task](../../tasks/infrastructure/kafka-broker-setup.md), [task 18](../../tasks/inventory-service/18-containerization-and-deployment.md)) |
 
@@ -372,5 +372,6 @@ Lists use the shared paging envelope `{ content, page, size, totalElements }` (`
 | EP-INV-06 validation | quantities ≥ 1 | also max 100 items, duplicate `productId` → `400` | task 13 |
 | EP-INV-07 success | `200 OK` | `204 No Content` | task 14 |
 | Stock events | payload only | `eventType` Kafka header on the shared topic `inventory.stock-events` | task 06 |
+| Consumed events | — | filtered by the `eventType` header (the source topics are per aggregate and carry other types); dead-letter topics `inventory.<source topic>.dlt` owned by Inventory | tasks 15, 16 |
 | `StockItemReservation` | 5 fields | adds `createdAt`, `updatedAt` | task 12 |
 | `reservedQuantity` | stored or computed | stored, updated with `availableQuantity` in one transaction | task 02 |

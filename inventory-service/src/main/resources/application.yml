@@ -28,6 +28,14 @@ spring:
       # Values are read as JSON text; the target class is taken from each @KafkaListener
       # parameter by the message converter in KafkaConfig (so one consumer can handle several event types)
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+inventory:
+  kafka:
+    topics:
+      # Owned by Catalog (catalog-service KafkaTopics.PRODUCT_EVENTS); carries ProductCreated
+      product-events: catalog.product-events
+      # Owned by Order Service. PROVISIONAL name following the <service>.<aggregate>-events convention; align it
+      # when Order publishes OrderShipped (only records with header eventType=OrderShipped are consumed)
+      order-events: order.order-events
 auth:
   internal:
     # Shared secret of service-to-service calls (X-Internal-Token); supplied by the INTERNAL_TOKEN environment variable

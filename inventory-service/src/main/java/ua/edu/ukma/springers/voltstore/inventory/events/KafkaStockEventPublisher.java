@@ -23,7 +23,7 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class KafkaStockEventPublisher implements StockEventPublisher {
-    public static final String EVENT_TYPE_HEADER = "eventType";
+    public static final String EVENT_TYPE_HEADER = KafkaTopics.EVENT_TYPE_HEADER;
 
     private final ApplicationEventPublisher applicationEventPublisher;
     private final KafkaTemplate<String, Object> kafkaTemplate;

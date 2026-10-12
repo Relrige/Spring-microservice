@@ -87,6 +87,18 @@ public class StockService {
         return getWithConfiguredPackaging(productId);
     }
 
+    /**
+     * EP-INV-EVT-01: makes sure a StockItem exists for a product Catalog just created (zero quantities, no
+     * packaging). Race-safe against a duplicate event and against adjust/packaging creating the row at the same
+     * time ({@code INSERT … ON CONFLICT DO NOTHING}); an existing row is never touched. Emits no event.
+     *
+     * @return whether a new StockItem was created
+     */
+    @Transactional
+    public boolean ensureStockItem(UUID productId) {
+        return stockItemRepository.insertIfAbsent(productId) > 0;
+    }
+
     private StockItemEntity getWithConfiguredPackaging(UUID productId) {
         StockItemEntity item = stockItemRepository.findById(productId)
                 .orElseThrow(() -> new StockItemNotFoundException(productId));
