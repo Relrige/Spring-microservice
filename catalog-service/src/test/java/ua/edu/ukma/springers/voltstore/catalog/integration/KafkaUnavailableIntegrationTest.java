@@ -55,8 +55,11 @@ class KafkaUnavailableIntegrationTest {
                 .andExpect(jsonPath("$.productId").isNotEmpty());
         long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
 
-        // Publishing runs asynchronously; the request must not block for max.block.ms (5 s)
+        // The request only writes to the database; the relay talks to the broker later
         assertThat(elapsedMillis).isLessThan(3000);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM products", Integer.class)).isEqualTo(1);
+        // The event waits in the outbox until the broker is reachable (task 19)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM outbox_events WHERE published_at IS NULL", Integer.class))
+                .isEqualTo(1);
     }
 }

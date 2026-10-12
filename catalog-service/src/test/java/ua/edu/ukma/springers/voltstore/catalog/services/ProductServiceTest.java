@@ -20,7 +20,7 @@ import ua.edu.ukma.springers.voltstore.catalog.entities.ProductStatus;
 import ua.edu.ukma.springers.voltstore.catalog.entities.StockStatus;
 import ua.edu.ukma.springers.voltstore.catalog.events.ProductCreatedEvent;
 import ua.edu.ukma.springers.voltstore.catalog.dto.CreateProductResponse;
-import org.springframework.context.ApplicationEventPublisher;
+import ua.edu.ukma.springers.voltstore.catalog.outbox.Outbox;
 import org.springframework.test.util.ReflectionTestUtils;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.CategoryNotFoundForProductException;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.ProductNotFoundException;
@@ -39,6 +39,7 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -56,7 +57,7 @@ class ProductServiceTest {
     private CategoryRepository categoryRepository;
 
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private Outbox outbox;
 
     private ProductService productService;
 
@@ -64,7 +65,7 @@ class ProductServiceTest {
     void setUp() {
         RequestValidator requestValidator = new RequestValidator(
                 Validation.buildDefaultValidatorFactory().getValidator());
-        productService = new ProductService(productRepository, categoryRepository, requestValidator, eventPublisher);
+        productService = new ProductService(productRepository, categoryRepository, requestValidator, outbox);
     }
 
     // --- create ---
@@ -88,7 +89,7 @@ class ProductServiceTest {
     }
 
     @Test
-    void createProduct_publishesProductCreatedForTheSavedProduct() {
+    void createProduct_appendsProductCreatedToTheOutbox() {
         UUID productId = UUID.randomUUID();
         when(categoryRepository.existsById(CATEGORY_ID)).thenReturn(true);
         assignIdOnSave(productId);
@@ -96,11 +97,28 @@ class ProductServiceTest {
         CreateProductResponse response = productService.createProduct(validRequest());
 
         assertThat(response.getProductId()).isEqualTo(productId);
-        ArgumentCaptor<ProductCreatedEvent> published = ArgumentCaptor.forClass(ProductCreatedEvent.class);
-        verify(eventPublisher).publishEvent(published.capture());
-        assertThat(published.getValue().productId()).isEqualTo(productId);
-        assertThat(published.getValue().eventId()).isNotNull();
-        assertThat(published.getValue().timestamp()).isNotNull();
+        ArgumentCaptor<UUID> eventId = ArgumentCaptor.forClass(UUID.class);
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(outbox).append(eq("Product"), eq(productId), eq("ProductCreated"), eq("catalog.product-events"),
+                eventId.capture(), payload.capture());
+        assertThat(payload.getValue()).isInstanceOfSatisfying(ProductCreatedEvent.class, event -> {
+            assertThat(event.productId()).isEqualTo(productId);
+            assertThat(event.eventId()).isEqualTo(eventId.getValue());
+            assertThat(event.timestamp()).isNotNull();
+        });
+    }
+
+    // --- EP-CAT-EVT-01 / 02: stock status ---
+
+    @Test
+    void updateStockStatus_reportsWhetherTheProductExists() {
+        UUID known = UUID.randomUUID();
+        UUID unknown = UUID.randomUUID();
+        when(productRepository.updateStockStatus(known, StockStatus.IN_STOCK)).thenReturn(1);
+        when(productRepository.updateStockStatus(unknown, StockStatus.IN_STOCK)).thenReturn(0);
+
+        assertThat(productService.updateStockStatus(known, StockStatus.IN_STOCK)).isTrue();
+        assertThat(productService.updateStockStatus(unknown, StockStatus.IN_STOCK)).isFalse();
     }
 
     @Test
@@ -110,7 +128,7 @@ class ProductServiceTest {
         assertThatThrownBy(() -> productService.createProduct(validRequest()))
                 .isInstanceOf(CategoryNotFoundForProductException.class);
         verify(productRepository, never()).saveAndFlush(any());
-        verifyNoInteractions(eventPublisher);
+        verifyNoInteractions(outbox);
     }
 
     @Test
@@ -120,7 +138,7 @@ class ProductServiceTest {
 
         assertThatThrownBy(() -> productService.createProduct(validRequest()))
                 .isInstanceOf(CategoryNotFoundForProductException.class);
-        verifyNoInteractions(eventPublisher);
+        verifyNoInteractions(outbox);
     }
 
     @Test
@@ -131,7 +149,7 @@ class ProductServiceTest {
 
         productService.updateProduct(id, validRequest());
 
-        verifyNoInteractions(eventPublisher);
+        verifyNoInteractions(outbox);
     }
 
     // Simulates Hibernate generating the ID when the entity is persisted
@@ -212,7 +230,7 @@ class ProductServiceTest {
 
         assertThat(product.getStatus()).isEqualTo(ProductStatus.NOT_ACTIVE);
         assertThat(product.getStockStatus()).isEqualTo(StockStatus.IN_STOCK);
-        verifyNoInteractions(eventPublisher);
+        verifyNoInteractions(outbox);
     }
 
     // Change this test in task 21: activation must then depend on the Inventory readiness check
@@ -226,7 +244,7 @@ class ProductServiceTest {
 
         assertThat(product.getStatus()).isEqualTo(ProductStatus.ACTIVE);
         assertThat(product.getStockStatus()).isEqualTo(StockStatus.OUT_OF_STOCK);
-        verifyNoInteractions(eventPublisher);
+        verifyNoInteractions(outbox);
     }
 
     @Test

@@ -21,12 +21,14 @@
     "timestamp": "2023-10-01T12:00:00Z"
   }
   ```
-  `eventId` is unique per event, so consumers can deduplicate redelivered messages. `timestamp` is an ISO-8601 UTC instant.
+  `eventId` is unique per event, so consumers can deduplicate redelivered messages (it is also sent as the `eventId` header). `timestamp` is an ISO-8601 UTC instant.
+- **Delivery:** at-least-once, through Catalog's transactional outbox. A consumer may receive the same event more than once and must ignore repeats by `eventId`.
 
 ### `ProductStockReplenished`
 - **Producer:** Inventory Service
 - **Consumers:** Catalog Service
 - **Trigger:** `availableQuantity` for an `ACTIVE` product transitions from `0` to `> 0`.
+- **Topic / key:** `inventory.stock-events` (3 partitions), message key = `productId`; header `eventType: ProductStockReplenished`. Shared with `ProductStockDepleted`: one topic and one key per product keep both event types in order, so a delayed `Depleted` can never overtake a later `Replenished`. Catalog sends messages it cannot process to its dead-letter topic `catalog.stock-events-dlt`.
 - **Payload:**
   ```json
   {
@@ -39,6 +41,7 @@
 - **Producer:** Inventory Service
 - **Consumers:** Catalog Service
 - **Trigger:** `availableQuantity` for an `ACTIVE` product transitions from `> 0` to `0`.
+- **Topic / key:** `inventory.stock-events` (same topic as `ProductStockReplenished`), message key = `productId`; header `eventType: ProductStockDepleted`.
 - **Payload:**
   ```json
   {

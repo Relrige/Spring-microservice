@@ -11,6 +11,17 @@ public final class KafkaTopics {
     // Produced by Catalog: ProductCreated (key = productId)
     public static final String PRODUCT_EVENTS = "catalog.product-events";
 
+    // Produced by Inventory: ProductStockReplenished and ProductStockDepleted (key = productId). Both event
+    // types share this one topic, so a later Depleted can never overtake an earlier Replenished.
+    public static final String STOCK_EVENTS = "inventory.stock-events";
+
+    // Owned by Catalog: stock events that could not be processed (poison messages, retries exhausted)
+    public static final String STOCK_EVENTS_DLT = "catalog.stock-events-dlt";
+
+    // Message headers set by producers on every event
+    public static final String EVENT_TYPE_HEADER = "eventType";
+    public static final String EVENT_ID_HEADER = "eventId";
+
     private KafkaTopics() {
     }
 }

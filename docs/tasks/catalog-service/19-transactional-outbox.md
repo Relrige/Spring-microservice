@@ -1,5 +1,5 @@
 ---
-status: TODO
+status: DONE
 service: catalog-service
 ---
 # Transactional Outbox for `ProductCreated`
@@ -11,20 +11,20 @@ The transactional outbox pattern solves this: the event is stored in an `outbox`
 *References:* [Catalog Spec — EP-CAT-01 step 4](../../design/services-specs/catalog-service-spec.md), [Event Catalogue](../../design/services-requirements/events-catalogue.md), [Inventory Spec — idempotent handler note](../../design/services-specs/inventory-service-spec.md)
 
 ## Acceptance Criteria
-- [ ] Flyway migration `V3__create_outbox_table.sql`: columns for event id (UUID), aggregate type and id, event type, topic, message key, JSON payload, `created_at`, and a published marker (`published_at` or a status), with an index supporting "oldest unpublished first".
-- [ ] `ProductService.create…` saves the `Product` and the outbox row in **one transaction**. If either fails, neither is stored.
-- [ ] The direct `KafkaTemplate` publishing from task 11 is removed from the product-creation path.
-- [ ] A relay (scheduled poller) reads unpublished rows in order, publishes them with `productId` as key, waits for the broker acknowledgment, and only then marks the row as published.
-- [ ] The relay is safe with several application instances (the Kubernetes Deployment runs 2 replicas): rows are claimed with `SELECT … FOR UPDATE SKIP LOCKED` or an equivalent so two relays do not publish the same row concurrently. Duplicates can still happen after a crash and are acceptable.
-- [ ] Each event carries a unique `eventId` (header and/or payload field) so consumers can deduplicate.
-- [ ] Published rows are cleaned up (deleted or archived) after a retention period; the cleanup is configurable and tested.
-- [ ] Tests (Testcontainers PostgreSQL + Kafka):
+- [x] Flyway migration `V3__create_outbox_table.sql`: columns for event id (UUID), aggregate type and id, event type, topic, message key, JSON payload, `created_at`, and a published marker (`published_at` or a status), with an index supporting "oldest unpublished first".
+- [x] `ProductService.create…` saves the `Product` and the outbox row in **one transaction**. If either fails, neither is stored.
+- [x] The direct `KafkaTemplate` publishing from task 11 is removed from the product-creation path.
+- [x] A relay (scheduled poller) reads unpublished rows in order, publishes them with `productId` as key, waits for the broker acknowledgment, and only then marks the row as published.
+- [x] The relay is safe with several application instances (the Kubernetes Deployment runs 2 replicas): rows are claimed with `SELECT … FOR UPDATE SKIP LOCKED` or an equivalent so two relays do not publish the same row concurrently. Duplicates can still happen after a crash and are acceptable.
+- [x] Each event carries a unique `eventId` (header and/or payload field) so consumers can deduplicate.
+- [x] Published rows are cleaned up (deleted or archived) after a retention period; the cleanup is configurable and tested.
+- [x] Tests (Testcontainers PostgreSQL + Kafka):
   - normal flow: the event reaches Kafka once after the product is created;
   - broker down during create → `201` returned, row stays unpublished; after the broker comes back, the event is published (the scenario that task 11 showed to lose events);
   - failure during the product save rolls back the outbox row too (no orphan event);
   - two relay instances do not double-publish the same row under normal conditions;
   - poison/slow rows do not block newer rows indefinitely (document the strategy: retry count, back-off, or alert).
-- [ ] The `ProductCreated` payload and topic are unchanged versus task 11, so consumers are unaffected.
+- [x] The `ProductCreated` payload and topic are unchanged versus task 11, so consumers are unaffected.
 
 ## Technical Notes / Constraints
 - **Polling relay vs. change data capture:** polling is simple and enough for this project; CDC (for example Debezium reading the Postgres WAL) avoids polling latency and load but adds a connector and infrastructure. Pick polling here and note CDC as the alternative.
@@ -33,3 +33,8 @@ The transactional outbox pattern solves this: the event is stored in an `outbox`
 - Keep outbox classes in their own package (`outbox`) with a small interface such as "append event in the current transaction", so other events (and, later, other services' copies) reuse it.
 - A relay failure must never fail the HTTP request; it only delays delivery. Expose a metric or at least a log line for "unpublished event age", which is the signal that something is stuck.
 - Idempotency on the consumer side (Inventory ignores a repeated `ProductCreated`) is already required by the Inventory spec; this task only needs to document that the guarantee now relies on it.
+- **Implemented:** package `outbox`: `Outbox.append(...)` (`Propagation.MANDATORY`, so it cannot be used outside a transaction), `OutboxEvent` entity, `OutboxRelay` (polling, `@Scheduled` every `catalog.outbox.relay-interval` = 500 ms) and the cleanup job (`catalog.outbox.retention` = 7 days, every `cleanup-interval` = 1 h). Relay vs. CDC: polling chosen; Debezium on the PostgreSQL WAL noted as the alternative. The `@Async` + `AFTER_COMMIT` producer and `AsyncConfig` were removed.
+- **Claiming:** `SELECT … WHERE published_at IS NULL AND next_attempt_at <= now ORDER BY created_at LIMIT n FOR UPDATE SKIP LOCKED`. The row locks are held while the batch is sent; a second replica skips them. The row is marked published only after the broker acknowledgment (`publish-timeout` = 10 s). Duplicates after a crash or a timed-out acknowledgment are possible: at-least-once, and Inventory deduplicates by `eventId` (sent in the payload and as the `eventId` header).
+- **Failure strategy (decision):** a failing event gets `attempts + 1` and `next_attempt_at = now + 2^attempts s` (capped at `max-retry-delay` = 5 min). It is retried forever and never dropped. Each failure logs an error with how long the event has been unpublished (the "stuck" signal). A batch stops at its first failure (with a broker outage every further send would also wait for a timeout). Because a failing event waits, newer events overtake it; with `ProductCreated` as the only event type per product this cannot reorder anything, but a second event type per aggregate would need "hold back later events of a failing aggregate".
+- **Tests:** a broker outage is simulated by making the spied `KafkaTemplate.send` fail, which is what the relay sees when the broker is unreachable. A real unreachable broker is covered by `KafkaUnavailableIntegrationTest` (row stays unpublished, request still fast). The two-relay test proves `SKIP LOCKED`: while one transaction holds the claimed rows, a second claim returns nothing.
+- **Payload and topic unchanged** versus task 11 (`ProductCreatedEventIntegrationTest` still passes); the `eventId` header is new.

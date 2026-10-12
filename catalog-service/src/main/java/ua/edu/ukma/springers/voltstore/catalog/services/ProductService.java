@@ -2,7 +2,6 @@ package ua.edu.ukma.springers.voltstore.catalog.services;
 
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -19,10 +18,13 @@ import ua.edu.ukma.springers.voltstore.catalog.dto.ProductStatusRequest;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductSummaryResponse;
 import ua.edu.ukma.springers.voltstore.catalog.entities.Product;
 import ua.edu.ukma.springers.voltstore.catalog.entities.ProductStatus;
+import ua.edu.ukma.springers.voltstore.catalog.entities.StockStatus;
+import ua.edu.ukma.springers.voltstore.catalog.config.KafkaTopics;
 import ua.edu.ukma.springers.voltstore.catalog.events.ProductCreatedEvent;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.CategoryNotFoundForProductException;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.ProductNotFoundException;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.RequestValidationException;
+import ua.edu.ukma.springers.voltstore.catalog.outbox.Outbox;
 import ua.edu.ukma.springers.voltstore.catalog.repositories.CategoryRepository;
 import ua.edu.ukma.springers.voltstore.catalog.repositories.ProductRepository;
 import ua.edu.ukma.springers.voltstore.catalog.repositories.ProductSpecifications;
@@ -56,7 +58,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final RequestValidator requestValidator;
-    private final ApplicationEventPublisher eventPublisher;
+    private final Outbox outbox;
 
     @Transactional
     public CreateProductResponse createProduct(ProductRequest request) {
@@ -66,8 +68,22 @@ public class ProductService {
                 request.getCategoryId(), request.getBasePrice());
         saveAndFlush(product);
 
-        eventPublisher.publishEvent(ProductCreatedEvent.forProduct(product.getId()));
+        // Same transaction as the product: the event is stored if and only if the product is (outbox)
+        ProductCreatedEvent event = ProductCreatedEvent.forProduct(product.getId());
+        outbox.append("Product", product.getId(), ProductCreatedEvent.EVENT_TYPE, KafkaTopics.PRODUCT_EVENTS,
+                event.eventId(), event);
         return new CreateProductResponse(product.getId());
+    }
+
+    /**
+     * EP-CAT-EVT-01 / EP-CAT-EVT-02: applies a stock event to the read-model. Setting a value is idempotent,
+     * and the status of the product ({@code ACTIVE} or not) does not matter.
+     *
+     * @return false if no product has this ID
+     */
+    @Transactional
+    public boolean updateStockStatus(UUID productId, StockStatus stockStatus) {
+        return productRepository.updateStockStatus(productId, stockStatus) > 0;
     }
 
     @Transactional

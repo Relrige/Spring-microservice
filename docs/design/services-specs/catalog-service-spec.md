@@ -27,7 +27,7 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 1. Validate request body: `title` non-empty; `description` non-empty; `categoryId` valid UUID; `basePrice` > 0.
 2. Verify that `categoryId` exists in the `categories` table. If not → `422`.
 3. Persist `Product(id=UUID, title, description, categoryId, basePrice, status=NOT_ACTIVE, stockStatus=OUT_OF_STOCK)`.
-4. Publish event `ProductCreated { eventId, productId, timestamp }` to the message broker (topic `catalog.product-events`, key `productId`) after the transaction commits.
+4. In the same transaction, store the event `ProductCreated { eventId, productId, timestamp }` in the outbox table; a relay publishes it to the message broker (topic `catalog.product-events`, key `productId`) after the commit. Delivery is at-least-once (transactional outbox), so consumers deduplicate by `eventId`.
 5. Return `201 Created { productId }`.
 
 > Products are always created in `NOT_ACTIVE` state. This allows the catalog manager to prepare the listing before publishing it to customers.
@@ -279,7 +279,7 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 **Producer:** Inventory Service
 **Trigger:** `availableQuantity` for an `ACTIVE` product transitions from `0` to `> 0` (restocking, stock adjustment, or reservation release).
 
-**Payload received:** `{ productId, timestamp }`
+**Payload received:** `{ productId, timestamp }` on topic `inventory.stock-events` (key `productId`, header `eventType`), consumer group `catalog-service`. Undeserializable messages, and messages still failing after bounded retries, go to the dead-letter topic `catalog.stock-events-dlt`.
 
 **Steps:**
 1. Receive and deserialise the `ProductStockReplenished` event.
@@ -302,7 +302,7 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 **Producer:** Inventory Service
 **Trigger:** `availableQuantity` for an `ACTIVE` product transitions from `> 0` to `0` (reservation, write-off, or adjustment).
 
-**Payload received:** `{ productId, timestamp }`
+**Payload received:** `{ productId, timestamp }` on topic `inventory.stock-events` (key `productId`, header `eventType`), consumer group `catalog-service`. Undeserializable messages, and messages still failing after bounded retries, go to the dead-letter topic `catalog.stock-events-dlt`.
 
 **Steps:**
 1. Receive and deserialise the `ProductStockDepleted` event.

@@ -12,7 +12,7 @@ It serves both the **Inventory Worker** (human-facing endpoints) and other **int
 |---|---|
 | **Owned entities** | `StockItem` (`productId`, `availableQuantity`, `reservedQuantity`, `grossWeightGrams`, `lengthCm`, `widthCm`, `heightCm`); `StockItemReservation` (`id`, `orderId`, `productId`, `quantity`, `status`) |
 | **Key enums** | `ReservationStatus { ACTIVE, RELEASED, CONSUMED }` |
-| **Events emitted** | `ProductStockReplenished`, `ProductStockDepleted` |
+| **Events emitted** | `ProductStockReplenished`, `ProductStockDepleted` — both on the one topic `inventory.stock-events` (3 partitions, owned and declared by Inventory), key `productId`, header `eventType` with the event name, so the two event types of one product stay in order (see the [Event Catalogue](../services-requirements/events-catalogue.md)) |
 | **Events consumed** | `ProductCreated` (from Catalog Service), `OrderShipped` (from Order Service) |
 
 ---
