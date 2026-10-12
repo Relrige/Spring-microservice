@@ -169,6 +169,8 @@ services:
     depends_on:
       inventory-service-postgres:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
     ports:
       - "8084:8080"
     env_file:

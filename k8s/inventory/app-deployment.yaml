@@ -28,6 +28,8 @@ spec:
                 name: inventory-config
             - secretRef:
                 name: inventory-db-credentials
+            - secretRef:
+                name: inventory-secrets
           resources:
             requests:
               cpu: 250m
