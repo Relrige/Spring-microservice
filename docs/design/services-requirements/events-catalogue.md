@@ -8,6 +8,12 @@
 
 ## 1. Catalog & Inventory Synchronization
 
+> **Conventions for this section:** every event carries a mandatory `eventId` (UUID, unique per event) so consumers can deduplicate at-least-once deliveries. The Kafka message key is `productId`; `ProductStockReplenished` and `ProductStockDepleted` share one topic so that events of one product keep their order. Consumers ignore unknown payload fields.
+>
+> **Stock events topic:** `inventory.stock-events`, owned and declared by Inventory Service (3 partitions). Both stock events have the same payload shape, so each record carries a Kafka header **`eventType`** with the value `ProductStockReplenished` or `ProductStockDepleted`; consumers choose the event type from this header. Records are JSON without Java type headers. Inventory publishes after the database commit; until the transactional outbox is in place, an event can be lost if the broker is down at that moment.
+>
+> **`ProductCreated` topic:** owned and declared by Catalog Service; consumers take its name from configuration.
+
 ### `ProductCreated`
 - **Producer:** Catalog Service
 - **Consumers:** Inventory Service
@@ -27,11 +33,12 @@
 ### `ProductStockReplenished`
 - **Producer:** Inventory Service
 - **Consumers:** Catalog Service
-- **Trigger:** `availableQuantity` for an `ACTIVE` product transitions from `0` to `> 0`.
+- **Trigger:** `availableQuantity` of a product transitions from `0` to `> 0` (any product, regardless of its Catalog status): a restock (EP-INV-02) or a reservation release (EP-INV-07).
 - **Topic / key:** `inventory.stock-events` (3 partitions), message key = `productId`; header `eventType: ProductStockReplenished`. Shared with `ProductStockDepleted`: one topic and one key per product keep both event types in order, so a delayed `Depleted` can never overtake a later `Replenished`. Catalog sends messages it cannot process to its dead-letter topic `catalog.stock-events-dlt`.
 - **Payload:**
   ```json
   {
+    "eventId": "uuid",
     "productId": "uuid",
     "timestamp": "2023-10-01T12:00:00Z"
   }
@@ -40,11 +47,12 @@
 ### `ProductStockDepleted`
 - **Producer:** Inventory Service
 - **Consumers:** Catalog Service
-- **Trigger:** `availableQuantity` for an `ACTIVE` product transitions from `> 0` to `0`.
+- **Trigger:** `availableQuantity` of a product transitions from `> 0` to `0` (any product, regardless of its Catalog status): a write-off (EP-INV-02) or a reservation (EP-INV-06). Shipping an order (`OrderShipped`) does not emit it, because shipping does not change `availableQuantity`.
 - **Topic / key:** `inventory.stock-events` (same topic as `ProductStockReplenished`), message key = `productId`; header `eventType: ProductStockDepleted`.
 - **Payload:**
   ```json
   {
+    "eventId": "uuid",
     "productId": "uuid",
     "timestamp": "2023-10-01T12:00:00Z"
   }
