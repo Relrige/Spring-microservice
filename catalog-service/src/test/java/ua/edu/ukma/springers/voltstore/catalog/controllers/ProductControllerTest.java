@@ -19,6 +19,8 @@ import ua.edu.ukma.springers.voltstore.catalog.dto.ProductSummaryResponse;
 import ua.edu.ukma.springers.voltstore.catalog.entities.ProductStatus;
 import ua.edu.ukma.springers.voltstore.catalog.entities.StockStatus;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.CategoryNotFoundForProductException;
+import ua.edu.ukma.springers.voltstore.catalog.exceptions.InventoryUnavailableException;
+import ua.edu.ukma.springers.voltstore.catalog.exceptions.ProductActivationRejectedException;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.ProductNotFoundException;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.RequestValidationException;
 import ua.edu.ukma.springers.voltstore.catalog.security.SecurityConfig;
@@ -31,6 +33,8 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -44,6 +48,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asInternalService;
@@ -237,6 +242,36 @@ class ProductControllerTest {
         mockMvc.perform(patch(URL + "/" + id + "/status").headers(asManager())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"NOT_ACTIVE\"}"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void changeStatus_activationRejected_returns422WithReason() throws Exception {
+        UUID id = UUID.randomUUID();
+        doThrow(new ProductActivationRejectedException(id, "packaging_data_missing"))
+                .when(productService).changeStatus(eq(id), any());
+
+        mockMvc.perform(patch(URL + "/" + id + "/status").headers(asManager())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/activation-rejected"))
+                .andExpect(jsonPath("$.reason").value("packaging_data_missing"))
+                .andExpect(jsonPath("$.service").value("catalog-service"));
+    }
+
+    @Test
+    void changeStatus_inventoryUnavailable_returns503WithRetryAfterAndNoInternals() throws Exception {
+        UUID id = UUID.randomUUID();
+        doThrow(new InventoryUnavailableException("Inventory Service is unavailable",
+                new IllegalStateException("connect to inventory-service:8084 refused")))
+                .when(productService).changeStatus(eq(id), any());
+
+        mockMvc.perform(patch(URL + "/" + id + "/status").headers(asManager())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("Retry-After", "10"))
+                .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/service-unavailable"))
+                .andExpect(jsonPath("$.detail").value("Stock readiness cannot be checked right now. Please try again later."))
+                .andExpect(content().string(not(containsString("8084"))));
     }
 
     // --- EP-CAT-05: product details ---

@@ -7,6 +7,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionOperations;
 import ua.edu.ukma.springers.voltstore.catalog.dto.BatchProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.CreateProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.PageResponse;
@@ -22,6 +23,7 @@ import ua.edu.ukma.springers.voltstore.catalog.entities.StockStatus;
 import ua.edu.ukma.springers.voltstore.catalog.config.KafkaTopics;
 import ua.edu.ukma.springers.voltstore.catalog.events.ProductCreatedEvent;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.CategoryNotFoundForProductException;
+import ua.edu.ukma.springers.voltstore.catalog.exceptions.ProductActivationRejectedException;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.ProductNotFoundException;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.RequestValidationException;
 import ua.edu.ukma.springers.voltstore.catalog.outbox.Outbox;
@@ -59,6 +61,8 @@ public class ProductService {
     private final CategoryRepository categoryRepository;
     private final RequestValidator requestValidator;
     private final Outbox outbox;
+    private final StockReadinessChecker stockReadinessChecker;
+    private final TransactionOperations transactionOperations;
 
     @Transactional
     public CreateProductResponse createProduct(ProductRequest request) {
@@ -99,19 +103,35 @@ public class ProductService {
     }
 
     /**
-     * EP-CAT-03. Order of checks follows the spec: 404, then 400. Only {@code status} changes (thanks to
-     * {@code @DynamicUpdate}, {@code stockStatus} is never written), and no event is published. Setting the
-     * current status again is an idempotent success. A deactivation racing with an activation is last-write-wins.
+     * EP-CAT-03. Order of checks follows the spec: 404, then 400, then (activation only) the Inventory readiness
+     * check (422 not ready, 503 Inventory unavailable). Only {@code status} changes (thanks to
+     * {@code @DynamicUpdate}, {@code stockStatus} is never written), and no event is published. A deactivation
+     * racing with an activation is last-write-wins.
+     * <p>
+     * Not {@code @Transactional}: the readiness call to Inventory (up to several seconds with timeouts and a
+     * retry) must not hold a database transaction or connection. The existence check runs in its own short
+     * read transaction, and the status write in a second short transaction after the remote call.
      */
-    @Transactional
     public void changeStatus(UUID id, ProductStatusRequest request) {
-        Product product = findProduct(id);
+        findProduct(id);
         requestValidator.validate(request);
 
-        switch (request.getStatus()) {
-            case ACTIVE -> activate(product);
-            case NOT_ACTIVE -> product.deactivate();
+        ProductStatus status = request.getStatus();
+        if (status == ProductStatus.ACTIVE) {
+            // Re-run even if the product is already ACTIVE: activation always means "ready right now", and an
+            // already active product that is no longer ready gets 422 (its status stays ACTIVE)
+            StockReadiness readiness = stockReadinessChecker.check(id);
+            if (!readiness.ready()) {
+                throw new ProductActivationRejectedException(id, readiness.reason());
+            }
         }
+        transactionOperations.executeWithoutResult(tx -> {
+            Product product = findProduct(id);
+            switch (status) {
+                case ACTIVE -> product.activate();
+                case NOT_ACTIVE -> product.deactivate();
+            }
+        });
     }
 
     // EP-CAT-05: the customer view. An inactive product gets exactly the same 404 as a missing one,
@@ -186,11 +206,6 @@ public class ProductService {
                 .toList();
     }
 
-    // TEMPORARY deviation from EP-CAT-03 until task 21: the spec requires an Inventory readiness check
-    // (GET /inventory/stock/{id}/readiness) before activation. Until then any product can be activated.
-    private void activate(Product product) {
-        product.activate();
-    }
 
     /**
      * Role-based visibility of the product listing (business logic, not a security rule): the status filter to

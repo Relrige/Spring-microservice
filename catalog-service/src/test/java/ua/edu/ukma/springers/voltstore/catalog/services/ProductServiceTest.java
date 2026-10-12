@@ -22,7 +22,10 @@ import ua.edu.ukma.springers.voltstore.catalog.events.ProductCreatedEvent;
 import ua.edu.ukma.springers.voltstore.catalog.dto.CreateProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.outbox.Outbox;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionOperations;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.CategoryNotFoundForProductException;
+import ua.edu.ukma.springers.voltstore.catalog.exceptions.InventoryUnavailableException;
+import ua.edu.ukma.springers.voltstore.catalog.exceptions.ProductActivationRejectedException;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.ProductNotFoundException;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.RequestValidationException;
 import ua.edu.ukma.springers.voltstore.catalog.repositories.CategoryRepository;
@@ -41,6 +44,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -59,13 +63,17 @@ class ProductServiceTest {
     @Mock
     private Outbox outbox;
 
+    @Mock
+    private StockReadinessChecker stockReadinessChecker;
+
     private ProductService productService;
 
     @BeforeEach
     void setUp() {
         RequestValidator requestValidator = new RequestValidator(
                 Validation.buildDefaultValidatorFactory().getValidator());
-        productService = new ProductService(productRepository, categoryRepository, requestValidator, outbox);
+        productService = new ProductService(productRepository, categoryRepository, requestValidator, outbox,
+                stockReadinessChecker, TransactionOperations.withoutTransaction());
     }
 
     // --- create ---
@@ -231,14 +239,16 @@ class ProductServiceTest {
         assertThat(product.getStatus()).isEqualTo(ProductStatus.NOT_ACTIVE);
         assertThat(product.getStockStatus()).isEqualTo(StockStatus.IN_STOCK);
         verifyNoInteractions(outbox);
+        // Deactivation never calls Inventory
+        verifyNoInteractions(stockReadinessChecker);
     }
 
-    // Change this test in task 21: activation must then depend on the Inventory readiness check
     @Test
-    void changeStatus_activate_setsActiveWithoutReadinessCheck_untilTask21() {
+    void changeStatus_activate_whenReady_setsActive() {
         UUID id = UUID.randomUUID();
         Product product = existingProduct();
         when(productRepository.findById(id)).thenReturn(Optional.of(product));
+        when(stockReadinessChecker.check(id)).thenReturn(StockReadiness.isReady());
 
         productService.changeStatus(id, statusRequest(ProductStatus.ACTIVE));
 
@@ -248,15 +258,56 @@ class ProductServiceTest {
     }
 
     @Test
-    void changeStatus_sameStatusAgain_isIdempotent() {
+    void changeStatus_activate_whenNotReady_rejectsWithReasonAndKeepsStatus() {
+        UUID id = UUID.randomUUID();
+        Product product = existingProduct();
+        when(productRepository.findById(id)).thenReturn(Optional.of(product));
+        when(stockReadinessChecker.check(id)).thenReturn(StockReadiness.notReady("packaging_data_missing"));
+
+        assertThatThrownBy(() -> productService.changeStatus(id, statusRequest(ProductStatus.ACTIVE)))
+                .isInstanceOfSatisfying(ProductActivationRejectedException.class,
+                        e -> assertThat(e.getReason()).isEqualTo("packaging_data_missing"));
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.NOT_ACTIVE);
+    }
+
+    @Test
+    void changeStatus_activate_whenInventoryUnavailable_propagatesAndKeepsStatus() {
+        UUID id = UUID.randomUUID();
+        Product product = existingProduct();
+        when(productRepository.findById(id)).thenReturn(Optional.of(product));
+        when(stockReadinessChecker.check(id)).thenThrow(new InventoryUnavailableException("down", null));
+
+        assertThatThrownBy(() -> productService.changeStatus(id, statusRequest(ProductStatus.ACTIVE)))
+                .isInstanceOf(InventoryUnavailableException.class);
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.NOT_ACTIVE);
+    }
+
+    @Test
+    void changeStatus_activateAlreadyActiveProduct_reRunsTheCheck() {
         UUID id = UUID.randomUUID();
         Product product = activeProduct();
         when(productRepository.findById(id)).thenReturn(Optional.of(product));
+        when(stockReadinessChecker.check(id))
+                .thenReturn(StockReadiness.isReady())
+                .thenReturn(StockReadiness.notReady("stock_item_not_found"));
 
         productService.changeStatus(id, statusRequest(ProductStatus.ACTIVE));
-        productService.changeStatus(id, statusRequest(ProductStatus.ACTIVE));
+        assertThatThrownBy(() -> productService.changeStatus(id, statusRequest(ProductStatus.ACTIVE)))
+                .isInstanceOf(ProductActivationRejectedException.class);
 
+        verify(stockReadinessChecker, times(2)).check(id);
+        // A rejected repeat activation leaves the product as it was
         assertThat(product.getStatus()).isEqualTo(ProductStatus.ACTIVE);
+    }
+
+    @Test
+    void changeStatus_invalidBody_doesNotCallInventory() {
+        UUID id = UUID.randomUUID();
+        when(productRepository.findById(id)).thenReturn(Optional.of(existingProduct()));
+
+        assertThatThrownBy(() -> productService.changeStatus(id, new ProductStatusRequest()))
+                .isInstanceOf(RequestValidationException.class);
+        verifyNoInteractions(stockReadinessChecker);
     }
 
     @Test

@@ -44,6 +44,17 @@ spring:
         # The target type is set per listener (spring.json.value.default.type), never taken from headers
         spring.json.use.type.headers: false
 
+clients:
+  inventory:
+    # Compose: http://inventory-service:8080; Kubernetes: http://inventory-service:8084. The default is the
+    # host port of Inventory in docker-compose.yml, for running Catalog from the IDE
+    url: ${INVENTORY_SERVICE_URL:http://localhost:8084}
+    connect-timeout: 2s
+    read-timeout: 3s
+    # One retry for connection errors, timeouts and 5xx (see task 22); worst case about 2 x 3 s + 0.45 s
+    max-retries: 1
+    retry-delay: 300ms
+
 catalog:
   outbox:
     # How often the relay looks for unpublished events (fixed delay between runs)

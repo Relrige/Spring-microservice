@@ -8,6 +8,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -16,6 +17,8 @@ import tools.jackson.databind.json.JsonMapper;
 import ua.edu.ukma.springers.voltstore.catalog.TestcontainersConfiguration;
 import ua.edu.ukma.springers.voltstore.catalog.entities.ProductStatus;
 import ua.edu.ukma.springers.voltstore.catalog.entities.StockStatus;
+import ua.edu.ukma.springers.voltstore.catalog.services.StockReadiness;
+import ua.edu.ukma.springers.voltstore.catalog.services.StockReadinessChecker;
 
 import java.util.Collections;
 import java.util.UUID;
@@ -24,6 +27,8 @@ import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -48,12 +53,17 @@ class CatalogReadAndStatusIntegrationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    // Activation here is about visibility; the Inventory call itself is tested in ProductActivationIntegrationTest
+    @MockitoBean
+    private StockReadinessChecker stockReadinessChecker;
+
     private UUID categoryId;
 
     @BeforeEach
     void setUp() {
         clean(jdbc);
         categoryId = insertCategory(jdbc, "Laptops");
+        when(stockReadinessChecker.check(any())).thenReturn(StockReadiness.isReady());
     }
 
     // --- EP-CAT-10: list categories ---

@@ -81,7 +81,7 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 3. **If `status == ACTIVE`** (activation path):
    a. Call Inventory Service synchronously: `GET /inventory/stock/{id}/readiness`.
    b. Inventory Service checks: `StockItem` exists for `productId` AND all packaging dimensions (grossWeightGrams, lengthCm, widthCm, heightCm) are set and non-null.
-   c. If readiness check fails → return `422 Unprocessable Entity` with the reason code (e.g., `"packaging_dimensions_missing"`, `"stock_item_not_found"`). Do **not** change the status.
+   c. If readiness check fails → return `422 Unprocessable Entity` with the reason code (Inventory's `reason`, e.g. `"packaging_data_missing"`; `"stock_item_not_found"` when Inventory answers `404`; unknown codes are passed through). Do **not** change the status.
    d. If readiness check passes → set `Product.status = ACTIVE`.
    e. Return `200 OK`.
 4. **If `status == NOT_ACTIVE`** (deactivation / soft-delete path):
@@ -94,7 +94,8 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 - Product `id` not found → `404 Not Found`
 - `status` value not recognised → `400 Bad Request`
 - Activation: Inventory Service returns `404` for the product → `422 Unprocessable Entity` ("StockItem not found — stock must be initialized before activation")
-- Activation: Inventory Service is unavailable → propagate as `503 Service Unavailable` or handle with circuit breaker (implementation TBD)
+- Activation: Inventory Service is unavailable (connection error, timeout, `5xx`, or an unexpected status such as `401`/`403`) → `503 Service Unavailable` with a `Retry-After` hint; the status is not changed. Connection errors, timeouts and `5xx` are retried once before giving up (timeouts 2 s connect / 3 s read); no circuit breaker (decision in catalog task 22)
+- Activation of an already `ACTIVE` product → the readiness check runs again; if Inventory says "not ready", `422` and the product stays `ACTIVE`
 - Deactivation: product is already `NOT_ACTIVE` → idempotent success; return `200 OK`
 
 **External calls:**
