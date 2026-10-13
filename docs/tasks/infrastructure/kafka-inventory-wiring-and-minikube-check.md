@@ -1,5 +1,5 @@
 ---
-status: TODO
+status: DONE
 service: infrastructure
 ---
 # Kafka: Inventory Wiring and First Minikube Run
@@ -9,14 +9,14 @@ The [Kafka broker task](kafka-broker-setup.md) added the broker to Compose and K
 *References:* [Kafka broker task](kafka-broker-setup.md), [Inventory Spring Kafka setup](../inventory-service/05-kafka-spring-setup-and-topic.md), [Catalog Spring Kafka setup](../catalog-service/10-kafka-spring-setup-and-topic.md)
 
 ## Acceptance Criteria
-- [ ] `docker-compose.yml`: `inventory-service` has `depends_on: kafka: condition: service_healthy`, like `catalog-service`.
-- [ ] `inventory-service/.env.example`: `SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092`, with the same comment as `catalog-service/.env.example` (from the IDE use `localhost:9094`). Each developer updates their local `.env` the same way.
-- [ ] `inventory-service/src/main/resources/application.yml`: the default `bootstrap-servers` is the broker's host listener `localhost:9094`, with a comment like Catalog's.
-- [ ] `k8s/inventory/app-config.yaml`: `SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"`, with the same comment as `k8s/catalog/app-config.yaml`.
-- [ ] `k8s.txt`: the `kubectl apply` commands use paths relative to the repository root (`k8s\base\`, `k8s\kafka\`, `k8s\`) instead of a machine-specific absolute path.
-- [ ] **Compose check:** `docker compose up` starts the broker, both services and their databases. `kafka-topics.sh --list` on `kafka:9092` shows `catalog.product-events` and `inventory.stock-events`, so both services connected and declared their topics. Creating a product in Catalog and adjusting stock 0 → 10 in Inventory each produce a log line from that service's temporary demo listener (if the demo listeners are already removed, read the topics with `kafka-console-consumer.sh` instead).
-- [ ] **Minikube check (broker):** after applying `k8s/base/` and `k8s/kafka/`, the `kafka-data` PVC is `Bound`, the `kafka-0` pod is ready, and a console produce/consume on `kafka:9092` works from inside the cluster (for example with `kubectl exec` into `kafka-0`). After deleting the pod, it comes back with the same topics (fixed `CLUSTER_ID`, data on the volume).
-- [ ] **Minikube check (services):** the Catalog and Inventory pods connect to `kafka:9092` and the two topics exist. The results of both checks are recorded in the PR.
+- [x] `docker-compose.yml`: `inventory-service` has `depends_on: kafka: condition: service_healthy`, like `catalog-service`.
+- [x] `inventory-service/.env.example`: `SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092`, with the same comment as `catalog-service/.env.example` (from the IDE use `localhost:9094`). Each developer updates their local `.env` the same way.
+- [x] `inventory-service/src/main/resources/application.yml`: the default `bootstrap-servers` is the broker's host listener `localhost:9094`, with a comment like Catalog's.
+- [x] `k8s/inventory/app-config.yaml`: `SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"`, with the same comment as `k8s/catalog/app-config.yaml`.
+- [x] `k8s.txt`: the `kubectl apply` commands use paths relative to the repository root (`k8s\base\`, `k8s\kafka\`, `k8s\`) instead of a machine-specific absolute path.
+- [x] **Compose check:** `docker compose up` starts the broker, both services and their databases. `kafka-topics.sh --list` on `kafka:9092` shows `catalog.product-events` and `inventory.stock-events`, so both services connected and declared their topics. Creating a product in Catalog and adjusting stock 0 → 10 in Inventory each produce a log line from that service's temporary demo listener (if the demo listeners are already removed, read the topics with `kafka-console-consumer.sh` instead).
+- [x] **Minikube check (broker):** after applying `k8s/base/` and `k8s/kafka/`, the `kafka-data` PVC is `Bound`, the `kafka-0` pod is ready, and a console produce/consume on `kafka:9092` works from inside the cluster (for example with `kubectl exec` into `kafka-0`). After deleting the pod, it comes back with the same topics (fixed `CLUSTER_ID`, data on the volume).
+- [x] **Minikube check (services):** the Catalog and Inventory pods connect to `kafka:9092` and the two topics exist. The results of both checks are recorded in the PR.
 
 ## Technical Notes / Constraints
 - Why `localhost:9092` fails: inside a container `localhost` is the container itself, and from the host Compose publishes only the `EXTERNAL` listener on `9094`. Services in Compose and Kubernetes use `kafka:9092`; only processes on the host use `localhost:9094`.
@@ -29,4 +29,6 @@ The [Kafka broker task](kafka-broker-setup.md) added the broker to Compose and K
 - **Done (config):** Compose `depends_on: kafka` for `inventory-service`; `SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092` in `inventory-service/.env.example` and `k8s/inventory/app-config.yaml`; `application.yml` default `localhost:9094`; `k8s.txt` uses repository-relative paths. Local `.env` files need the same Kafka line (`catalog-service/.env` was also missing it).
 - **Compose check: passed.** Both services ready; topics `catalog.product-events`, `inventory.stock-events`, `__consumer_offsets` exist. End to end: a product created in Catalog produced a `StockItem` (0/0, no packaging) in Inventory via `ProductCreated`; `adjust +10` published `ProductStockReplenished` (key = productId, `eventType` header) to `inventory.stock-events`; consumer group `inventory-service` had lag 0.
 - **Found during the check:** the existing Catalog and Inventory Postgres volumes held draft-era schemas, so Flyway failed (`relation "products" already exists`, missing `product_id` column). The local volumes were recreated; anyone with old volumes must do the same (`docker compose down` for the two services, then `docker volume rm spring-microservice_catalog-service-postgres spring-microservice_inventory-service-postgres`).
-- **Minikube check: not done.** The cluster started too slowly on the development laptop (resources) and was stopped before anything was applied. Still open: broker PVC/pod/round-trip/restart and both service pods. Plan when running it: stop Compose first, apply only `k8s/base`, `k8s/kafka`, `k8s/catalog`, `k8s/inventory`; the images can be tagged from the Compose builds (`docker tag spring-microservice-<svc>:latest voltstore/<svc>:latest`) instead of rebuilding.
+- **Minikube check, first attempt (2026-10-12):** the default cluster (2 CPUs, 3.9 GB) was too small and was stopped before anything was applied. Fixed by `replicas: 1` for every service, lower CPU/memory requests, JVM options in the ConfigMaps only, and a recreated cluster (`minikube start --cpus=6 --memory=6g`); see `k8s.txt`.
+- **Minikube check: passed (2026-10-13)**, following the runbook [e2e/manual/k8s-catalog-inventory.md](../../../e2e/manual/k8s-catalog-inventory.md) with the minimal stack (namespace, Kafka, Catalog, Inventory): PVCs `Bound`, `kafka-0` ready, console round-trip on `kafka:9092`, both topics declared, a product created in Catalog produced a `StockItem` in Inventory, `adjust +10` published `ProductStockReplenished`, two Inventory replicas split the partitions in group `inventory-service`, and the topics survived deleting `kafka-0`. No storage permission problem on minikube (no init container needed).
+- **Manual runbooks:** the Compose and Kubernetes checks are written down as repeatable command sequences in [e2e/manual](../../../e2e/manual/README.md).
