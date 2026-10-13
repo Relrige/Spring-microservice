@@ -68,4 +68,13 @@ public class Product {
         // Same scale as the column; throws instead of rounding if more fraction digits slip past validation
         this.basePrice = basePrice.setScale(PRICE_FRACTION_DIGITS);
     }
+
+    public void activate() {
+        this.status = ProductStatus.ACTIVE;
+    }
+
+    // Deactivation is the only removal mechanism: products are never hard-deleted
+    public void deactivate() {
+        this.status = ProductStatus.NOT_ACTIVE;
+    }
 }

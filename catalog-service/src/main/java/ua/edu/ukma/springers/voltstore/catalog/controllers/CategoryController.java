@@ -6,6 +6,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import ua.edu.ukma.springers.voltstore.catalog.dto.CategoryRequest;
 import ua.edu.ukma.springers.voltstore.catalog.dto.CategoryResponse;
+import ua.edu.ukma.springers.voltstore.catalog.dto.CategorySearchQuery;
+import ua.edu.ukma.springers.voltstore.catalog.dto.PageResponse;
 import ua.edu.ukma.springers.voltstore.catalog.services.CategoryService;
 
 import java.util.UUID;
@@ -15,6 +17,12 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CategoryController {
     private final CategoryService categoryService;
+
+    // EP-CAT-10: public, query parameters bound from ?search=&page=&size=
+    @GetMapping
+    public PageResponse<CategoryResponse> listCategories(@Valid @ModelAttribute CategorySearchQuery query) {
+        return categoryService.listCategories(query);
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

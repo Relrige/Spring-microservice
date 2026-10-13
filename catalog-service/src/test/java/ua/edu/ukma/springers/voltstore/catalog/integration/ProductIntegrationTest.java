@@ -32,6 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static ua.edu.ukma.springers.voltstore.catalog.support.CatalogTestData.clean;
 import static ua.edu.ukma.springers.voltstore.catalog.support.CatalogTestData.insertCategory;
 import static ua.edu.ukma.springers.voltstore.catalog.support.CatalogTestData.insertProduct;
+import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asManager;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -67,7 +68,7 @@ class ProductIntegrationTest {
 
     @Test
     void create_persistsInactiveOutOfStockProductAndReturns201() throws Exception {
-        String body = mockMvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON)
+        String body = mockMvc.perform(post(URL).headers(asManager()).contentType(MediaType.APPLICATION_JSON)
                         .content(json(" Laptop ", "A laptop", categoryId, "999.9")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.productId").isNotEmpty())
@@ -84,7 +85,7 @@ class ProductIntegrationTest {
 
     @Test
     void create_ignoresStatusAndStockStatusSentByClient() throws Exception {
-        mockMvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content("""
+        mockMvc.perform(post(URL).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content("""
                         {"title":"Laptop","description":"A laptop","categoryId":"%s","basePrice":10,
                          "status":"ACTIVE","stockStatus":"IN_STOCK"}
                         """.formatted(categoryId)))
@@ -96,7 +97,7 @@ class ProductIntegrationTest {
 
     @Test
     void create_invalidFields_returns400AndPersistsNothing() throws Exception {
-        mockMvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(json("", " ", categoryId, "0")))
+        mockMvc.perform(post(URL).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json("", " ", categoryId, "0")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.title").isNotEmpty())
                 .andExpect(jsonPath("$.errors.description").isNotEmpty())
@@ -107,7 +108,7 @@ class ProductIntegrationTest {
 
     @Test
     void create_unknownCategory_returns422() throws Exception {
-        mockMvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(json("Laptop", "A laptop", UUID.randomUUID(), "10")))
+        mockMvc.perform(post(URL).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json("Laptop", "A laptop", UUID.randomUUID(), "10")))
                 .andExpect(status().isUnprocessableContent());
 
         assertThat(countProducts()).isZero();
@@ -119,7 +120,7 @@ class ProductIntegrationTest {
         // Pretend the category still existed when it was checked
         doReturn(true).when(categoryRepository).existsById(deletedCategoryId);
 
-        mockMvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(json("Laptop", "A laptop", deletedCategoryId, "10")))
+        mockMvc.perform(post(URL).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json("Laptop", "A laptop", deletedCategoryId, "10")))
                 .andExpect(status().isUnprocessableContent());
 
         assertThat(countProducts()).isZero();
@@ -132,7 +133,7 @@ class ProductIntegrationTest {
         UUID id = insertProduct(jdbc, categoryId, ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK);
         UUID otherCategoryId = insertCategory(jdbc, "Notebooks");
 
-        mockMvc.perform(put(URL + "/" + id).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON)
                         .content(json("New title", "New description", otherCategoryId, "1500.5")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.productId").value(id.toString()))
@@ -153,7 +154,7 @@ class ProductIntegrationTest {
     void update_activeProduct_keepsStatusAndStockStatusEvenIfClientSendsThem() throws Exception {
         UUID id = insertProduct(jdbc, categoryId, ProductStatus.ACTIVE, StockStatus.IN_STOCK);
 
-        mockMvc.perform(put(URL + "/" + id).contentType(MediaType.APPLICATION_JSON).content("""
+        mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content("""
                         {"title":"New","description":"New","categoryId":"%s","basePrice":5,
                          "status":"NOT_ACTIVE","stockStatus":"OUT_OF_STOCK"}
                         """.formatted(categoryId)))
@@ -168,14 +169,14 @@ class ProductIntegrationTest {
 
     @Test
     void update_unknownId_returns404() throws Exception {
-        mockMvc.perform(put(URL + "/" + UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(put(URL + "/" + UUID.randomUUID()).headers(asManager()).contentType(MediaType.APPLICATION_JSON)
                         .content(json("Laptop", "A laptop", categoryId, "10")))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void update_unknownIdWithInvalidBody_returns404BecauseExistenceIsCheckedFirst() throws Exception {
-        mockMvc.perform(put(URL + "/" + UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(put(URL + "/" + UUID.randomUUID()).headers(asManager()).contentType(MediaType.APPLICATION_JSON)
                         .content(json("", "", categoryId, "-1")))
                 .andExpect(status().isNotFound());
     }
@@ -184,7 +185,7 @@ class ProductIntegrationTest {
     void update_invalidBodyWithUnknownCategory_returns400BecauseValidationComesBeforeCategoryCheck() throws Exception {
         UUID id = insertProduct(jdbc, categoryId, ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK);
 
-        mockMvc.perform(put(URL + "/" + id).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON)
                         .content(json("", "A laptop", UUID.randomUUID(), "10")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.title").isNotEmpty());
@@ -195,7 +196,7 @@ class ProductIntegrationTest {
         UUID id = insertProduct(jdbc, categoryId, ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK);
 
         // PUT replaces all editable fields: a partial body is rejected, not merged
-        mockMvc.perform(put(URL + "/" + id).contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"Only title\"}"))
+        mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"Only title\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.description").isNotEmpty())
                 .andExpect(jsonPath("$.errors.categoryId").isNotEmpty())
@@ -208,7 +209,7 @@ class ProductIntegrationTest {
     void update_unknownCategory_returns422AndKeepsProduct() throws Exception {
         UUID id = insertProduct(jdbc, categoryId, ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK);
 
-        mockMvc.perform(put(URL + "/" + id).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON)
                         .content(json("New", "New", UUID.randomUUID(), "10")))
                 .andExpect(status().isUnprocessableContent());
 

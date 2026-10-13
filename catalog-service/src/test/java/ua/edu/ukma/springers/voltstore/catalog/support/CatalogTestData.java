@@ -15,6 +15,7 @@ public final class CatalogTestData {
     }
 
     public static void clean(JdbcTemplate jdbc) {
+        jdbc.update("DELETE FROM outbox_events");
         jdbc.update("DELETE FROM products");
         jdbc.update("DELETE FROM categories");
     }

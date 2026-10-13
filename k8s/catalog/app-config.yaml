@@ -8,6 +8,8 @@ data:
   SPRING_DATASOURCE_URL: "jdbc:postgresql://catalog-service-postgres:5432/catalog-service"
   # Kafka broker Service from k8s/kafka
   SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  # Inventory Service (k8s/inventory/app-service.yaml), used for the readiness check on activation
+  INVENTORY_SERVICE_URL: "http://inventory-service:8084"
   # JVM settings live here only (not in the Dockerfile). Heap up to 70% of the container memory limit;
-  # C1-only JIT and Serial GC: faster startup and less memory on a small local cluster
-  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:TieredStopAtLevel=1 -XX:+UseSerialGC"
+  # C1-only JIT and Serial GC: faster startup and less memory on a small local cluster; GC events are logged
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -Xlog:gc*"

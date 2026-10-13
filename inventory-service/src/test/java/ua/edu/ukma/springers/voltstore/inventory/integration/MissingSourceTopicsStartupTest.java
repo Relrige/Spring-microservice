@@ -1,44 +1,53 @@
 package ua.edu.ukma.springers.voltstore.inventory.integration;
 
+import org.apache.kafka.clients.admin.AdminClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
-import org.springframework.kafka.listener.MessageListenerContainer;
+import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.test.web.servlet.MockMvc;
 import ua.edu.ukma.springers.voltstore.inventory.KafkaTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.inventory.PostgresTestContainerConfig;
+
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * The broker is up but Catalog has not created its topic yet (auto-creation is disabled). The listener must
- * not stop the application: {@code missing-topics-fatal} is false by default, so the container keeps running
- * and subscribes once the topic appears.
- */
-@SpringBootTest(properties = "inventory.kafka.topics.product-events=catalog.product-events-not-created")
+// Catalog and Order may not have created their topics yet: Inventory must still start, consume and stay ready
+@SpringBootTest
 @AutoConfigureMockMvc
 @Import({PostgresTestContainerConfig.class, KafkaTestContainerConfig.class})
-class ProductCreatedMissingTopicTest {
+class MissingSourceTopicsStartupTest {
     @Autowired
-    private MockMvc mockMvc;
+    private KafkaAdmin kafkaAdmin;
 
     @Autowired
     private KafkaListenerEndpointRegistry listenerRegistry;
 
+    @Autowired
+    private MockMvc mockMvc;
+
     @Test
-    void catalogTopicMissing_applicationIsReady_andListenerContainerRuns() throws Exception {
+    void listenersRunAndServiceIsReady_withoutTheSourceTopics() throws Exception {
+        try (AdminClient admin = AdminClient.create(kafkaAdmin.getConfigurationProperties())) {
+            // Order's topic does not exist; Catalog's is created by @RetryableTopic together with Inventory's retry
+            // topics and DLT, with the same 3 partitions Catalog declares (KafkaAdmin never changes an existing topic)
+            assertThat(admin.listTopics().names().get(10, TimeUnit.SECONDS))
+                    .doesNotContain("order.order-events")
+                    .contains("catalog.product-events", "catalog.product-events-inventory-retry-0",
+                            "catalog.product-events-inventory-dlt");
+        }
+
+        assertThat(listenerRegistry.getListenerContainers()).isNotEmpty()
+                .allSatisfy(container -> assertThat(container.isRunning()).isTrue());
         mockMvc.perform(get("/actuator/health/readiness"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"));
-
-        assertThat(listenerRegistry.getListenerContainers())
-                .isNotEmpty()
-                .allMatch(MessageListenerContainer::isRunning);
     }
 }

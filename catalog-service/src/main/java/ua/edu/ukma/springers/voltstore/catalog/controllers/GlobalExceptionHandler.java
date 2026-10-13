@@ -42,6 +42,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final String SERVICE_NAME = "catalog-service";
     private static final String ERROR_TYPE_BASE = "https://voltstore.com/errors/";
     private static final String VALIDATION_DETAIL = "One or more fields are invalid.";
+    // Hint for clients after a 503 from the Inventory readiness check (the call itself was already retried)
+    private static final String RETRY_AFTER_SECONDS = "10";
 
     @ExceptionHandler({ProductNotFoundException.class, CategoryNotFoundException.class})
     public ProblemDetail handleNotFound(RuntimeException ex) {
@@ -58,6 +60,26 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem(HttpStatus.UNPROCESSABLE_CONTENT, "unprocessable-entity", "Category not found", ex.getMessage());
     }
 
+    @ExceptionHandler(ProductActivationRejectedException.class)
+    public ProblemDetail handleActivationRejected(ProductActivationRejectedException ex) {
+        ProblemDetail problem = problem(HttpStatus.UNPROCESSABLE_CONTENT, "activation-rejected",
+                "Product cannot be activated", "The product is not ready for activation.");
+        // Machine-readable code from Inventory, e.g. stock_item_not_found or packaging_data_missing
+        problem.setProperty("reason", ex.getReason());
+        return problem;
+    }
+
+    @ExceptionHandler(InventoryUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleInventoryUnavailable(InventoryUnavailableException ex) {
+        // Fixed message: the cause (host names, timeouts, statuses) is logged, never sent to the client
+        log.error("Activation aborted: {}", ex.getMessage(), ex.getCause());
+        ProblemDetail problem = problem(HttpStatus.SERVICE_UNAVAILABLE, "service-unavailable", "Service Unavailable",
+                "Stock readiness cannot be checked right now. Please try again later.");
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header(HttpHeaders.RETRY_AFTER, RETRY_AFTER_SECONDS)
+                .body(problem);
+    }
+
     @ExceptionHandler(RequestValidationException.class)
     public ProblemDetail handleRequestValidation(RequestValidationException ex) {
         return validationProblem(ex.getErrors());
@@ -70,8 +92,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                                                                   WebRequest request) {
         Map<String, List<String>> fieldErrors = new TreeMap<>();
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
+            // A query parameter of the wrong type (e.g. ?page=abc) is a binding failure, whose default message
+            // is a conversion stack description; report it like a wrong JSON value instead
             fieldErrors.computeIfAbsent(error.getField(), field -> new ArrayList<>())
-                    .add(error.getDefaultMessage());
+                    .add(error.isBindingFailure() ? "Invalid value" : error.getDefaultMessage());
         }
         return handleExceptionInternal(ex, validationProblem(fieldErrors), headers, status, request);
     }

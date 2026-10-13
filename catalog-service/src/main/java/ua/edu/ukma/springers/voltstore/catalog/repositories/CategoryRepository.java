@@ -1,5 +1,7 @@
 package ua.edu.ukma.springers.voltstore.catalog.repositories;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -17,4 +19,7 @@ public interface CategoryRepository extends JpaRepository<Category, UUID> {
     // Used by rename: the category being renamed must not conflict with itself
     @Query("select count(c) > 0 from Category c where lower(c.name) = lower(:name) and c.id <> :id")
     boolean existsByNameIgnoreCaseAndIdNot(String name, UUID id);
+
+    // Derived LIKE query: Spring Data escapes % and _ in the argument, so "50%" is matched literally
+    Page<Category> findByNameContainingIgnoreCase(String name, Pageable pageable);
 }

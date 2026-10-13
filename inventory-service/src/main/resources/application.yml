@@ -37,8 +37,21 @@ spring:
 inventory:
   kafka:
     topics:
-      # Topic owned and declared by Catalog Service; Inventory only subscribes to it
+      # Owned by Catalog (catalog-service KafkaTopics.PRODUCT_EVENTS); carries ProductCreated. Inventory only
+      # subscribes; @RetryableTopic creates it with Catalog's settings if it is missing (see ProductCreatedListener)
       product-events: ${CATALOG_PRODUCT_EVENTS_TOPIC:catalog.product-events}
+      # Owned by Order Service. PROVISIONAL name following the <service>.<aggregate>-events convention; align it
+      # when Order publishes OrderShipped (only records with header eventType=OrderShipped are consumed)
+      order-events: order.order-events
+    product-created:
+      # @RetryableTopic: 1 attempt on the source topic + 3 on retry topics (after 1 s, 2 s, 4 s), then the DLT
+      attempts: 4
+      backoff-delay-ms: 1000
+  idempotency:
+    # processed_events keys are kept far longer than any redelivery window (retry topics: seconds;
+    # Catalog's outbox: minutes to hours during an outage), then deleted
+    retention: 30d
+    cleanup-interval: 1h
 auth:
   internal:
     # Shared secret of service-to-service calls (X-Internal-Token); supplied by the INTERNAL_TOKEN environment variable

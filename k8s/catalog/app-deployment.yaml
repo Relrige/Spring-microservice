@@ -29,6 +29,8 @@ spec:
                 name: catalog-config
             - secretRef:
                 name: catalog-db-credentials
+            - secretRef:
+                name: catalog-secrets
           resources:
             requests:
               cpu: 100m

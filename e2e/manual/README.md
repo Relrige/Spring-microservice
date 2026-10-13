@@ -6,8 +6,11 @@ Testcontainers `ComposeContainer` module).
 
 | Runbook | Environment | Status |
 |---|---|---|
-| [docker-compose-catalog-inventory.md](docker-compose-catalog-inventory.md) | Docker Compose | Run successfully on 2026-10-12 |
-| [k8s-catalog-inventory.md](k8s-catalog-inventory.md) | minikube | Run successfully on 2026-10-13 |
+| [docker-compose-catalog-inventory.md](docker-compose-catalog-inventory.md) | Docker Compose | Run successfully on 2026-10-12; updated 2026-10-13 after merging main (Catalog security headers, outbox, stock-event consumer, Inventory retry/DLT topics), not re-run since |
+| [k8s-catalog-inventory.md](k8s-catalog-inventory.md) | minikube | Run successfully on 2026-10-13; updated the same day after merging main, not re-run since |
+
+The fault-tolerance experiment (broker outage, consumer failure after commit, poison message) is recorded
+separately in [docs/reports/messaging-fault-tolerance.md](../../docs/reports/messaging-fault-tolerance.md).
 
 ## Conventions
 - **Shell: Git Bash**, from the repository root. Windows PowerShell 5.1 is not used because its `curl` is an

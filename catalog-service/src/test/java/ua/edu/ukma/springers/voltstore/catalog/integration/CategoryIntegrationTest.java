@@ -35,6 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static ua.edu.ukma.springers.voltstore.catalog.support.CatalogTestData.clean;
 import static ua.edu.ukma.springers.voltstore.catalog.support.CatalogTestData.insertCategory;
 import static ua.edu.ukma.springers.voltstore.catalog.support.CatalogTestData.insertProduct;
+import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asManager;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -64,7 +65,7 @@ class CategoryIntegrationTest {
 
     @Test
     void create_persistsTrimmedNameAndReturns201() throws Exception {
-        String body = mockMvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(json("  Laptops ")))
+        String body = mockMvc.perform(post(URL).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json("  Laptops ")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Laptops"))
                 .andReturn().getResponse().getContentAsString();
@@ -78,7 +79,7 @@ class CategoryIntegrationTest {
     void create_nameDiffersOnlyByCaseAndWhitespace_returns409() throws Exception {
         insertCategory(jdbc, "Laptops");
 
-        mockMvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(json(" laptops ")))
+        mockMvc.perform(post(URL).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json(" laptops ")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value("Category name already in use"));
 
@@ -87,7 +88,7 @@ class CategoryIntegrationTest {
 
     @Test
     void create_blankName_returns400AndPersistsNothing() throws Exception {
-        mockMvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(json("   ")))
+        mockMvc.perform(post(URL).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json("   ")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.name").isNotEmpty());
 
@@ -105,7 +106,7 @@ class CategoryIntegrationTest {
                 String name = i % 2 == 0 ? "Race" : "RACE";
                 results.add(executor.submit(() -> {
                     startTogether.await();
-                    return mockMvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(json(name)))
+                    return mockMvc.perform(post(URL).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json(name)))
                             .andReturn().getResponse().getStatus();
                 }));
             }
@@ -128,7 +129,7 @@ class CategoryIntegrationTest {
     void rename_returns200AndUpdatesName() throws Exception {
         UUID id = insertCategory(jdbc, "Laptops");
 
-        mockMvc.perform(put(URL + "/" + id).contentType(MediaType.APPLICATION_JSON).content(json(" Notebooks ")))
+        mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json(" Notebooks ")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.categoryId").value(id.toString()))
                 .andExpect(jsonPath("$.name").value("Notebooks"));
@@ -140,9 +141,9 @@ class CategoryIntegrationTest {
     void rename_toOwnNameOrOnlyCasing_succeeds() throws Exception {
         UUID id = insertCategory(jdbc, "laptops");
 
-        mockMvc.perform(put(URL + "/" + id).contentType(MediaType.APPLICATION_JSON).content(json("laptops")))
+        mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json("laptops")))
                 .andExpect(status().isOk());
-        mockMvc.perform(put(URL + "/" + id).contentType(MediaType.APPLICATION_JSON).content(json("Laptops")))
+        mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json("Laptops")))
                 .andExpect(status().isOk());
 
         assertThat(nameOf(id)).isEqualTo("Laptops");
@@ -150,13 +151,13 @@ class CategoryIntegrationTest {
 
     @Test
     void rename_unknownId_returns404() throws Exception {
-        mockMvc.perform(put(URL + "/" + UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json("X")))
+        mockMvc.perform(put(URL + "/" + UUID.randomUUID()).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json("X")))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void rename_unknownIdAndBlankName_returns404BecauseExistenceIsCheckedFirst() throws Exception {
-        mockMvc.perform(put(URL + "/" + UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json(" ")))
+        mockMvc.perform(put(URL + "/" + UUID.randomUUID()).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json(" ")))
                 .andExpect(status().isNotFound());
     }
 
@@ -164,7 +165,7 @@ class CategoryIntegrationTest {
     void rename_blankName_returns400() throws Exception {
         UUID id = insertCategory(jdbc, "Laptops");
 
-        mockMvc.perform(put(URL + "/" + id).contentType(MediaType.APPLICATION_JSON).content(json(" ")))
+        mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json(" ")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.name").isNotEmpty());
 
@@ -176,7 +177,7 @@ class CategoryIntegrationTest {
         insertCategory(jdbc, "Laptops");
         UUID phones = insertCategory(jdbc, "Phones");
 
-        mockMvc.perform(put(URL + "/" + phones).contentType(MediaType.APPLICATION_JSON).content(json("LAPTOPS")))
+        mockMvc.perform(put(URL + "/" + phones).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json("LAPTOPS")))
                 .andExpect(status().isConflict());
 
         assertThat(nameOf(phones)).isEqualTo("Phones");
@@ -189,7 +190,7 @@ class CategoryIntegrationTest {
         // Pretend the pre-check ran before a concurrent request took the name
         doReturn(false).when(categoryRepository).existsByNameIgnoreCaseAndIdNot(any(), any());
 
-        mockMvc.perform(put(URL + "/" + phones).contentType(MediaType.APPLICATION_JSON).content(json("laptops")))
+        mockMvc.perform(put(URL + "/" + phones).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json("laptops")))
                 .andExpect(status().isConflict());
 
         assertThat(nameOf(phones)).isEqualTo("Phones");
@@ -197,7 +198,7 @@ class CategoryIntegrationTest {
 
     @Test
     void rename_nonUuidId_returns400() throws Exception {
-        mockMvc.perform(put(URL + "/abc").contentType(MediaType.APPLICATION_JSON).content(json("X")))
+        mockMvc.perform(put(URL + "/abc").headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json("X")))
                 .andExpect(status().isBadRequest());
     }
 
@@ -207,7 +208,7 @@ class CategoryIntegrationTest {
     void delete_categoryWithoutProducts_returns200AndDeletes() throws Exception {
         UUID id = insertCategory(jdbc, "Laptops");
 
-        mockMvc.perform(delete(URL + "/" + id))
+        mockMvc.perform(delete(URL + "/" + id).headers(asManager()))
                 .andExpect(status().isOk());
 
         assertThat(countCategories()).isZero();
@@ -215,7 +216,7 @@ class CategoryIntegrationTest {
 
     @Test
     void delete_unknownId_returns404() throws Exception {
-        mockMvc.perform(delete(URL + "/" + UUID.randomUUID()))
+        mockMvc.perform(delete(URL + "/" + UUID.randomUUID()).headers(asManager()))
                 .andExpect(status().isNotFound());
     }
 
@@ -224,7 +225,7 @@ class CategoryIntegrationTest {
         UUID id = insertCategory(jdbc, "Laptops");
         insertProduct(jdbc, id, ProductStatus.ACTIVE, StockStatus.IN_STOCK);
 
-        mockMvc.perform(delete(URL + "/" + id))
+        mockMvc.perform(delete(URL + "/" + id).headers(asManager()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value(
                         "Category has associated products. Reassign or remove all products before deletion."));
@@ -237,7 +238,7 @@ class CategoryIntegrationTest {
         UUID id = insertCategory(jdbc, "Laptops");
         insertProduct(jdbc, id, ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK);
 
-        mockMvc.perform(delete(URL + "/" + id))
+        mockMvc.perform(delete(URL + "/" + id).headers(asManager()))
                 .andExpect(status().isConflict());
 
         assertThat(countCategories()).isEqualTo(1);
@@ -250,7 +251,7 @@ class CategoryIntegrationTest {
         // Pretend the product was created after the "has products" check
         doReturn(false).when(productRepository).existsByCategoryId(id);
 
-        mockMvc.perform(delete(URL + "/" + id))
+        mockMvc.perform(delete(URL + "/" + id).headers(asManager()))
                 .andExpect(status().isConflict());
 
         assertThat(countCategories()).isEqualTo(1);
