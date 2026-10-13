@@ -85,6 +85,7 @@ Derived from the [API Contracts](../services-requirements/api-contracts.md). **A
 | `POST` | `/catalog/products` | catalog-service | Required | `CATALOG_MANAGER` |
 | `PUT` | `/catalog/products/{id}` | catalog-service | Required | `CATALOG_MANAGER` |
 | `PATCH` | `/catalog/products/{id}/status` | catalog-service | Required | `CATALOG_MANAGER` |
+| `GET` | `/catalog/categories` | catalog-service | Public | — |
 | `POST` | `/catalog/categories` | catalog-service | Required | `CATALOG_MANAGER` |
 | `PUT`, `DELETE` | `/catalog/categories/{id}` | catalog-service | Required | `CATALOG_MANAGER` |
 | `GET` | `/inventory/stock` | inventory-service | Required | `INVENTORY_WORKER` |

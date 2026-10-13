@@ -52,6 +52,18 @@ class KafkaSetupIntegrationTest {
     }
 
     @Test
+    void stockEventTopics_areDeclared() throws Exception {
+        try (AdminClient admin = AdminClient.create(kafkaAdmin.getConfigurationProperties())) {
+            Map<String, TopicDescription> topics = admin.describeTopics(
+                            List.of(KafkaTopics.STOCK_EVENTS, KafkaTopics.STOCK_EVENTS_DLT))
+                    .allTopicNames().get(10, TimeUnit.SECONDS);
+
+            assertThat(topics.get(KafkaTopics.STOCK_EVENTS).partitions()).hasSize(3);
+            assertThat(topics.get(KafkaTopics.STOCK_EVENTS_DLT).partitions()).hasSize(1);
+        }
+    }
+
+    @Test
     void messageSentWithKafkaTemplate_isReceivedByListener() throws Exception {
         ProductCreatedEvent event = ProductCreatedEvent.forProduct(UUID.randomUUID());
         String key = event.productId().toString();

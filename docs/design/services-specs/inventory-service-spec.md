@@ -297,11 +297,11 @@ Lists use the shared paging envelope `{ content, page, size, totalElements }` (`
 **Producer:** Catalog Service (Catalog-owned topic; the name comes from configuration)
 **Trigger:** A new product is created by the Catalog Manager (EP-CAT-01).
 
-**Payload received:** `{ eventId, productId, timestamp }` (read into Inventory's own record; unknown fields are ignored)
+**Payload received:** `{ eventId, productId, timestamp }` (read into Inventory's own record; unknown fields are ignored). `eventId` and `productId` are mandatory: without them the event goes to the DLT.
 
 **Steps:**
 1. Receive and deserialise the `ProductCreated` event.
-2. Race-safely create `StockItem(productId, availableQuantity=0, reservedQuantity=0, packaging=null)` if it does not exist (`INSERT … ON CONFLICT DO NOTHING`); if it exists → no action.
+2. In one transaction: record `eventId` in `processed_events` (Idempotent Consumer); if it was already recorded → duplicate, no action. Otherwise race-safely create `StockItem(productId, availableQuantity=0, reservedQuantity=0, packaging=null)` if it does not exist (`INSERT … ON CONFLICT DO NOTHING`); if it exists → no action.
 3. Acknowledge the message.
 
 > This handler is idempotent: if the event is delivered more than once (at-least-once broker delivery), the duplicate is safely ignored. A `StockItem` may also be created on demand by EP-INV-02/03 if this event was missed or has not arrived yet — both orders end in the same state.
@@ -311,6 +311,7 @@ Lists use the shared paging envelope `{ content, page, size, totalElements }` (`
 - `productId` already has a `StockItem` (created by a prior stock write) → skip; acknowledge
 - Creating a `StockItem` emits no event
 - The Catalog topic does not exist yet → the service still starts and stays healthy
+- Failure while processing → non-blocking retries via `@RetryableTopic`: `catalog.product-events-inventory-retry-0/1/2` (after 1, 2, 4 s), then `catalog.product-events-inventory-dlt`; an unconvertible payload goes to the DLT at once
 
 **External calls:** none
 **Refs:** SCN-S01, SCN-CM01 (step 5), N-04
@@ -350,7 +351,7 @@ Lists use the shared paging envelope `{ content, page, size, totalElements }` (`
 |---|---|
 | EP-INV-01 … EP-INV-07 | Implemented (tasks 01–14) |
 | Catalog existence check in EP-INV-02/03 | Pending ([task 19](../../tasks/inventory-service/19-catalog-product-existence-client.md)); until then a missing `StockItem` is created on demand **without** checking Catalog |
-| EP-INV-EVT-01, EP-INV-EVT-02 | Pending (tasks 15, 16) |
+| EP-INV-EVT-01, EP-INV-EVT-02 | Implemented (tasks 15, 16): consumer group `inventory-service`, topics from `inventory.kafka.topics.*` (`catalog.product-events`; Order topic provisionally `order.order-events`), only records with the matching `eventType` header; `ProductCreated`: `@RetryableTopic` (retry topics + `catalog.product-events-inventory-dlt`) and Idempotent Consumer (`processed_events`); `OrderShipped`: blocking retries, then `inventory.order.order-events.dlt` |
 | Transactional outbox for stock events | Pending ([task 17](../../tasks/inventory-service/17-transactional-outbox.md)) |
 | Compose / Kubernetes Kafka wiring | Pending ([broker task](../../tasks/infrastructure/kafka-broker-setup.md), [task 18](../../tasks/inventory-service/18-containerization-and-deployment.md)) |
 
@@ -372,5 +373,6 @@ Lists use the shared paging envelope `{ content, page, size, totalElements }` (`
 | EP-INV-06 validation | quantities ≥ 1 | also max 100 items, duplicate `productId` → `400` | task 13 |
 | EP-INV-07 success | `200 OK` | `204 No Content` | task 14 |
 | Stock events | payload only | `eventType` Kafka header on the shared topic `inventory.stock-events` | task 06 |
+| Consumed events | — | filtered by the `eventType` header (the source topics are per aggregate and carry other types); dead-letter topics `inventory.<source topic>.dlt` owned by Inventory | tasks 15, 16 |
 | `StockItemReservation` | 5 fields | adds `createdAt`, `updatedAt` | task 12 |
 | `reservedQuantity` | stored or computed | stored, updated with `availableQuantity` in one transaction | task 02 |

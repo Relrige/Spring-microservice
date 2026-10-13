@@ -2,10 +2,15 @@ package ua.edu.ukma.springers.voltstore.catalog.services;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ua.edu.ukma.springers.voltstore.catalog.dto.CategoryRequest;
 import ua.edu.ukma.springers.voltstore.catalog.dto.CategoryResponse;
+import ua.edu.ukma.springers.voltstore.catalog.dto.CategorySearchQuery;
+import ua.edu.ukma.springers.voltstore.catalog.dto.PageResponse;
 import ua.edu.ukma.springers.voltstore.catalog.entities.Category;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.CategoryHasProductsException;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.CategoryNameAlreadyInUseException;
@@ -14,6 +19,7 @@ import ua.edu.ukma.springers.voltstore.catalog.repositories.CategoryRepository;
 import ua.edu.ukma.springers.voltstore.catalog.repositories.ProductRepository;
 import ua.edu.ukma.springers.voltstore.catalog.utils.CategoryNameNormalizer;
 import ua.edu.ukma.springers.voltstore.catalog.utils.ConstraintViolations;
+import ua.edu.ukma.springers.voltstore.catalog.utils.Paging;
 import ua.edu.ukma.springers.voltstore.catalog.utils.RequestValidator;
 
 import java.util.UUID;
@@ -71,6 +77,18 @@ public class CategoryService {
             }
             throw e;
         }
+    }
+
+    // EP-CAT-10 (an addition to the spec). Even a short list goes through paging, so behaviour is uniform.
+    @Transactional(readOnly = true)
+    public PageResponse<CategoryResponse> listCategories(CategorySearchQuery query) {
+        // Stable order by name; id breaks ties so pages never overlap
+        Pageable pageable = Paging.pageRequest(query.getPage(), query.getSize(), Sort.by("name", "id"));
+        String search = query.getSearch() != null ? query.getSearch().trim() : "";
+        Page<Category> page = search.isEmpty()
+                ? categoryRepository.findAll(pageable)
+                : categoryRepository.findByNameContainingIgnoreCase(search, pageable);
+        return PageResponse.from(page, CategoryResponse::from);
     }
 
     private Category findCategory(UUID id) {

@@ -111,4 +111,37 @@ public class ReservationService {
             StockEvents.forTransition(reservation.getProductId(), before, after).ifPresent(stockEventPublisher::publish);
         }
     }
+
+    /**
+     * EP-INV-EVT-02: the order was shipped, so the stock held by its ACTIVE reservations leaves the warehouse for
+     * good: {@code reservedQuantity} goes down and the reservations become CONSUMED. {@code availableQuantity} was
+     * already reduced at reservation time and does not change, so no stock event is emitted.
+     * <p>
+     * Same lock order as {@link #release}: reservation rows first, then stock rows sorted by productId. A concurrent
+     * duplicate event (or a release of the same order) waits on the reservation rows and then finds none ACTIVE,
+     * so the deduction happens exactly once, and consume and release cannot deadlock each other. RELEASED
+     * reservations are never consumed.
+     *
+     * @return the number of reservations consumed (0: nothing ACTIVE, e.g. a duplicate event)
+     */
+    @Transactional
+    public int consume(UUID orderId) {
+        List<StockItemReservationEntity> reservations =
+                reservationRepository.findByOrderIdAndStatusForUpdate(orderId, ReservationStatus.ACTIVE);
+        if (reservations.isEmpty()) {
+            return 0;
+        }
+
+        Map<UUID, StockItemEntity> items = stockItemRepository.findAllByIdsForUpdate(reservations.stream()
+                        .map(StockItemReservationEntity::getProductId).toList()).stream()
+                .collect(Collectors.toMap(StockItemEntity::getProductId, Function.identity()));
+
+        for (StockItemReservationEntity reservation : reservations) {
+            // The foreign key guarantees a StockItem for every reservation
+            StockItemEntity item = items.get(reservation.getProductId());
+            item.setReservedQuantity(item.getReservedQuantity() - reservation.getQuantity());
+            reservation.setStatus(ReservationStatus.CONSUMED);
+        }
+        return reservations.size();
+    }
 }

@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static ua.edu.ukma.springers.voltstore.catalog.support.CatalogTestData.clean;
 import static ua.edu.ukma.springers.voltstore.catalog.support.CatalogTestData.insertCategory;
 import static ua.edu.ukma.springers.voltstore.catalog.support.CatalogTestData.productJson;
+import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asManager;
 
 // The broker is unreachable for the whole test: nothing listens on localhost:1
 @SpringBootTest(properties = {
@@ -48,14 +49,17 @@ class KafkaUnavailableIntegrationTest {
         UUID categoryId = insertCategory(jdbc, "Laptops");
 
         long start = System.nanoTime();
-        mockMvc.perform(post("/catalog/products").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/catalog/products").headers(asManager()).contentType(MediaType.APPLICATION_JSON)
                         .content(productJson(categoryId)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.productId").isNotEmpty());
         long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
 
-        // Publishing runs asynchronously; the request must not block for max.block.ms (5 s)
+        // The request only writes to the database; the relay talks to the broker later
         assertThat(elapsedMillis).isLessThan(3000);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM products", Integer.class)).isEqualTo(1);
+        // The event waits in the outbox until the broker is reachable (task 19)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM outbox_events WHERE published_at IS NULL", Integer.class))
+                .isEqualTo(1);
     }
 }

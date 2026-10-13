@@ -8,4 +8,6 @@ data:
   SPRING_DATASOURCE_URL: "jdbc:postgresql://catalog-service-postgres:5432/catalog-service"
   # Kafka broker Service from k8s/kafka
   SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  # Inventory Service (k8s/inventory/app-service.yaml), used for the readiness check on activation
+  INVENTORY_SERVICE_URL: "http://inventory-service:8084"
   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -Xlog:gc*"
