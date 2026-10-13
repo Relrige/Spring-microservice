@@ -14,4 +14,5 @@ COPY --from=builder /workspace/extracted/application/ ./
 
 EXPOSE 8080
 USER 10001:10001
-ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-XX:InitialRAMPercentage=75.0", "org.springframework.boot.loader.launch.JarLauncher"]
+# Heap settings come from JAVA_TOOL_OPTIONS (Kubernetes ConfigMap), so they can be tuned without rebuilding
+ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]
