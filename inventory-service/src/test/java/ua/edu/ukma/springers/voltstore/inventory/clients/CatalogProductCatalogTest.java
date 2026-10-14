@@ -2,6 +2,7 @@ package ua.edu.ukma.springers.voltstore.inventory.clients;
 
 import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
+import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -26,8 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Task 19. The adapter against a fake Catalog (WireMock), without a Spring context: the client is built exactly as
- * in production, with a short read timeout so the tests stay fast.
+ * Tasks 19 and 20. The adapter against a fake Catalog (WireMock), without a Spring context: the client is built
+ * exactly as in production, with a short read timeout and a short retry delay so the tests stay fast.
  */
 class CatalogProductCatalogTest {
     private static final String TOKEN = "internal-token-internal-token-1234567";
@@ -47,8 +48,9 @@ class CatalogProductCatalogTest {
     static void warmUp() {
         catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(okJson("[]")));
         CatalogClientProperties relaxed = new CatalogClientProperties(catalog.baseUrl(), Duration.ofSeconds(5),
-                Duration.ofSeconds(30));
-        new CatalogProductCatalog(ClientsConfiguration.createCatalogClient(relaxed, TOKEN)).exists(UUID.randomUUID());
+                Duration.ofSeconds(30), 0, Duration.ZERO);
+        new CatalogProductCatalog(ClientsConfiguration.createCatalogClient(relaxed, TOKEN), relaxed)
+                .exists(UUID.randomUUID());
         catalog.resetAll();
     }
 
@@ -73,10 +75,11 @@ class CatalogProductCatalogTest {
     }
 
     @Test
-    void emptyAnswer_doesNotExist() {
+    void emptyAnswer_doesNotExist_andIsNotRetried() {
         catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(okJson("[]")));
 
         assertThat(adapter(catalog.baseUrl()).exists(productId)).isFalse();
+        catalog.verify(1, getRequestedFor(urlPathEqualTo(PATH)));
     }
 
     @Test
@@ -100,20 +103,35 @@ class CatalogProductCatalogTest {
     }
 
     @Test
-    void serverError_isUnavailable() {
+    void down_serverErrorTwice_isUnavailableAfterOneRetry() {
         catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(aResponse().withStatus(500)));
 
         assertThatThrownBy(() -> adapter(catalog.baseUrl()).exists(productId))
                 .isInstanceOf(CatalogUnavailableException.class);
+        catalog.verify(2, getRequestedFor(urlPathEqualTo(PATH)));
     }
 
     @Test
-    void slowAnswer_timesOut_isUnavailable() {
+    void slow_readTimeoutTwice_isUnavailableAfterOneRetry() {
         catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(okJson("[]")
                 .withFixedDelay((int) READ_TIMEOUT.multipliedBy(2).toMillis())));
 
         assertThatThrownBy(() -> adapter(catalog.baseUrl()).exists(productId))
                 .isInstanceOf(CatalogUnavailableException.class);
+        catalog.verify(2, getRequestedFor(urlPathEqualTo(PATH)));
+    }
+
+    @Test
+    void flapping_unavailableThenFound_existsAfterTheRetry() {
+        catalog.stubFor(get(urlPathEqualTo(PATH)).inScenario("flapping").whenScenarioStateIs(Scenario.STARTED)
+                .willReturn(aResponse().withStatus(503)).willSetStateTo("recovered"));
+        catalog.stubFor(get(urlPathEqualTo(PATH)).inScenario("flapping").whenScenarioStateIs("recovered")
+                .willReturn(okJson("""
+                        [{"productId":"%s","title":"Laptop","basePrice":1,"status":"NOT_ACTIVE"}]
+                        """.formatted(productId))));
+
+        assertThat(adapter(catalog.baseUrl()).exists(productId)).isTrue();
+        catalog.verify(2, getRequestedFor(urlPathEqualTo(PATH)));
     }
 
     @Test
@@ -137,11 +155,14 @@ class CatalogProductCatalogTest {
         assertThatThrownBy(() -> adapter(catalog.baseUrl()).exists(productId))
                 .isInstanceOf(CatalogUnavailableException.class)
                 .hasMessageNotContaining(TOKEN);
+        // A configuration problem: retrying cannot fix it
+        catalog.verify(1, getRequestedFor(urlPathEqualTo(PATH)));
     }
 
     private static CatalogProductCatalog adapter(String baseUrl) {
-        CatalogClientProperties properties = new CatalogClientProperties(baseUrl, Duration.ofSeconds(1), READ_TIMEOUT);
-        return new CatalogProductCatalog(ClientsConfiguration.createCatalogClient(properties, TOKEN));
+        CatalogClientProperties properties = new CatalogClientProperties(baseUrl, Duration.ofSeconds(1), READ_TIMEOUT,
+                1, Duration.ofMillis(50));
+        return new CatalogProductCatalog(ClientsConfiguration.createCatalogClient(properties, TOKEN), properties);
     }
 
     // A port nobody listens on: bound and released at once

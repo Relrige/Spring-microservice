@@ -36,6 +36,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final URI VALIDATION_TYPE = URI.create("https://voltstore.com/errors/validation");
     static final String CATALOG_UNAVAILABLE_DETAIL =
             "The product cannot be checked in the catalog right now. Please try again later.";
+    static final String RETRY_AFTER_SECONDS = "10";
 
     @ExceptionHandler(StockItemNotFoundException.class)
     public ProblemDetail handleStockItemNotFound(StockItemNotFoundException ex) {
@@ -49,11 +50,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     @ExceptionHandler(CatalogUnavailableException.class)
-    public ProblemDetail handleCatalogUnavailable(CatalogUnavailableException ex) {
+    public ResponseEntity<ProblemDetail> handleCatalogUnavailable(CatalogUnavailableException ex) {
         // The cause stays in the log; the client gets a fixed text without hosts, statuses or causes
         log.error("Catalog check failed, answering 503: {}", ex.getMessage());
-        return problem(HttpStatus.SERVICE_UNAVAILABLE, "service-unavailable", "Service Unavailable",
+        ProblemDetail problem = problem(HttpStatus.SERVICE_UNAVAILABLE, "service-unavailable", "Service Unavailable",
                 CATALOG_UNAVAILABLE_DETAIL);
+        // The adapter has already retried once; suggest the client waits a little before trying again
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header(HttpHeaders.RETRY_AFTER, RETRY_AFTER_SECONDS)
+                .body(problem);
     }
 
     @ExceptionHandler(InsufficientStockException.class)

@@ -32,6 +32,7 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMoc
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -39,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Task 19, end to end: adjust and set-packaging for a product without a StockItem ask a fake Catalog (WireMock)
  * whether the product exists, before anything is created.
  */
-@SpringBootTest(properties = "clients.catalog.read-timeout=1s")
+@SpringBootTest(properties = {"clients.catalog.read-timeout=1s", "clients.catalog.retry-delay=50ms"})
 @AutoConfigureMockMvc
 @Import({PostgresTestContainerConfig.class, KafkaTestContainerConfig.class})
 class CatalogExistenceCheckIntegrationTest {
@@ -103,11 +104,14 @@ class CatalogExistenceCheckIntegrationTest {
 
         adjust(productId, 10)
                 .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("Retry-After", "10"))
                 .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/service-unavailable"))
                 .andExpect(jsonPath("$.detail")
                         .value("The product cannot be checked in the catalog right now. Please try again later."));
 
         assertThat(availableQuantity(productId)).isEmpty();
+        // Task 20: a 5xx is retried once, then answered with 503
+        catalog.verify(2, getRequestedFor(urlPathEqualTo(BATCH_GET)));
     }
 
     @Test
@@ -151,6 +155,8 @@ class CatalogExistenceCheckIntegrationTest {
         putPackaging(productId).andExpect(status().isServiceUnavailable());
 
         assertThat(availableQuantity(productId)).isEmpty();
+        // A configuration problem is not retried
+        catalog.verify(1, getRequestedFor(urlPathEqualTo(BATCH_GET)));
     }
 
     @Test

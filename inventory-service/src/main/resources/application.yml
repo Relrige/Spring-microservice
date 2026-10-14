@@ -79,6 +79,9 @@ clients:
     url: ${CATALOG_SERVICE_URL:http://localhost:8081}
     connect-timeout: ${CATALOG_CONNECT_TIMEOUT:2s}
     read-timeout: ${CATALOG_READ_TIMEOUT:3s}
+    # One retry for connection errors, timeouts and 5xx (task 20); worst case about 2 x 3 s + 0.45 s
+    max-retries: ${CATALOG_MAX_RETRIES:1}
+    retry-delay: ${CATALOG_RETRY_DELAY:300ms}
 auth:
   internal:
     # Shared secret of service-to-service calls (X-Internal-Token); supplied by the INTERNAL_TOKEN environment variable
