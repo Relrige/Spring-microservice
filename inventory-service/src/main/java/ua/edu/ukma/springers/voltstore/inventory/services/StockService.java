@@ -1,16 +1,18 @@
 package ua.edu.ukma.springers.voltstore.inventory.services;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
 import ua.edu.ukma.springers.voltstore.inventory.events.StockEventPublisher;
 import ua.edu.ukma.springers.voltstore.inventory.events.StockEvents;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.InsufficientStockException;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.PackagingNotConfiguredException;
+import ua.edu.ukma.springers.voltstore.inventory.exceptions.ProductNotFoundInCatalogException;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.StockItemNotFoundException;
 import ua.edu.ukma.springers.voltstore.inventory.idempotency.ProcessedEvents;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemRepository;
@@ -19,7 +21,6 @@ import ua.edu.ukma.springers.voltstore.inventory.specifications.StockItemSpecifi
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 public class StockService {
     // Key of the ProductCreated handler in processed_events
     static final String PRODUCT_CREATED_CONSUMER = "product-created";
@@ -27,6 +28,19 @@ public class StockService {
     private final StockItemRepository stockItemRepository;
     private final StockEventPublisher stockEventPublisher;
     private final ProcessedEvents processedEvents;
+    private final ProductCatalog productCatalog;
+    // Adjust and packaging ask Catalog first and only then open the locking transaction (see requireKnownProduct)
+    private final TransactionTemplate transactionTemplate;
+
+    public StockService(StockItemRepository stockItemRepository, StockEventPublisher stockEventPublisher,
+                        ProcessedEvents processedEvents, ProductCatalog productCatalog,
+                        PlatformTransactionManager transactionManager) {
+        this.stockItemRepository = stockItemRepository;
+        this.stockEventPublisher = stockEventPublisher;
+        this.processedEvents = processedEvents;
+        this.productCatalog = productCatalog;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
+    }
 
     /**
      * Lists stock items one page at a time. Filters are optional ({@code null} means "do not filter") and combine
@@ -42,36 +56,42 @@ public class StockService {
     }
 
     /**
-     * Applies a signed delta to the available quantity and returns the new quantity.
+     * Applies a signed delta to the available quantity and returns the new quantity. A product without a StockItem
+     * must exist in Catalog ({@link #requireKnownProduct}).
      */
-    @Transactional
     public int adjustStock(UUID productId, int delta) {
-        // If the delta is rejected below, the transaction rolls back and a row created here is not kept.
-        StockItemEntity item = getOrCreateForUpdate(productId);
+        requireKnownProduct(productId);
+        return transactionTemplate.execute(status -> {
+            // If the delta is rejected below, the transaction rolls back and a row created here is not kept.
+            StockItemEntity item = getOrCreateForUpdate(productId);
 
-        // before/after are computed inside the locked transaction, so the zero-crossing check below
-        // sees a consistent pair. The event is written to the outbox in this same transaction.
-        int before = item.getAvailableQuantity();
-        int after = before + delta;
-        if (after < 0) {
-            throw new InsufficientStockException(productId);
-        }
+            // before/after are computed inside the locked transaction, so the zero-crossing check below
+            // sees a consistent pair. The event is written to the outbox in this same transaction.
+            int before = item.getAvailableQuantity();
+            int after = before + delta;
+            if (after < 0) {
+                throw new InsufficientStockException(productId);
+            }
 
-        item.setAvailableQuantity(after);
-        StockEvents.forTransition(productId, before, after).ifPresent(stockEventPublisher::publish);
-        return after;
+            item.setAvailableQuantity(after);
+            StockEvents.forTransition(productId, before, after).ifPresent(stockEventPublisher::publish);
+            return after;
+        });
     }
 
     /**
-     * Replaces all four packaging values at once. Quantities are untouched and no event is emitted.
+     * Replaces all four packaging values at once. Quantities are untouched and no event is emitted. A product
+     * without a StockItem must exist in Catalog, as for {@link #adjustStock}.
      */
-    @Transactional
     public void setPackaging(UUID productId, int grossWeightGrams, int lengthCm, int widthCm, int heightCm) {
-        StockItemEntity item = getOrCreateForUpdate(productId);
-        item.setGrossWeightGrams(grossWeightGrams);
-        item.setLengthCm(lengthCm);
-        item.setWidthCm(widthCm);
-        item.setHeightCm(heightCm);
+        requireKnownProduct(productId);
+        transactionTemplate.executeWithoutResult(status -> {
+            StockItemEntity item = getOrCreateForUpdate(productId);
+            item.setGrossWeightGrams(grossWeightGrams);
+            item.setLengthCm(lengthCm);
+            item.setWidthCm(widthCm);
+            item.setHeightCm(heightCm);
+        });
     }
 
     /**
@@ -134,12 +154,28 @@ public class StockService {
     }
 
     /**
-     * Returns the row-locked StockItem, creating it (with zero quantities and no packaging) if it is absent.
-     * Concurrent first-time callers end up with exactly one row; the lock serializes their updates.
+     * EP-INV-02/03: a StockItem is created on demand only for a product that Catalog knows. Normally the
+     * ProductCreated event has created it already and Catalog is not called at all; this synchronous check is the
+     * fallback for a missed event.
      * <p>
-     * TEMPORARY deviation from the spec (EP-INV-02, EP-INV-03): the StockItem is created on demand without
-     * checking that the product exists in Catalog. The Catalog check is added here, in this one place, in task 19
-     * (docs/tasks/inventory-service/19-catalog-product-existence-client.md).
+     * Runs <b>before</b> the transaction that locks the stock row, so no database connection or row lock is held
+     * while waiting for Catalog. If someone else creates the StockItem in between, nothing breaks: the creation in
+     * {@link #getOrCreateForUpdate} is race-safe.
+     *
+     * @throws ProductNotFoundInCatalogException if Catalog does not know the product (nothing is created)
+     * @throws ua.edu.ukma.springers.voltstore.inventory.exceptions.CatalogUnavailableException if Catalog cannot
+     *         answer (nothing is changed)
+     */
+    private void requireKnownProduct(UUID productId) {
+        if (!stockItemRepository.existsById(productId) && !productCatalog.exists(productId)) {
+            throw new ProductNotFoundInCatalogException(productId);
+        }
+    }
+
+    /**
+     * Returns the row-locked StockItem, creating it (with zero quantities and no packaging) if it is absent; the
+     * caller has checked the product against Catalog ({@link #requireKnownProduct}). Concurrent first-time callers
+     * end up with exactly one row; the lock serializes their updates.
      */
     private StockItemEntity getOrCreateForUpdate(UUID productId) {
         stockItemRepository.insertIfAbsent(productId);

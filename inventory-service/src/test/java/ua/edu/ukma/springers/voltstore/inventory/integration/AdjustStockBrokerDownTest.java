@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import ua.edu.ukma.springers.voltstore.inventory.PostgresTestContainerConfig;
+import ua.edu.ukma.springers.voltstore.inventory.support.CatalogKnowsEveryProduct;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemRepository;
 
 import java.util.UUID;
@@ -36,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.kafka.producer.properties.max.block.ms=1000"
 })
 @AutoConfigureMockMvc
-@Import(PostgresTestContainerConfig.class)
+@Import({PostgresTestContainerConfig.class, CatalogKnowsEveryProduct.class})
 class AdjustStockBrokerDownTest {
     @Autowired
     private MockMvc mockMvc;

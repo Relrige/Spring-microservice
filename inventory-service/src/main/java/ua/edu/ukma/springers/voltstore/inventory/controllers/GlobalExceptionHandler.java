@@ -13,9 +13,11 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import ua.edu.ukma.springers.voltstore.inventory.exceptions.CatalogUnavailableException;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.InsufficientStockException;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.InsufficientStockForReservationException;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.PackagingNotConfiguredException;
+import ua.edu.ukma.springers.voltstore.inventory.exceptions.ProductNotFoundInCatalogException;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.ReservationAlreadyExistsException;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.StockItemNotFoundException;
 import ua.edu.ukma.springers.voltstore.inventory.paging.InvalidQueryParameterException;
@@ -32,10 +34,26 @@ import java.util.TreeMap;
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final String SERVICE_NAME = "inventory-service";
     private static final URI VALIDATION_TYPE = URI.create("https://voltstore.com/errors/validation");
+    static final String CATALOG_UNAVAILABLE_DETAIL =
+            "The product cannot be checked in the catalog right now. Please try again later.";
 
     @ExceptionHandler(StockItemNotFoundException.class)
     public ProblemDetail handleStockItemNotFound(StockItemNotFoundException ex) {
         return problem(HttpStatus.NOT_FOUND, "not-found", "Stock item not found", ex.getMessage());
+    }
+
+    // Same type as a missing StockItem: for the client both mean "no such product here"
+    @ExceptionHandler(ProductNotFoundInCatalogException.class)
+    public ProblemDetail handleProductNotFoundInCatalog(ProductNotFoundInCatalogException ex) {
+        return problem(HttpStatus.NOT_FOUND, "not-found", "Product not found", ex.getMessage());
+    }
+
+    @ExceptionHandler(CatalogUnavailableException.class)
+    public ProblemDetail handleCatalogUnavailable(CatalogUnavailableException ex) {
+        // The cause stays in the log; the client gets a fixed text without hosts, statuses or causes
+        log.error("Catalog check failed, answering 503: {}", ex.getMessage());
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "service-unavailable", "Service Unavailable",
+                CATALOG_UNAVAILABLE_DETAIL);
     }
 
     @ExceptionHandler(InsufficientStockException.class)

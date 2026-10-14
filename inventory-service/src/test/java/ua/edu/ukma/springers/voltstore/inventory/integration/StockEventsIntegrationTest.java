@@ -13,6 +13,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.test.web.servlet.MockMvc;
 import ua.edu.ukma.springers.voltstore.inventory.KafkaTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.inventory.PostgresTestContainerConfig;
+import ua.edu.ukma.springers.voltstore.inventory.support.CatalogKnowsEveryProduct;
 import ua.edu.ukma.springers.voltstore.inventory.config.KafkaTopics;
 
 import java.nio.charset.StandardCharsets;
@@ -33,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import({PostgresTestContainerConfig.class, KafkaTestContainerConfig.class, StockEventsIntegrationTest.Collector.class})
+@Import({PostgresTestContainerConfig.class, KafkaTestContainerConfig.class, CatalogKnowsEveryProduct.class, StockEventsIntegrationTest.Collector.class})
 class StockEventsIntegrationTest {
     @TestConfiguration(proxyBeanMethods = false)
     static class Collector {

@@ -24,6 +24,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import ua.edu.ukma.springers.voltstore.inventory.KafkaTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.inventory.PostgresTestContainerConfig;
+import ua.edu.ukma.springers.voltstore.inventory.support.CatalogKnowsEveryProduct;
 import ua.edu.ukma.springers.voltstore.inventory.config.KafkaTopics;
 import ua.edu.ukma.springers.voltstore.inventory.events.ProductStockReplenishedEvent;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemReservationRepository;
@@ -61,7 +62,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SuppressWarnings("unchecked")
 @SpringBootTest(properties = {"inventory.outbox.relay-interval=1h", "inventory.outbox.publish-timeout=5s"})
 @AutoConfigureMockMvc
-@Import({PostgresTestContainerConfig.class, KafkaTestContainerConfig.class})
+@Import({PostgresTestContainerConfig.class, KafkaTestContainerConfig.class, CatalogKnowsEveryProduct.class})
 class OutboxIntegrationTest {
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final String REPLENISHED = "ProductStockReplenished";

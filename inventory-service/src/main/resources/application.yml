@@ -72,6 +72,13 @@ inventory:
     # Catalog's outbox: minutes to hours during an outage), then deleted
     retention: 30d
     cleanup-interval: 1h
+clients:
+  catalog:
+    # Compose: http://catalog-service:8080; Kubernetes: http://catalog-service:8081 (Service port). The default
+    # is the host port of Catalog in docker-compose.yml, for running Inventory from the IDE
+    url: ${CATALOG_SERVICE_URL:http://localhost:8081}
+    connect-timeout: ${CATALOG_CONNECT_TIMEOUT:2s}
+    read-timeout: ${CATALOG_READ_TIMEOUT:3s}
 auth:
   internal:
     # Shared secret of service-to-service calls (X-Internal-Token); supplied by the INTERNAL_TOKEN environment variable
