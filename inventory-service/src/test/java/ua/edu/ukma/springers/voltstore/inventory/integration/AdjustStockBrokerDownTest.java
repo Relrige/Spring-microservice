@@ -6,6 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import ua.edu.ukma.springers.voltstore.inventory.PostgresTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemRepository;
@@ -20,11 +21,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * The broker is unreachable, so the 0 -> positive event cannot be delivered. The adjustment must
- * still succeed: the publish failure is only logged (the gap that task 17, the outbox, closes).
+ * The broker is unreachable, so the 0 -> positive event cannot be delivered. The adjustment must still succeed,
+ * and the event waits in the outbox (task 17) instead of being lost: the request never touches Kafka, and the
+ * relay keeps retrying in the background.
  * <p>
- * Timeouts are shortened as in {@link KafkaBrokerDownStartupTest}. In production {@code send()} blocks for up to
- * {@code max.block.ms} (60 s by default) waiting for broker metadata before the failure is logged.
+ * Timeouts are shortened as in {@link KafkaBrokerDownStartupTest}, so the relay's failing attempts end quickly.
  */
 @SpringBootTest(properties = {
         "spring.kafka.bootstrap-servers=localhost:1",
@@ -43,8 +44,11 @@ class AdjustStockBrokerDownTest {
     @Autowired
     private StockItemRepository repository;
 
+    @Autowired
+    private JdbcTemplate jdbc;
+
     @Test
-    void adjust_brokerDown_stillReturns200AndPersistsStock() throws Exception {
+    void adjust_brokerDown_stillReturns200AndKeepsTheEventUnpublishedInTheOutbox() throws Exception {
         UUID productId = UUID.randomUUID();
 
         mockMvc.perform(post("/inventory/stock/" + productId + "/adjust")
@@ -54,5 +58,8 @@ class AdjustStockBrokerDownTest {
                 .andExpect(jsonPath("$.newAvailableQuantity").value(10));
 
         assertThat(repository.findById(productId).orElseThrow().getAvailableQuantity()).isEqualTo(10);
+        assertThat(jdbc.queryForList(
+                "SELECT event_type FROM outbox_events WHERE aggregate_id = ? AND published_at IS NULL",
+                String.class, productId)).containsExactly("ProductStockReplenished");
     }
 }

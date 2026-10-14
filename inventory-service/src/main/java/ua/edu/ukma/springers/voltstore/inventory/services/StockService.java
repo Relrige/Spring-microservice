@@ -50,7 +50,7 @@ public class StockService {
         StockItemEntity item = getOrCreateForUpdate(productId);
 
         // before/after are computed inside the locked transaction, so the zero-crossing check below
-        // sees a consistent pair. The publisher delivers the event only after this transaction commits.
+        // sees a consistent pair. The event is written to the outbox in this same transaction.
         int before = item.getAvailableQuantity();
         int after = before + delta;
         if (after < 0) {
