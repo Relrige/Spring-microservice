@@ -1,9 +1,12 @@
 spring:
   application:
     name: api-getaway
-  mvc:
-    problem-details:
-      enabled: true
+  http:
+    clients:
+      # Upstream calls: an unreachable upstream fails fast (502), a slow one is cut off (504).
+      # The read timeout leaves room for upstreams that call other services with retries (catalog -> inventory).
+      connect-timeout: 2s
+      read-timeout: 15s
   cloud:
     gateway:
       server:
