@@ -24,6 +24,8 @@ spec:
     metadata:
       labels:
         app: auth-service-postgres
+        app.kubernetes.io/part-of: voltstore
+        app.kubernetes.io/component: database
     spec:
       containers:
         - name: postgres

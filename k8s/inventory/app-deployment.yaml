@@ -13,6 +13,8 @@ spec:
     metadata:
       labels:
         app: inventory-service
+        app.kubernetes.io/part-of: voltstore
+        app.kubernetes.io/component: service
     spec:
       securityContext:
         runAsNonRoot: true

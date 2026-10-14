@@ -1,7 +1,9 @@
 # Cluster size is fixed when the cluster is created. To change it: "minikube delete", then start again.
 # 6 CPUs / 6 GB fit inside Docker Desktop's default VM (about 7.4 GB on a 16 GB laptop) only if the
 # Docker Compose stack is stopped while minikube runs ("docker compose stop").
-minikube start --cpus=6 --memory=6g
+# --cni=calico: the default CNI silently ignores the NetworkPolicy objects in k8s\network\ (trust boundary).
+# The CNI cannot be changed on an existing cluster: "minikube delete" first.
+minikube start --cpus=6 --memory=6g --cni=calico
 # The dashboard addon runs extra pods; enable it only when needed
 minikube addons disable dashboard
 
@@ -54,6 +56,8 @@ kubectl get pods -n voltstore
 
 
 
+# External traffic: Ingress -> api-gateway only (k8s\ingress\). With "minikube tunnel" running the gateway is at
+# http://127.0.0.1/ (see e2e\manual\k8s-gateway.md)
 minikube addons enable ingress
 
 minikube tunnel
