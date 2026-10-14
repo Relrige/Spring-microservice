@@ -21,7 +21,7 @@ The stub-upstream tests of [task 06](06-gateway-security-tests.md) prove the gat
   - `GET /catalog/products` with a garbled token → `401` (Optional route is strict); `GET /catalog/products/{id}` with a garbled token → `200` (Public route ignores it).
 - [x] Runbook `e2e/manual/k8s-gateway.md`: the same checks in minikube through the Ingress (`minikube tunnel`), plus the network checks of [task 08](08-ingress-and-trust-boundary.md).
 - [x] Both runbooks are listed in `e2e/manual/README.md` with their last run date and result; the results are recorded in this task's notes.
-- [x] Where reality diverged from the spec (WebMVC variant, route-metadata decision, `AUTH_JWT_SECRET` name, management port, deferred routes), the deviations are listed in this task's notes; the spec itself is updated by the team at the end of the sprint.
+- [x] Where reality diverged from the spec (WebMVC variant, route-metadata decision, `AUTH_JWT_SECRET` name, management port, deferred routes), the deviations are listed in this task's notes and the [API Gateway Spec](../../design/services-specs/api-gateway-spec.md) is updated to match (2026-10-14).
 
 ## Technical Notes / Constraints
 - `AUTH_JWT_SECRET` in `api-gateway/.env` and `auth-service/.env` must match (and in `gateway-secrets` / `auth-secrets`).
@@ -42,7 +42,7 @@ Run from a fresh Compose project (new volumes). All expected results matched:
 ### Kubernetes run (`e2e/manual/k8s-gateway.md`)
 See [task 08](08-ingress-and-trust-boundary.md#progress-notes-2026-10-14): Ingress → gateway checks, the full business flow under NetworkPolicies, and the in-cluster probes.
 
-### Deviations from spec
+### Deviations from the original spec (spec updated 2026-10-14)
 - **Gateway variant:** Spring Cloud Gateway **Server WebMVC** (servlet stack), not the reactive gateway the spec implies ([task 01](01-scaffold-api-gateway.md)).
 - **Secret name:** the variable is `AUTH_JWT_SECRET` (property `auth.jwt.secret`), the same name as in auth-service, not `JWT_SECRET`.
 - **Pipeline wiring:** auth mode and roles are route `metadata`, read at startup by `RouteAccessPolicy`; the pipeline is one `TrustBoundary` route filter that every route must declare (startup fails otherwise). Pipeline order differs formally: header stripping happens after route matching (unmatched requests are `404` and never forwarded, so the effect is the same).
