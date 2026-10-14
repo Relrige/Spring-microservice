@@ -36,6 +36,100 @@ spring:
                 authMode: REQUIRED
                 roles: ADMIN
 
+            # --- catalog-service ---
+            # Optional: catalog managers get extra filters; a stale token is a 401, not a silent guest
+            - id: catalog-browse-products
+              uri: ${gateway.upstreams.catalog}
+              predicates:
+                - Method=GET
+                - Path=/catalog/products
+              metadata:
+                authMode: OPTIONAL
+            # {id} is a UUID, so the internal GET /catalog/products/batch-get never matches here
+            - id: catalog-get-product
+              uri: ${gateway.upstreams.catalog}
+              predicates:
+                - Method=GET
+                - Path=/catalog/products/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}
+              metadata:
+                authMode: PUBLIC
+            - id: catalog-create-product
+              uri: ${gateway.upstreams.catalog}
+              predicates:
+                - Method=POST
+                - Path=/catalog/products
+              metadata:
+                authMode: REQUIRED
+                roles: CATALOG_MANAGER
+            - id: catalog-update-product
+              uri: ${gateway.upstreams.catalog}
+              predicates:
+                - Method=PUT
+                - Path=/catalog/products/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}
+              metadata:
+                authMode: REQUIRED
+                roles: CATALOG_MANAGER
+            - id: catalog-change-product-status
+              uri: ${gateway.upstreams.catalog}
+              predicates:
+                - Method=PATCH
+                - Path=/catalog/products/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}/status
+              metadata:
+                authMode: REQUIRED
+                roles: CATALOG_MANAGER
+            - id: catalog-list-categories
+              uri: ${gateway.upstreams.catalog}
+              predicates:
+                - Method=GET
+                - Path=/catalog/categories
+              metadata:
+                authMode: PUBLIC
+            - id: catalog-create-category
+              uri: ${gateway.upstreams.catalog}
+              predicates:
+                - Method=POST
+                - Path=/catalog/categories
+              metadata:
+                authMode: REQUIRED
+                roles: CATALOG_MANAGER
+            - id: catalog-modify-category
+              uri: ${gateway.upstreams.catalog}
+              predicates:
+                - Method=PUT,DELETE
+                - Path=/catalog/categories/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}
+              metadata:
+                authMode: REQUIRED
+                roles: CATALOG_MANAGER
+
+            # --- inventory-service ---
+            # Not routed (internal): GET .../readiness, GET .../packaging, /inventory/reservations/**
+            - id: inventory-view-stock
+              uri: ${gateway.upstreams.inventory}
+              predicates:
+                - Method=GET
+                - Path=/inventory/stock
+              metadata:
+                authMode: REQUIRED
+                roles: INVENTORY_WORKER
+            - id: inventory-adjust-stock
+              uri: ${gateway.upstreams.inventory}
+              predicates:
+                - Method=POST
+                - Path=/inventory/stock/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}/adjust
+              metadata:
+                authMode: REQUIRED
+                roles: INVENTORY_WORKER
+            # Only PUT: GET on the same path is internal
+            - id: inventory-set-packaging
+              uri: ${gateway.upstreams.inventory}
+              predicates:
+                - Method=PUT
+                - Path=/inventory/stock/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}/packaging
+              metadata:
+                authMode: REQUIRED
+                roles: INVENTORY_WORKER
+            # order, delivery and customer routes: task 10 (services do not expose the contract paths yet)
+
 auth:
   jwt:
     leeway: 30s
