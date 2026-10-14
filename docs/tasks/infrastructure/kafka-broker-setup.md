@@ -29,3 +29,10 @@ The platform needs an asynchronous message broker (the Event Catalogue lists "Ra
 - **Kubernetes detail:** the pod sets `enableServiceLinks: false`. Otherwise Kubernetes injects `KAFKA_PORT=tcp://...` for the `kafka` Service, and the image turns every `KAFKA_*` variable into a broker setting.
 - **`CLUSTER_ID`** is fixed (generated with `kafka-storage.sh random-uuid`), so the formatted data volume is reused across restarts.
 - **Verification:** `docker compose up -d kafka` → healthy. Console round-trip on `kafka:9092`: created topic `smoke-test`, produced `hello-voltstore`, consumed `hello-voltstore`. Producing to the undeclared `typo-topic` failed with `UNKNOWN_TOPIC_OR_PARTITION` (auto-creation disabled). `__consumer_offsets` is created, so consumer groups work. From the host (`localhost:9094`), the broker advertises `localhost:9094` and a consumer read the catalog events. The Kubernetes listener config was checked by running the same environment in a standalone container; it was **not** applied to minikube (the cluster was stopped).
+
+## Review Follow-ups (2026-10-12)
+A review against Catalog ↔ Inventory messaging found the broker itself correct (KRaft, listeners, auto-creation off, replication settings, pinned image, `enableServiceLinks: false`). Two things remain and were moved to the next infrastructure task, [Kafka: Inventory Wiring and First Minikube Run](kafka-inventory-wiring-and-minikube-check.md):
+- Inventory's Compose/Kubernetes Kafka wiring, deferred to this task by Inventory [task 05](../inventory-service/05-kafka-spring-setup-and-topic.md) but not done here (only Catalog was wired).
+- The first run of the broker manifests on minikube, and the machine-specific paths in `k8s.txt`.
+
+**Known simplification:** the Kubernetes readiness probe is a TCP check on 9092, so the pod can report ready slightly before the broker serves metadata. Acceptable here; clients retry.

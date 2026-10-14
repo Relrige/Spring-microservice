@@ -22,8 +22,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * The broker is unreachable, so the 0 -> positive event cannot be delivered. The adjustment must
  * still succeed: the publish failure is only logged (the gap that task 17, the outbox, closes).
+ * <p>
+ * Timeouts are shortened as in {@link KafkaBrokerDownStartupTest}. In production {@code send()} blocks for up to
+ * {@code max.block.ms} (60 s by default) waiting for broker metadata before the failure is logged.
  */
-@SpringBootTest(properties = "spring.kafka.bootstrap-servers=localhost:1")
+@SpringBootTest(properties = {
+        "spring.kafka.bootstrap-servers=localhost:1",
+        // Topic creation by KafkaAdmin at startup: give up after 1 s instead of 30 s (+ 10 s to close the client)
+        "spring.kafka.admin.operation-timeout=1s",
+        "spring.kafka.admin.close-timeout=1s",
+        // KafkaTemplate.send() waits for broker metadata: 1 s instead of 60 s
+        "spring.kafka.producer.properties.max.block.ms=1000"
+})
 @AutoConfigureMockMvc
 @Import(PostgresTestContainerConfig.class)
 class AdjustStockBrokerDownTest {

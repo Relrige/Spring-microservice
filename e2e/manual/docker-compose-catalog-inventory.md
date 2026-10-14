@@ -4,9 +4,12 @@ Checks that Catalog and Inventory run in Docker Compose, reach the Kafka broker 
 events:
 
 ```
-Catalog  --ProductCreated-->           catalog.product-events  -->  Inventory creates an empty StockItem
-Inventory --ProductStockReplenished--> inventory.stock-events   -->  (Catalog consumer: Catalog task 18, not built yet)
+Catalog  --ProductCreated (outbox)-->  catalog.product-events  -->  Inventory creates an empty StockItem
+Inventory --ProductStockReplenished--> inventory.stock-events   -->  Catalog sets the product's stockStatus
 ```
+
+The fault-tolerance experiment (broker outage, consumer failure after commit, poison message) is a separate
+protocol: [messaging-fault-tolerance report](../../docs/reports/messaging-fault-tolerance.md), section 5.
 
 Shell: **Git Bash**, from the repository root (see [README](README.md)).
 
@@ -17,6 +20,14 @@ Shell: **Git Bash**, from the repository root (see [README](README.md)).
 
 ```bash
 grep KAFKA catalog-service/.env inventory-service/.env
+```
+
+- Catalog also needs `AUTH_INTERNAL_TOKEN` and `INVENTORY_SERVICE_URL` (see `catalog-service/.env.example`), and
+  Inventory needs `INTERNAL_TOKEN`. The two tokens must have the **same value** (Catalog calls Inventory's
+  readiness endpoint with it):
+
+```bash
+grep -h "INTERNAL_TOKEN\|INVENTORY_SERVICE_URL" catalog-service/.env inventory-service/.env
 ```
 
 - **Old volumes:** if a service fails at startup with a Flyway error such as `relation "products" already exists`,
@@ -63,8 +74,13 @@ proves both services reached the broker.
 MSYS_NO_PATHCONV=1 docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
 ```
 
-Expected: `catalog.product-events` (declared by Catalog), `inventory.stock-events` (declared by Inventory) and
-`__consumer_offsets` (Kafka's internal topic for committed consumer offsets).
+Expected:
+- `catalog.product-events` (declared by Catalog) and `inventory.stock-events` (declared by Inventory, and also by
+  Catalog with the same settings);
+- the error-handling topics owned by the consumers: `catalog.product-events-inventory-retry-0/1/2` and
+  `catalog.product-events-inventory-dlt` (Inventory's `@RetryableTopic`), `inventory.order.order-events.dlt`
+  (Inventory, `OrderShipped`), `catalog.stock-events-dlt` (Catalog, stock events);
+- `__consumer_offsets` (Kafka's internal topic for committed consumer offsets).
 
 Details of one topic (3 partitions, replication factor 1):
 
@@ -73,12 +89,14 @@ MSYS_NO_PATHCONV=1 docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-
 ```
 
 ## 4. Catalog → Kafka → Inventory: a new product gets a StockItem
-Create a category, then a product in it. Catalog has no security yet, so no headers are needed. The IDs are
-kept in shell variables for the next steps.
+Create a category, then a product in it. Catalog reads the caller from trusted headers set by the API Gateway;
+here they are set by hand (`CATALOG_MANAGER`). The IDs are kept in shell variables for the next steps.
 
 ```bash
 CATEGORY_ID=$(curl -s -X POST http://localhost:8081/catalog/categories \
   -H 'Content-Type: application/json' \
+  -H 'X-User-Id: 22222222-2222-2222-2222-222222222222' \
+  -H 'X-User-Role: CATALOG_MANAGER' \
   -d '{"name":"Manual e2e '"$(date +%s)"'"}' | grep -o '"categoryId":"[^"]*"' | cut -d'"' -f4)
 echo "CATEGORY_ID=$CATEGORY_ID"
 ```
@@ -86,6 +104,8 @@ echo "CATEGORY_ID=$CATEGORY_ID"
 ```bash
 PRODUCT_ID=$(curl -s -X POST http://localhost:8081/catalog/products \
   -H 'Content-Type: application/json' \
+  -H 'X-User-Id: 22222222-2222-2222-2222-222222222222' \
+  -H 'X-User-Role: CATALOG_MANAGER' \
   -d '{"title":"Manual e2e laptop","description":"Kafka check","categoryId":"'"$CATEGORY_ID"'","basePrice":999.99}' \
   | grep -o '"productId":"[^"]*"' | cut -d'"' -f4)
 echo "PRODUCT_ID=$PRODUCT_ID"
@@ -93,8 +113,9 @@ echo "PRODUCT_ID=$PRODUCT_ID"
 
 If an ID is empty, run the `curl` without the `| grep ...` part to see the error response.
 
-Catalog publishes `ProductCreated` after its database transaction commits; Inventory's `ProductCreatedListener`
-consumes it and inserts a `StockItem`. This happens asynchronously, so look a second later. Query Inventory's
+Catalog writes `ProductCreated` to its `outbox_events` table in the same transaction as the product; the outbox
+relay publishes it shortly after. Inventory's `ProductCreatedListener` consumes it, records the `eventId` in
+`processed_events` and inserts a `StockItem`. This happens asynchronously, so look a second later. Query Inventory's
 database directly:
 
 ```bash
@@ -108,16 +129,17 @@ is null).
 The same, seen in the logs of both sides:
 
 ```bash
-docker logs inventory-service 2>&1 | grep "StockItem created for product $PRODUCT_ID"
+docker logs inventory-service 2>&1 | grep "StockItem created for new product $PRODUCT_ID"
 ```
+
+The outbox row on Catalog's side (`published_at` is set once the broker acknowledged the event):
 
 ```bash
-docker logs catalog-service 2>&1 | grep "Received ProductCreated" | tail -n 3
+docker exec catalog-service-pg psql -U catalog-service -d catalog-service \
+  -c "select id, event_type, attempts, published_at from outbox_events where aggregate_id = '$PRODUCT_ID'"
 ```
 
-The Catalog line comes from its temporary demo listener (Catalog task 11), which reads Catalog's own topic.
-
-Read the raw event on the topic (key = productId, header `eventType`). The consumer stops after 8 s without new
+Read the raw event on the topic (key = productId, headers `eventType` and `eventId`). The consumer stops after 8 s without new
 messages; the `TimeoutException` printed at the end is expected:
 
 ```bash
@@ -162,17 +184,31 @@ MSYS_NO_PATHCONV=1 docker exec kafka /opt/kafka/bin/kafka-console-consumer.sh --
 Expected: two records, `eventType:ProductStockReplenished` then `eventType:ProductStockDepleted`, both with the
 product ID as key and in the **same partition** with increasing offsets (same key → same partition → ordered).
 
-## 6. Consumer group of Inventory
-Shows which consumers of group `inventory-service` own which partitions of Catalog's topic and how far they have
-committed.
+Catalog consumes them and updates the product's read-model: `IN_STOCK` after `+10`, `OUT_OF_STOCK` again after
+`-10`:
+
+```bash
+docker exec catalog-service-pg psql -U catalog-service -d catalog-service \
+  -c "select id, stock_status from products where id = '$PRODUCT_ID'"
+```
+
+## 6. Consumer groups
+Shows which consumers of each group own which partitions and how far they have committed.
 
 ```bash
 MSYS_NO_PATHCONV=1 docker exec kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server kafka:9092 \
   --describe --group inventory-service
 ```
 
-Expected: one consumer owns all 3 partitions of `catalog.product-events`; `LAG` is `0` on every partition
-(`-` means nothing was committed on that partition yet, i.e. no message landed there).
+```bash
+MSYS_NO_PATHCONV=1 docker exec kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server kafka:9092 \
+  --describe --group catalog-service
+```
+
+Expected: in `inventory-service`, `catalog.product-events` and each `-inventory-retry-N` / `-inventory-dlt` topic
+has its 3 partitions owned by one consumer (`@RetryableTopic` runs one listener container per topic); in
+`catalog-service`, one consumer owns the 3 partitions of `inventory.stock-events`. `LAG` is `0` everywhere (`-`
+means nothing was committed on that partition yet, i.e. no message landed there).
 
 ## 7. Stop
 Keeps containers and volumes (data survives):

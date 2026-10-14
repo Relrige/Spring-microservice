@@ -8,6 +8,8 @@ data:
   SPRING_DATASOURCE_URL: "jdbc:postgresql://inventory-service-postgres:5432/inventory-service"
   # Kafka broker Service from k8s/kafka
   SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  # Catalog-owned topic with ProductCreated (Inventory only subscribes)
+  CATALOG_PRODUCT_EVENTS_TOPIC: "catalog.product-events"
   # JVM settings live here only (not in the Dockerfile). Heap up to 70% of the container memory limit;
   # C1-only JIT and Serial GC: faster startup and less memory on a small local cluster
   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:TieredStopAtLevel=1 -XX:+UseSerialGC"

@@ -1,5 +1,6 @@
-# Overlay for the fault-tolerance experiment (docs/reports/messaging-fault-tolerance.md). Connects Inventory to the
-# Compose Kafka broker until inventory task 18 wires this permanently.
+# Overlay for the fault-tolerance experiment (docs/reports/messaging-fault-tolerance.md). Inventory is now wired to
+# the Compose Kafka broker permanently (docker-compose.yml, inventory-service/.env); the Kafka settings below are
+# kept so the overlay works on its own. What it still adds: the experiment switch and a fresh database volume.
 #
 #   docker compose -f docker-compose.yml -f docs/reports/messaging-experiment.compose.yml up -d --build \
 #       kafka catalog-service inventory-service

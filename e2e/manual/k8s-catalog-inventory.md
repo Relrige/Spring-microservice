@@ -2,6 +2,8 @@
 
 > Run successfully on 2026-10-13 (results in the
 > [infrastructure task](../../docs/tasks/infrastructure/kafka-inventory-wiring-and-minikube-check.md)).
+> Updated the same day after merging main (Catalog security, outbox and stock-event consumer; Inventory's
+> `@RetryableTopic` consumer): steps 2, 5, 7, 8 and 9 changed and have **not been re-run** yet.
 
 The same checks as [the Compose runbook](docker-compose-catalog-inventory.md), plus broker checks that only
 matter in Kubernetes (volume, pod restart) and the consumer group with two replicas. Only a **minimal stack**
@@ -58,7 +60,9 @@ After rebuilding an image with the same tag, load it again and restart the Deplo
 
 ## 2. Deploy the minimal stack
 Order matters: the namespace first; Kafka before the services (they start without it but log connection
-warnings). The `*-template.yaml` Secrets contain local development values and are applied as they are.
+warnings). The `*-template.yaml` Secrets contain local development values and are applied as they are. Catalog's
+`app-secret-template.yaml` (`AUTH_INTERNAL_TOKEN`) and Inventory's (`INTERNAL_TOKEN`) must hold the **same** token,
+because Catalog calls Inventory's readiness endpoint with it.
 
 ```bash
 kubectl apply -f k8s/base/
@@ -118,7 +122,9 @@ cluster.
 MSYS_NO_PATHCONV=1 kubectl exec -n voltstore kafka-0 -- /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
 ```
 
-Expected: `catalog.product-events`, `inventory.stock-events`, `__consumer_offsets`.
+Expected: `catalog.product-events`, `inventory.stock-events`, `__consumer_offsets`, plus the consumers'
+error-handling topics: `catalog.product-events-inventory-retry-0/1/2`, `catalog.product-events-inventory-dlt`,
+`inventory.order.order-events.dlt` (Inventory) and `catalog.stock-events-dlt` (Catalog).
 
 ## 6. Reach the services from the host
 The services are `ClusterIP` (reachable only inside the cluster). `kubectl port-forward` tunnels a local port to
@@ -142,9 +148,13 @@ Compose must be stopped.)
 
 ## 7. Catalog → Kafka → Inventory: a new product gets a StockItem
 
+Catalog requires the gateway's trusted headers for writes; they are set by hand (`CATALOG_MANAGER`).
+
 ```bash
 CATEGORY_ID=$(curl -s -X POST http://localhost:8081/catalog/categories \
   -H 'Content-Type: application/json' \
+  -H 'X-User-Id: 22222222-2222-2222-2222-222222222222' \
+  -H 'X-User-Role: CATALOG_MANAGER' \
   -d '{"name":"Manual e2e k8s '"$(date +%s)"'"}' | grep -o '"categoryId":"[^"]*"' | cut -d'"' -f4)
 echo "CATEGORY_ID=$CATEGORY_ID"
 ```
@@ -152,6 +162,8 @@ echo "CATEGORY_ID=$CATEGORY_ID"
 ```bash
 PRODUCT_ID=$(curl -s -X POST http://localhost:8081/catalog/products \
   -H 'Content-Type: application/json' \
+  -H 'X-User-Id: 22222222-2222-2222-2222-222222222222' \
+  -H 'X-User-Role: CATALOG_MANAGER' \
   -d '{"title":"Manual e2e laptop","description":"Kafka check","categoryId":"'"$CATEGORY_ID"'","basePrice":999.99}' \
   | grep -o '"productId":"[^"]*"' | cut -d'"' -f4)
 echo "PRODUCT_ID=$PRODUCT_ID"
@@ -167,7 +179,7 @@ kubectl exec -n voltstore deploy/inventory-service-postgres -- psql -U inventory
 Expected: one row, quantities `0`, packaging empty.
 
 ```bash
-kubectl logs -n voltstore deploy/inventory-service | grep "StockItem created for product $PRODUCT_ID"
+kubectl logs -n voltstore deploy/inventory-service | grep "StockItem created for new product $PRODUCT_ID"
 ```
 
 ## 8. Inventory → Kafka: stock events
@@ -190,6 +202,13 @@ MSYS_NO_PATHCONV=1 kubectl exec -n voltstore kafka-0 -- /opt/kafka/bin/kafka-con
 Expected: `{"newAvailableQuantity":10}`, then one record with `eventType:ProductStockReplenished` and the
 product ID as key.
 
+Catalog consumed it and marked the product `IN_STOCK`:
+
+```bash
+kubectl exec -n voltstore deploy/catalog-service-postgres -- psql -U catalog-service -d catalog-service \
+  -c "select id, stock_status from products where id = '$PRODUCT_ID'"
+```
+
 ## 9. Two replicas share one consumer group
 Every Deployment runs one replica to fit the local cluster. Scale Inventory to two to see Kafka split the 3
 partitions of Catalog's topic between the two pods of group `inventory-service` (each message is then handled by
@@ -202,7 +221,8 @@ MSYS_NO_PATHCONV=1 kubectl exec -n voltstore kafka-0 -- /opt/kafka/bin/kafka-con
   --describe --group inventory-service
 ```
 
-Expected: two different `CONSUMER-ID`s / `HOST`s, one owning 2 partitions and the other 1. Scale back:
+Expected: for `catalog.product-events` (and likewise for each `-inventory-retry-N` / `-inventory-dlt` topic),
+two different `CONSUMER-ID`s / `HOST`s, one owning 2 partitions and the other 1. Scale back:
 
 ```bash
 kubectl scale deployment inventory-service -n voltstore --replicas=1

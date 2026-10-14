@@ -24,10 +24,10 @@ minikube image load voltstore/payment-service:latest
 
 # Ordering: "apply -R" goes through folders alphabetically, so "auth" comes before "base" (the namespace).
 # Apply the namespace first, then the Kafka broker (services start without it, but log connection
-# warnings until it is ready), then everything else.
-kubectl apply -f C:\Users\stasp\Desktop\uni\course4sem1\microserv\Spring-microservice\k8s\base\
-kubectl apply -f C:\Users\stasp\Desktop\uni\course4sem1\microserv\Spring-microservice\k8s\kafka\
-kubectl apply -f C:\Users\stasp\Desktop\uni\course4sem1\microserv\Spring-microservice\k8s\ -R
+# warnings until it is ready), then everything else. Run the commands from the repository root.
+kubectl apply -f k8s\base\
+kubectl apply -f k8s\kafka\
+kubectl apply -f k8s\ -R
 
 # Minimal stack: deploy only what is being tested instead of "apply -R", e.g. Catalog <-> Inventory messaging
 # (build and load only these two images above):
