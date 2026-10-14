@@ -3,6 +3,7 @@ package ua.edu.ukma.springers.voltstore.apigateway.routing;
 import org.springframework.cloud.gateway.server.mvc.config.GatewayMvcProperties;
 import org.springframework.cloud.gateway.server.mvc.config.RouteProperties;
 import org.springframework.stereotype.Component;
+import ua.edu.ukma.springers.voltstore.apigateway.pipeline.TrustBoundaryFilterFunctions;
 import ua.edu.ukma.springers.voltstore.apigateway.security.UserRole;
 
 import java.util.Collections;
@@ -15,8 +16,8 @@ import java.util.Set;
 /**
  * Reads the access rule of every route from its {@code metadata} (keys {@code authMode} and {@code roles}).
  * Spring Cloud Gateway MVC does not expose route metadata at request time, so the request filters look a rule up
- * by route id. The application fails to start if a route has no valid rule, so a route cannot be added without
- * deciding who may call it.
+ * by route id. The application fails to start if a route has no valid rule or does not apply the
+ * {@code TrustBoundary} filter, so a route cannot be added without deciding who may call it.
  */
 @Component
 public class RouteAccessPolicy {
@@ -31,6 +32,12 @@ public class RouteAccessPolicy {
             String id = route.getId();
             if (id == null || id.isBlank()) {
                 throw new IllegalStateException("Every gateway route must have an id");
+            }
+            boolean filtered = route.getFilters().stream()
+                    .anyMatch(filter -> TrustBoundaryFilterFunctions.FILTER_NAME.equalsIgnoreCase(filter.getName()));
+            if (!filtered) {
+                throw new IllegalStateException("Route '" + id + "' does not apply the "
+                        + TrustBoundaryFilterFunctions.FILTER_NAME + " filter");
             }
             if (parsed.put(id, parse(id, route.getMetadata())) != null) {
                 throw new IllegalStateException("Duplicate gateway route id '" + id + "'");

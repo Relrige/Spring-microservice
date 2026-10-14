@@ -10,7 +10,8 @@ spring:
         webmvc:
           # Explicit allowlist: one route per method + path pair, no wildcards. Anything not listed is a 404.
           # Paths are forwarded unchanged. Each route needs metadata.authMode (PUBLIC | OPTIONAL | REQUIRED) and,
-          # for REQUIRED routes, optionally metadata.roles (comma-separated). See RouteAccessPolicy.
+          # for REQUIRED routes, optionally metadata.roles (comma-separated), and must apply the TrustBoundary
+          # filter (strip/authenticate/authorize/propagate). RouteAccessPolicy refuses to start otherwise.
           routes:
             # --- auth-service ---
             - id: auth-register
@@ -18,6 +19,8 @@ spring:
               predicates:
                 - Method=POST
                 - Path=/user/register
+              filters:
+                - TrustBoundary
               metadata:
                 authMode: PUBLIC
             - id: auth-login
@@ -25,6 +28,8 @@ spring:
               predicates:
                 - Method=POST
                 - Path=/auth/login
+              filters:
+                - TrustBoundary
               metadata:
                 authMode: PUBLIC
             - id: auth-create-non-customer
@@ -32,6 +37,8 @@ spring:
               predicates:
                 - Method=POST
                 - Path=/user/non-customer
+              filters:
+                - TrustBoundary
               metadata:
                 authMode: REQUIRED
                 roles: ADMIN
@@ -43,6 +50,8 @@ spring:
               predicates:
                 - Method=GET
                 - Path=/catalog/products
+              filters:
+                - TrustBoundary
               metadata:
                 authMode: OPTIONAL
             # {id} is a UUID, so the internal GET /catalog/products/batch-get never matches here
@@ -51,6 +60,8 @@ spring:
               predicates:
                 - Method=GET
                 - Path=/catalog/products/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}
+              filters:
+                - TrustBoundary
               metadata:
                 authMode: PUBLIC
             - id: catalog-create-product
@@ -58,6 +69,8 @@ spring:
               predicates:
                 - Method=POST
                 - Path=/catalog/products
+              filters:
+                - TrustBoundary
               metadata:
                 authMode: REQUIRED
                 roles: CATALOG_MANAGER
@@ -66,6 +79,8 @@ spring:
               predicates:
                 - Method=PUT
                 - Path=/catalog/products/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}
+              filters:
+                - TrustBoundary
               metadata:
                 authMode: REQUIRED
                 roles: CATALOG_MANAGER
@@ -74,6 +89,8 @@ spring:
               predicates:
                 - Method=PATCH
                 - Path=/catalog/products/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}/status
+              filters:
+                - TrustBoundary
               metadata:
                 authMode: REQUIRED
                 roles: CATALOG_MANAGER
@@ -82,6 +99,8 @@ spring:
               predicates:
                 - Method=GET
                 - Path=/catalog/categories
+              filters:
+                - TrustBoundary
               metadata:
                 authMode: PUBLIC
             - id: catalog-create-category
@@ -89,6 +108,8 @@ spring:
               predicates:
                 - Method=POST
                 - Path=/catalog/categories
+              filters:
+                - TrustBoundary
               metadata:
                 authMode: REQUIRED
                 roles: CATALOG_MANAGER
@@ -97,6 +118,8 @@ spring:
               predicates:
                 - Method=PUT,DELETE
                 - Path=/catalog/categories/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}
+              filters:
+                - TrustBoundary
               metadata:
                 authMode: REQUIRED
                 roles: CATALOG_MANAGER
@@ -108,6 +131,8 @@ spring:
               predicates:
                 - Method=GET
                 - Path=/inventory/stock
+              filters:
+                - TrustBoundary
               metadata:
                 authMode: REQUIRED
                 roles: INVENTORY_WORKER
@@ -116,6 +141,8 @@ spring:
               predicates:
                 - Method=POST
                 - Path=/inventory/stock/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}/adjust
+              filters:
+                - TrustBoundary
               metadata:
                 authMode: REQUIRED
                 roles: INVENTORY_WORKER
@@ -125,6 +152,8 @@ spring:
               predicates:
                 - Method=PUT
                 - Path=/inventory/stock/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}/packaging
+              filters:
+                - TrustBoundary
               metadata:
                 authMode: REQUIRED
                 roles: INVENTORY_WORKER

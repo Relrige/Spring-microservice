@@ -52,7 +52,7 @@ public abstract class GatewayIntegrationTest {
     protected final HttpClient client = HttpClient.newHttpClient();
 
     @BeforeEach
-    void resetStubs() {
+    protected void resetStubs() {
         STUBS.values().forEach(StubUpstream::reset);
     }
 
@@ -89,6 +89,12 @@ public abstract class GatewayIntegrationTest {
         return sign(SECRET, new JWTClaimsSet.Builder()
                 .subject(userId.toString()).claim("role", role.name())
                 .issueTime(new Date()).expirationTime(Date.from(Instant.now().plusSeconds(3600))).build());
+    }
+
+    public static String expiredToken() {
+        return sign(SECRET, new JWTClaimsSet.Builder()
+                .subject(UUID.randomUUID().toString()).claim("role", UserRole.ADMIN.name())
+                .expirationTime(Date.from(Instant.now().minusSeconds(3600))).build());
     }
 
     public static String adminToken() {
