@@ -3,10 +3,72 @@ spring:
     name: catalog-service
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
   mvc:
     problem-details:
       enabled: true
+  autoconfigure:
+    # Callers are identified by gateway headers; there is no username/password login, so no default in-memory user
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  kafka:
+    # Overridden by SPRING_KAFKA_BOOTSTRAP_SERVERS (kafka:9092 in Compose/Kubernetes); this default is
+    # the broker's host listener from docker-compose.yml, for running the service from the IDE
+    bootstrap-servers: localhost:9094
+    admin:
+      # If the broker is down at startup, topic declaration gives up after this long, logs an error and the
+      # application starts anyway (the topic is then created on the next startup with a reachable broker)
+      operation-timeout: 10s
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      # Same values as the kafka-clients 4.x defaults, stated explicitly because delivery guarantees
+      # are a design decision: wait for all in-sync replicas, and let retries never duplicate a message
+      acks: all
+      properties:
+        enable.idempotence: true
+        # How long send() may block waiting for broker metadata (default 60 s); keeps a dead broker
+        # from tying up the publishing thread for a minute
+        max.block.ms: 5000
+        # Consumers must not depend on the producer's Java class names
+        spring.json.add.type.headers: false
+    consumer:
+      # Start from the beginning when a consumer group has no committed offset yet, so events
+      # published before the group first connects are not skipped
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # A message that cannot be deserialized is handed to the error handler instead of being
+      # re-polled forever (poison pill)
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+        # The target type is set per listener (spring.json.value.default.type), never taken from headers
+        spring.json.use.type.headers: false
+
+clients:
+  inventory:
+    # Compose: http://inventory-service:8080; Kubernetes: http://inventory-service:8084. The default is the
+    # host port of Inventory in docker-compose.yml, for running Catalog from the IDE
+    url: ${INVENTORY_SERVICE_URL:http://localhost:8084}
+    connect-timeout: 2s
+    read-timeout: 3s
+    # One retry for connection errors, timeouts and 5xx (see task 22); worst case about 2 x 3 s + 0.45 s
+    max-retries: 1
+    retry-delay: 300ms
+
+catalog:
+  outbox:
+    # How often the relay looks for unpublished events (fixed delay between runs)
+    relay-interval: 500ms
+    batch-size: 50
+    # Waiting longer than this for a broker acknowledgment counts as a failed attempt (the event may still
+    # arrive, and is then sent twice: delivery is at-least-once)
+    publish-timeout: 10s
+    # Exponential back-off per failing event (1 s, 2 s, 4 s, ...) is capped here
+    max-retry-delay: 5m
+    # Published events are deleted after this long by a job running every cleanup-interval
+    retention: 7d
+    cleanup-interval: 1h
+
 management:
   endpoint:
     health:

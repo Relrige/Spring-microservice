@@ -1,0 +1,12 @@
+package ua.edu.ukma.springers.voltstore.catalog.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+
+import java.util.UUID;
+
+@Data
+@AllArgsConstructor
+public class CreateProductResponse {
+    private UUID productId;
+}

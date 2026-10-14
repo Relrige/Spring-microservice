@@ -1,0 +1,34 @@
+# Kafka broker address for services in the cluster: kafka:9092
+# (full name kafka.voltstore.svc.cluster.local:9092) -> SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+# ClusterIP only: the broker is internal and is not exposed through the Ingress.
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: voltstore
+spec:
+  type: ClusterIP
+  selector:
+    app: kafka
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: 9092
+---
+# Headless service that governs the StatefulSet (stable pod DNS name kafka-0.kafka-headless)
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-headless
+  namespace: voltstore
+spec:
+  clusterIP: None
+  selector:
+    app: kafka
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: 9092
+    - name: controller
+      port: 9093
+      targetPort: 9093

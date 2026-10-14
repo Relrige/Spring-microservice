@@ -4,7 +4,8 @@ metadata:
   name: order-service
   namespace: voltstore
 spec:
-  replicas: 2
+  # One replica is enough for the local minikube cluster; scale up temporarily to test consumer groups
+  replicas: 1
   selector:
     matchLabels:
       app: order-service
@@ -30,11 +31,11 @@ spec:
                 name: order-db-credentials
           resources:
             requests:
-              cpu: 250m
-              memory: 484Mi
+              cpu: 100m
+              memory: 384Mi
             limits:
               cpu: "2"
-              memory: 968Mi
+              memory: 768Mi
           startupProbe:
             httpGet:
               path: /actuator/health/liveness

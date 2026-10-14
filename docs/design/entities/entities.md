@@ -70,18 +70,24 @@ Owns stock counts, physical dimensions (for shipping), and stock reservations.
 ### `StockItem`
 - `productId`: UUID (Primary Key, matches Catalog `Product.id`)
 - `availableQuantity`: Integer
-- `reservedQuantity`: Integer *(Backed by a computed DB column or computed and stored by the service from `StockItemReservation` records)*
-- `grossWeightGrams`: Integer (Nullable until configured)
-- `lengthCm`: Integer (Nullable until configured)
-- `widthCm`: Integer (Nullable until configured)
-- `heightCm`: Integer (Nullable until configured)
+- `reservedQuantity`: Integer *(Stored, not computed. The service updates it together with `availableQuantity` in the same transaction whenever a reservation is created, released or consumed.)*
+- `grossWeightGrams`: Integer (Nullable until configured; `> 0` when set)
+- `lengthCm`: Integer (Nullable until configured; `> 0` when set)
+- `widthCm`: Integer (Nullable until configured; `> 0` when set)
+- `heightCm`: Integer (Nullable until configured; `> 0` when set)
+- *Constraint:* `availableQuantity` and `reservedQuantity` are never negative.
+- *Derived, not stored:* `totalQuantity = availableQuantity + reservedQuantity`; `packagingConfigured` = all four packaging values set and `> 0`.
 
 ### `StockItemReservation`
-- `id`: UUID (Primary Key)
+One row per product line of an order (an order has 1+ rows). Rows are history and are never deleted. There is no expiry: the payment-window TTL is `Order.reservationExpiresAt`.
+- `id`: UUID (Primary Key, generated)
 - `orderId`: UUID
-- `productId`: UUID
-- `quantity`: Integer
-- `status`: Enum `[ACTIVE, RELEASED, CONSUMED]`
+- `productId`: UUID (Foreign Key to `StockItem.productId`)
+- `quantity`: Integer (`≥ 1`)
+- `status`: Enum `[ACTIVE, RELEASED, CONSUMED]` (`RELEASED` and `CONSUMED` are terminal)
+- `createdAt`: Timestamp
+- `updatedAt`: Timestamp *(when the reservation was released or consumed)*
+- *Constraint:* at most one `ACTIVE` reservation per `(orderId, productId)`.
 
 ---
 

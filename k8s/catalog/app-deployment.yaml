@@ -4,7 +4,8 @@ metadata:
   name: catalog-service
   namespace: voltstore
 spec:
-  replicas: 2
+  # One replica is enough for the local minikube cluster; scale up temporarily to test consumer groups
+  replicas: 1
   selector:
     matchLabels:
       app: catalog-service
@@ -28,13 +29,15 @@ spec:
                 name: catalog-config
             - secretRef:
                 name: catalog-db-credentials
+            - secretRef:
+                name: catalog-secrets
           resources:
             requests:
-              cpu: 250m
-              memory: 484Mi
+              cpu: 100m
+              memory: 384Mi
             limits:
               cpu: "2"
-              memory: 968Mi
+              memory: 768Mi
           startupProbe:
             httpGet:
               path: /actuator/health/liveness
