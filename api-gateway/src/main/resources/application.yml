@@ -1,6 +1,6 @@
 spring:
   application:
-    name: api-getaway
+    name: api-gateway
   http:
     clients:
       # Upstream calls: an unreachable upstream fails fast (502), a slow one is cut off (504).
@@ -167,6 +167,10 @@ auth:
     leeway: 30s
 
 management:
+  server:
+    # Actuator (health probes) on its own port, which is neither published nor routed: /actuator/** on the
+    # public port 8080 is a 404 like any other unrouted path
+    port: 8090
   endpoint:
     health:
       probes:

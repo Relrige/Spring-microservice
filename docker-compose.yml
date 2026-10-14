@@ -42,6 +42,18 @@ services:
       retries: 10
       start_period: 15s
 
+  # api-gateway section
+  # Single entry point for clients: http://localhost:8080. Stateless, so it does not wait for its upstreams
+  # (a request to an upstream that is not up yet gets a 502). Actuator runs on port 8090, not published.
+  api-gateway:
+    container_name: api-gateway
+    build:
+      context: ./api-gateway
+    ports:
+      - "8080:8080"
+    env_file:
+      - api-gateway/.env
+
   # auth-service section
   auth-service-postgres:
     container_name: auth-service-pg
