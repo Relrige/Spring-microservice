@@ -32,11 +32,11 @@ spec:
                 name: auth-secrets
           resources:
             requests:
-              cpu: 250m
-              memory: 484Mi
+              cpu: 100m
+              memory: 384Mi
             limits:
               cpu: "2"
-              memory: 968Mi
+              memory: 768Mi
           startupProbe:
             httpGet:
               path: /actuator/health/liveness
