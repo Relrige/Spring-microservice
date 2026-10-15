@@ -8,10 +8,18 @@ spring:
   mvc:
     problem-details:
       enabled: true
+  autoconfigure:
+    # Callers are identified by gateway headers; there is no username/password login, so no default in-memory user
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   jackson:
     deserialization:
       # Reject 1.5 for an integer field instead of silently truncating it to 1
       accept-float-as-int: false
+auth:
+  internal:
+    # Shared secret of service-to-service calls (X-Internal-Token): checked on Order's calls, sent on calls to
+    # Inventory. Same variable name and value as in auth-service and Catalog
+    token: ${AUTH_INTERNAL_TOKEN}
 management:
   endpoint:
     health:

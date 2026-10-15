@@ -31,6 +31,8 @@ spec:
                 name: delivery-config
             - secretRef:
                 name: delivery-db-credentials
+            - secretRef:
+                name: delivery-secrets
           resources:
             requests:
               cpu: 100m
