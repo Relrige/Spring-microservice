@@ -44,6 +44,13 @@ spring:
       # Values are read as JSON text; the target class is taken from the @KafkaListener parameter by the message
       # converter in KafkaConfig
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      # Offsets are committed after every record of a poll has been processed (the default, stated explicitly), so
+      # only after the listener's database transaction committed. A crash mid-batch redelivers the uncommitted
+      # records; the consumers are idempotent by state, so that is harmless.
+      ack-mode: batch
+      # Order's topic may not exist yet (Order does not publish): the listener waits for it instead of failing
+      missing-topics-fatal: false
 clients:
   inventory:
     # Compose: http://inventory-service:8080; Kubernetes: http://inventory-service:8084 (Service port). The default
