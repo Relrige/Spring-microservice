@@ -6,7 +6,7 @@ It owns `Shipment` — the internal representation of a parcel registration with
 
 VoltStore has no real carrier. The carrier is simulated **in-process** by a `MockCarrierGateway` behind two ports: `CarrierGateway` (Delivery → carrier) and `CarrierEventHandler` (carrier → Delivery). See *Carrier Gateway*. A real carrier integration (e.g., Nova Poshta API) or an out-of-process simulator only replaces the port adapters; nothing outside the `carrier` package changes.
 
-> **Revision note (design review, 2026-10-15, before implementation).** This version records the decisions taken before the Delivery backlog was written: a fat `OrderPaid` event, the `CANCELLED` status, the `TTNGenerated` event, the stacking heuristic for parcel dimensions, the in-process mock carrier, and a simulated delivery: Delivery consumes `OrderShipped`, hands the parcel to the mock, and the mock reports the delivery after a configurable delay (no webhook). Differences from the first version are listed under *Changes from the First Spec Version*. Tasks: [`docs/tasks/delivery-service/`](../../tasks/delivery-service/).
+> **Revision note (design review, 2026-10-15, before implementation).** This version records the decisions taken before the Delivery backlog was written: a fat `OrderPaid` event, the `CANCELLED` status, the `TTNGenerated` event, the stacking heuristic for parcel dimensions, the in-process mock carrier, and a simulated delivery: Delivery consumes `OrderShipped`, hands the parcel to the mock, and the mock reports the delivery after a configurable delay (no webhook). Differences from the first version are listed under *Changes from the First Spec Version*. Tasks: [`docs/tasks/delivery-service/`](../../tasks/delivery-service/). Updated after implementation (tasks 01–16, 2026-10-15): details the code settled are marked "implementation" in the changes table.
 
 ---
 
@@ -20,7 +20,7 @@ VoltStore has no real carrier. The carrier is simulated **in-process** by a `Moc
 | **Events consumed** | `OrderPaid`, `OrderShipped` (from Order Service, one topic; see *Consuming Order events*) |
 | **Synchronous dependencies** | Inventory Service `GET /inventory/stock/{productId}/packaging` (EP-INV-05); the carrier, through `CarrierGateway` (in-process mock) |
 | **Callers** | Order Service (internal), Inventory Worker (via API Gateway), the carrier (in-process, through `CarrierEventHandler`) |
-| **Technical columns / tables** (not part of the domain model) | `attempts`, `next_attempt_at`, `version` on `shipments`; `outbox_events` (transactional outbox for shipment events) |
+| **Technical columns / tables** (not part of the domain model) | `attempts` (failed attempts, automatic and manual), `next_attempt_at` (null once the shipment left `TTN_PENDING`), `version` on `shipments`; `outbox_events` (transactional outbox for shipment events) |
 
 ---
 
@@ -43,7 +43,7 @@ Authentication follows the [Security Model](../services-requirements/security-mo
 ### Responses and errors
 
 - Errors use the shared RFC 9457 `ProblemDetail` shape (`type`, `title`, `status`, `detail`, `timestamp`, `service`) with `type` = `https://voltstore.com/errors/{validation | not-found | conflict | ttn-generation-failed | unauthorized | forbidden | internal-error}`.
-- `400` = malformed request (invalid JSON, a broken field rule, a non-UUID path or query value). `409` = a well-formed request that the shipment's current state does not allow. Unexpected errors → `500` with a generic message.
+- `400` = malformed request (invalid JSON, a broken field rule, a non-UUID path or query value), always with an `errors` property (`{field: [messages]}`; `body` for invalid JSON). `409` = a well-formed request that the shipment's current state does not allow. Unexpected errors → `500` with a generic message.
 - A successful call with nothing to return answers `204 No Content` (cancel).
 
 | Error | Status | Extra property |
@@ -81,14 +81,14 @@ stateDiagram-v2
 
 The `OrderPaid` consumer only **creates** the shipment (`TTN_PENDING`, `attempts = 0`, `next_attempt_at = now`). A scheduled **TTN generation job** in Delivery Service does the carrier work:
 
-1. Claim due shipments: `status = TTN_PENDING` and `next_attempt_at <= now`, oldest first, with `FOR UPDATE SKIP LOCKED`. The claim moves `next_attempt_at` forward by a lease (e.g. 2 min), so another replica does not pick the same row while the attempt runs. The claim transaction commits before any remote call.
+1. Claim due shipments: `status = TTN_PENDING` and `next_attempt_at <= now`, oldest first, up to a batch size (default 20), with `FOR UPDATE SKIP LOCKED`. The claim moves `next_attempt_at` forward by a lease (default 2 min), so another replica does not pick the same row while the attempt runs. The lease is a plain SQL update that does not increase `version`, so the version read at the claim still means "unchanged" when the result is applied. The claim transaction commits before any remote call.
 2. For each claimed shipment, outside any transaction: fetch packaging for each distinct product from Inventory (EP-INV-05), compute the parcel (see *Parcel calculation*), and call `CarrierGateway.register(...)`.
-3. Apply the result in a new transaction, only if the shipment is still `TTN_PENDING` (optimistic lock):
+3. Apply the result in a new transaction, only if the shipment is still `TTN_PENDING` with the version read at the claim (optimistic lock):
    - **Success** → `TTN_GENERATED`, store `ttn` and the parcel values, clear `failureReason`, append `TTNGenerated` to the outbox.
-   - **Retryable failure** (carrier error or timeout; Inventory unavailable, timeout or `5xx`) → `attempts + 1`, `failureReason` = the latest error, `next_attempt_at` = now + the next back-off. After the last retry → `TTN_FAILED`.
-   - **Non-retryable failure** (Inventory `404` → `stock_item_not_found:{productId}`; Inventory `422` → `packaging_data_missing:{productId}`) → `TTN_FAILED` immediately. Retrying cannot help until a worker fixes the data.
+   - **Retryable failure** (carrier error or timeout → `carrier_error: <message>`; Inventory unavailable, timeout, `5xx` or an unexpected status such as `401`/`403` → `inventory_unavailable`, the last one logged at `ERROR` as a configuration problem) → `attempts + 1`, `failureReason` = the latest error, `next_attempt_at` = now + the next back-off. After the last retry → `TTN_FAILED`.
+   - **Non-retryable failure** (Inventory `404` → `stock_item_not_found:{productId}`; Inventory `422` → `packaging_data_missing:{productId}`; a parcel whose weight or height overflows → `parcel_calculation_failed`) → `TTN_FAILED` immediately. Retrying cannot help until a worker fixes the data.
    - **Shipment changed meanwhile** (it was cancelled during the call) → the result is discarded; if the carrier issued a TTN, it is cancelled at the carrier (best-effort, logged).
-4. **Back-off:** first attempt immediately, then 3 retries after 5 s, 30 s and 2 min (configurable). `TTN_FAILED` is Tier 2: the fulfillment queue shows the reason, and the worker uses Tier 3, the manual retry (EP-DEL-03).
+4. **Back-off:** first attempt immediately, then 3 retries after 5 s, 30 s and 2 min (configurable); after the fourth failed attempt the shipment is `TTN_FAILED` with `attempts = 4`. An unexpected error while applying a result (e.g. the database is down) is logged; the lease then expires and the attempt is repeated. `TTN_FAILED` is Tier 2: the fulfillment queue shows the reason, and the worker uses Tier 3, the manual retry (EP-DEL-03).
 
 **Why a job and not retries inside the Kafka listener:** a listener that waits about 2.5 minutes for back-offs would block its partition (all later `OrderPaid` events) and could exceed the consumer's poll interval. Retry state kept in memory would also be lost on a restart. Keeping it in the `shipments` table survives restarts, and `TTN_PENDING` is visible to the fulfillment queue while the attempts run.
 
@@ -128,14 +128,15 @@ public interface CarrierEventHandler {
 - The ports live in Delivery's domain; only their adapters know carrier formats. Callers handle `CarrierException` the same way whatever the implementation is.
 - **`MockCarrierGateway`** (the only implementation): in-process, no network.
   - `register` returns a random 14-digit TTN (the length Ukrainian carriers use); `cancel` succeeds.
-  - `handOver(ttn)` schedules `CarrierEventHandler.onDelivered(ttn)` after `delivery.carrier.mock.delivery-delay` (default `30s`) on a task scheduler. A second `handOver` for the same TTN schedules nothing new. If `onDelivered` throws (e.g. the database is down), the report is rescheduled after the same delay.
+  - `handOver(ttn)` schedules `CarrierEventHandler.onDelivered(ttn)` after `delivery.carrier.mock.delivery-delay` (default `30s`) on a task scheduler. A second `handOver` for a TTN whose report is still scheduled schedules nothing new (after an accepted report the TTN is forgotten; a later duplicate report is harmless). If `onDelivered` throws (e.g. the database is down), the report is rescheduled after the same delay.
+  - TTNs come from a thread-safe `SecureRandom`, so concurrent registrations never share one.
   - Configurable for demos and tests: `delivery.carrier.mock.failure-rate` (`0.0`–`1.0`, default `0.0`, applies to `register` and `cancel`; `handOver` never fails) and `delivery.carrier.mock.latency` (default `0`).
 - **Restart recovery:** the mock keeps its scheduled reports in memory, so they are lost when the pod stops. On startup (`ApplicationReadyEvent`) Delivery calls `handOver(ttn)` again for every `IN_TRANSIT` shipment. This is safe because `handOver` is idempotent and the delivery report is idempotent (EP-DEL-04). With several replicas, more than one may report the same delivery; the second report changes nothing.
 - The `carrier` value from the order (`deliveryDetails.carrier`) is stored on the shipment and passed to the gateway; the mock accepts any value.
 
 ### Consuming Order events
 
-`OrderPaid` and `OrderShipped` arrive on the same Order-owned topic (`ORDER_EVENTS_TOPIC`, provisionally `order.order-events`, key `orderId`), told apart by the `eventType` header. Delivery uses **one** listener in group `delivery-service` that dispatches by `eventType` and acknowledges any other type. Two listener containers in the same group on the same topic would split the partitions between them, and each would discard the other's events, so events would be lost. Messages that cannot be processed go to `delivery.order.order-events.dlt` (owned by Delivery).
+`OrderPaid` and `OrderShipped` arrive on the same Order-owned topic (`ORDER_EVENTS_TOPIC`, provisionally `order.order-events`, key `orderId`), told apart by the `eventType` header. Delivery uses **one** listener in group `delivery-service` that dispatches by `eventType` and acknowledges any other type. Two listener containers in the same group on the same topic would split the partitions between them, and each would discard the other's events, so events would be lost. Messages that cannot be processed go to `delivery.order.order-events.dlt` (owned by Delivery, 1 partition): a payload that is not JSON or breaks a required field goes there at once; other failures (e.g. the database briefly down) after 4 retries with back-off 1 s, 2 s, 4 s, 8 s. Offsets are committed after the listener returned (ack mode `batch`), so only after the database transaction committed; both handlers are idempotent by state, so no processed-events table is needed. The listener receives the raw record and reads the JSON itself, into the type named by the header.
 
 ### Shipment Events
 
@@ -160,7 +161,7 @@ public interface CarrierEventHandler {
 | `INVENTORY_CONNECT_TIMEOUT`, `INVENTORY_READ_TIMEOUT` | `2s`, `3s` | Inventory call tuning; no retry inside the call (the job's attempts are the retries) |
 | `DELIVERY_CARRIER_MOCK_FAILURE_RATE`, `DELIVERY_CARRIER_MOCK_LATENCY`, `DELIVERY_CARRIER_MOCK_DELIVERY_DELAY` | `0.0`, `0`, `30s` | mock carrier behaviour (shorten the delay in e2e tests) |
 
-Job timings (poll interval, lease, back-off) and outbox timings are set in `application.yml`.
+Job settings (`delivery.ttn-job.enabled`, `interval` 1 s, `batch-size` 20, `lease` 2 min, `backoff` 5 s, 30 s, 2 min) and outbox timings (`delivery.outbox.*`, as in Inventory) are set in `application.yml`. Spring's task scheduler runs with 4 threads, because the outbox relay, the TTN job and the mock carrier's delivery reports share it.
 
 ---
 
@@ -191,12 +192,12 @@ Job timings (poll interval, lease, back-off) and outbox timings are set in `appl
 **Steps:**
 1. Receive and deserialise the event; filter by the `eventType` header.
 2. If a `Shipment` for `orderId` already exists (any status, including a `CANCELLED` tombstone) → acknowledge, do nothing.
-3. Otherwise create it in one transaction: `status = TTN_PENDING`, recipient and carrier from `deliveryDetails`, `items`, `declaredValue = totalAmount`, `currency`, `attempts = 0`, `next_attempt_at = now`. The insert is race-safe on the unique `orderId`.
+3. Otherwise create it in one transaction: `status = TTN_PENDING`, recipient and carrier from `deliveryDetails`, `items` (lines of the same product merged), `declaredValue = totalAmount`, `currency`, `attempts = 0`, `next_attempt_at = now`. The insert is race-safe on the unique `orderId`: if a concurrent insert (a cancellation tombstone or a duplicate) wins, the losing insert's own transaction is rolled back and the event is treated as "already exists".
 4. Acknowledge. The TTN generation job picks the shipment up (see *Automatic TTN generation*).
 
 **Edge cases:**
 - Duplicate delivery or redelivery after a crash → step 2, no second shipment.
-- Payload without `orderId`, `deliveryDetails` or a non-empty `items` → poison message: no retries, sent to the dead-letter topic `delivery.order.order-events.dlt` (owned by Delivery).
+- Payload that is not JSON, or lacks `orderId`, any `deliveryDetails` field, a non-empty `items` list (each `productId` with `quantity >= 1`), `totalAmount >= 0` or `currency` → poison message (`eventId` is read but not required, because idempotency is by `orderId`): no retries, sent to the dead-letter topic `delivery.order.order-events.dlt` (owned by Delivery).
 - Transient database failure → retried with bounded back-off, then the dead-letter topic.
 - Topic missing at startup → not fatal; the listener waits for it.
 
@@ -212,13 +213,13 @@ Job timings (poll interval, lease, back-off) and outbox timings are set in `appl
 **Auth:** Internal (`X-Internal-Token`, role `SERVICE`)
 
 **Steps:**
-1. Parse `orderIds` as a comma-separated list of UUIDs: 1–100 values; duplicates are collapsed.
+1. Parse `orderIds` as a comma-separated list of UUIDs: duplicates are collapsed, then 1–100 distinct values.
 2. Load all `Shipment` records with `orderId` in the list (one query).
 3. Return `200 OK [ { orderId, status, ttn, failureReason } ]`, one entry per requested `orderId`, in request order.
 4. An `orderId` without a `Shipment` is returned with `status = null` (the `OrderPaid` event may not have been processed yet).
 
 **Edge cases:**
-- Missing or empty `orderIds`, more than 100 values, or a non-UUID value → `400`
+- Missing or empty `orderIds`, an empty element (`a,,b`), more than 100 distinct values, or a non-UUID value → `400` with `errors.orderIds`
 - None of the orders has a shipment → every entry has `status = null`
 - A `CANCELLED` tombstone is returned as `CANCELLED` with `ttn = null`
 
@@ -238,13 +239,15 @@ Order cancellation is allowed from `PENDING_PAYMENT`, `PAID` and `PENDING_SHIPPI
 
 **Steps:**
 1. Look up `Shipment` by `orderId`.
-2. Not found → create a `CANCELLED` tombstone (see *Shipment lifecycle*). Return `204`.
+2. Not found → create a `CANCELLED` tombstone (see *Shipment lifecycle*), race-safe on the unique `orderId`. Return `204`. If a concurrent `OrderPaid` insert wins, the new `TTN_PENDING` shipment is cancelled by step 4 instead.
 3. `CANCELLED` → return `204` (idempotent).
 4. `TTN_PENDING` or `TTN_FAILED` → set `CANCELLED` (no TTN exists, no carrier call). If the TTN job is running an attempt at this moment, its result is discarded (step 3 of *Automatic TTN generation*). Return `204`.
 5. `TTN_GENERATED` → set `CANCELLED` and commit, then call `CarrierGateway.cancel(ttn)`:
    - success → `204`;
    - failure → log at `ERROR`, store `failureReason = "carrier_cancellation_failed: <error>"`, keep the `ttn` for manual clean-up at the carrier, and still return `204`. The saga must not be blocked: the parcel has not been handed over yet, so TTN cancellation is best-effort.
 6. `IN_TRANSIT` or `DELIVERED` → `409 Conflict` ("Cannot cancel a shipment that was handed to the carrier"). Not reachable when Order's cancellation gate (locked from `SHIPPED`) works.
+
+If the TTN job commits a result while steps 3–5 decide, the optimistic lock fails and the decision is repeated on the new state (up to 3 times).
 
 **Edge cases:**
 - Repeated call → `204`, no second carrier call
@@ -268,7 +271,7 @@ Order cancellation is allowed from `PENDING_PAYMENT`, `PAID` and `PENDING_SHIPPI
 2. `status != TTN_FAILED` → `409` ("Retry is only allowed for shipments in TTN_FAILED status").
 3. Make **one** synchronous attempt (no Tier 1 back-off): **always** re-fetch packaging from Inventory (the usual reason for a retry is that the worker has just fixed the packaging data), recompute the parcel, call `CarrierGateway.register(...)`.
 4. **Success:** set `TTN_GENERATED`, store `ttn` and the parcel values, clear `failureReason`, append `TTNGenerated` to the outbox (one transaction, only if the shipment is still `TTN_FAILED`). Return `200 OK { ttn }`.
-5. **Failure:** keep `TTN_FAILED`, store the new `failureReason`. Return `424 Failed Dependency { reason }`.
+5. **Failure** (retryable or not): keep `TTN_FAILED`, store the new `failureReason`, `attempts + 1`. Return `424 Failed Dependency { reason }`.
 
 **Edge cases:**
 - Packaging still missing → `424` with `reason = "packaging_data_missing:{productId}"`; the worker fixes it via EP-INV-03 first
@@ -300,7 +303,7 @@ Order cancellation is allowed from `PENDING_PAYMENT`, `PAID` and `PENDING_SHIPPI
 **Edge cases:**
 - `ttn` in the event differs from the shipment's → log at `WARN`; the shipment's own `ttn` is used.
 - The service stops between commit and `handOver` → the restart recovery (see *Carrier Gateway*) hands the parcel over again.
-- Unconvertible payload → `delivery.order.order-events.dlt` at once; transient database errors → bounded retries, then the DLT.
+- Unconvertible payload (or no `orderId`) → `delivery.order.order-events.dlt` at once; transient database errors, or a concurrent state change that fails the optimistic lock → bounded retries (the record is decided again on the new state), then the DLT.
 
 **External calls:** carrier `handOver(ttn)` — in-process
 **Emits:** none
@@ -322,6 +325,7 @@ Order cancellation is allowed from `PENDING_PAYMENT`, `PAID` and `PENDING_SHIPPI
 **Edge cases:**
 - Repeated report (restart recovery, several replicas) → one `DELIVERED`, one event
 - Database unavailable → the handler throws; the mock reschedules the report
+- Runs on the mock carrier's scheduler thread, in its own transaction and with its own correlation id
 
 **External calls:** none
 **Emits:** `OrderDelivered { eventId, orderId, ttn, timestamp }` → Order Service (EP-ORD-EVT-02), Notification Service (EP-NOTIF-EVT-04)
@@ -352,8 +356,11 @@ A separate, minimal application (`carrier-simulator`: in-memory consignments, no
 
 | Part | Status |
 |---|---|
-| Everything in this spec | Not started. `delivery-service` still contains the scaffold draft (`Consignment` entity, `/api/v1/delivery` endpoints); [task 01](../../tasks/delivery-service/01-rework-draft-to-spec-foundation.md) replaces it |
-| Compose / Kubernetes | Draft manifests exist (app + Postgres); Kafka, internal token and Inventory URL are missing |
+| EP-DEL-EVT-01, EP-DEL-EVT-02, EP-DEL-01…04, TTN generation job, outbox, mock carrier, restart recovery | Implemented ([tasks 01–15](../../tasks/delivery-service/)); covered by unit, WebMvc and Testcontainers (PostgreSQL + Kafka) tests, Inventory faked with WireMock |
+| Compose | Implemented and smoke-tested end to end with Kafka and Inventory ([task 16](../../tasks/delivery-service/16-containerization-and-deployment.md)) |
+| Kubernetes | Manifests aligned (ConfigMap with every variable above, `delivery-db-credentials`, `delivery-secrets`); not yet deployed to minikube; scaling to 2 replicas not tried |
+| Gateway route `POST /delivery/orders/{orderId}/ttn/retry` | Not yet routed ([API gateway task 10](../../tasks/api-getaway/10-remaining-service-routes.md), now unblocked) |
+| Out-of-process carrier simulator and signed webhook | Deferred ([task 17](../../tasks/delivery-service/17-future-carrier-simulator-and-webhook-signature.md)) |
 
 ---
 
@@ -376,3 +383,8 @@ A separate, minimal application (`carrier-simulator`: in-memory consignments, no
 | EP-DEL-03 packaging | re-fetched "if not cached" | always re-fetched | design review 2026-10-15 |
 | EP-DEL-04 | HTTP webhook, lookup by `orderId` (or `ttn`) | in-process `CarrierEventHandler.onDelivered(ttn)`, lookup by `ttn`; a repeated report emits no second event | design review 2026-10-15 |
 | Missing-packaging reason | `packaging_dimensions_missing_for_{productId}` | `packaging_data_missing:{productId}` (matches Inventory's `reason`) | design review 2026-10-15 |
+| Retryable Inventory failures | unavailable, timeout, `5xx` | also any unexpected status (`401`/`403`), logged at `ERROR` | implementation (task 09) |
+| Non-retryable reasons | `stock_item_not_found`, `packaging_data_missing` | also `parcel_calculation_failed` (weight or height overflow) | implementation (tasks 08, 11) |
+| Lease and optimistic lock | "only if still `TTN_PENDING`" | the lease update does not bump `version`; the result is applied only if status **and** version are unchanged since the claim | implementation (task 11) |
+| Manual retry failure | keeps `TTN_FAILED` with the new reason | also counts in `attempts` | implementation (task 14) |
+| `400` responses | `errors` for validation | `errors` also for invalid JSON, non-UUID path/query values and `orderIds` | implementation (task 03) |
