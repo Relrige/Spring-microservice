@@ -84,6 +84,17 @@ delivery:
     # Published events are deleted after this long by a job running every cleanup-interval
     retention: 7d
     cleanup-interval: 1h
+  ttn-job:
+    # The automatic TTN generation job (Tier 1); false switches it off (tests that only check other parts)
+    enabled: true
+    # Fixed delay between runs; each run claims up to batch-size due TTN_PENDING shipments
+    interval: 1s
+    batch-size: 20
+    # A claim moves next_attempt_at forward by this much, so another replica does not pick the shipment while the
+    # attempt runs; must be longer than the slowest attempt (Inventory 2 s + 3 s per product, plus the carrier)
+    lease: 2m
+    # First attempt immediately, then 3 retries after these waits; after the last one the shipment is TTN_FAILED
+    backoff: 5s, 30s, 2m
   carrier:
     mock:
       # In-process mock carrier (MockCarrierGateway): probability that register/cancel fail (0.0-1.0), their

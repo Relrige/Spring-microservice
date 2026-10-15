@@ -19,10 +19,14 @@ public final class Shipments {
 
     /** A pending shipment with one unit of each product (one random product if none is given). */
     public static Shipment pending(UUID orderId, UUID... productIds) {
+        return pending(orderId, Instant.now(), productIds);
+    }
+
+    /** As {@link #pending(UUID, UUID...)}, due for its first TTN attempt at {@code now}. */
+    public static Shipment pending(UUID orderId, Instant now, UUID... productIds) {
         List<ShipmentItem> items = productIds.length == 0
                 ? List.of(new ShipmentItem(UUID.randomUUID(), 1))
                 : Arrays.stream(productIds).map(id -> new ShipmentItem(id, 1)).toList();
-        return Shipment.pending(orderId, RECIPIENT, "NOVA_POSHTA", items, new BigDecimal("1500.00"), "UAH",
-                Instant.now());
+        return Shipment.pending(orderId, RECIPIENT, "NOVA_POSHTA", items, new BigDecimal("1500.00"), "UAH", now);
     }
 }
