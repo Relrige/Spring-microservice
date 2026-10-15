@@ -50,6 +50,19 @@ delivery:
       # name following the <service>.<aggregate>-events convention (same default as in Inventory); Delivery only
       # subscribes and never declares it
       order-events: ${ORDER_EVENTS_TOPIC:order.order-events}
+  outbox:
+    # How often the relay looks for unpublished shipment events (fixed delay between runs)
+    relay-interval: 500ms
+    batch-size: 50
+    # Waiting longer than this for a broker acknowledgment counts as a failed attempt (the event may still
+    # arrive, and is then sent twice: delivery is at-least-once)
+    publish-timeout: 10s
+    # Exponential back-off per failing event (1 s, 2 s, 4 s, ...) is capped here; later events of the same
+    # order wait for it, other orders do not
+    max-retry-delay: 5m
+    # Published events are deleted after this long by a job running every cleanup-interval
+    retention: 7d
+    cleanup-interval: 1h
 management:
   endpoint:
     health:
