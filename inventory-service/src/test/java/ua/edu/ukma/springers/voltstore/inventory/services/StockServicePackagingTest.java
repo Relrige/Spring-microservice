@@ -1,20 +1,28 @@
 package ua.edu.ukma.springers.voltstore.inventory.services;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
 import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
 import ua.edu.ukma.springers.voltstore.inventory.events.StockEventPublisher;
+import ua.edu.ukma.springers.voltstore.inventory.exceptions.ProductNotFoundInCatalogException;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemRepository;
 
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -28,8 +36,20 @@ class StockServicePackagingTest {
     @Mock
     private StockEventPublisher stockEventPublisher;
 
+    @Mock
+    private ProductCatalog productCatalog;
+
+    // A mock transaction manager lets TransactionTemplate run the callback (no real transaction in a unit test)
+    @Mock
+    private PlatformTransactionManager transactionManager;
+
     @InjectMocks
     private StockService stockService;
+
+    @BeforeEach
+    void stockItemExistsByDefault() {
+        lenient().when(stockItemRepository.existsById(PRODUCT_ID)).thenReturn(true);
+    }
 
     @Test
     void setPackaging_replacesAllFourValuesAndKeepsQuantities() {
@@ -49,18 +69,44 @@ class StockServicePackagingTest {
     }
 
     @Test
-    void setPackaging_createsMissingItemBeforeLockingIt() {
+    void setPackaging_missingItem_productInCatalog_createsItBeforeLockingIt() {
         StockItemEntity created = StockItemEntity.builder().productId(PRODUCT_ID).build();
+        when(stockItemRepository.existsById(PRODUCT_ID)).thenReturn(false);
+        when(productCatalog.exists(PRODUCT_ID)).thenReturn(true);
         when(stockItemRepository.findByIdForUpdate(PRODUCT_ID)).thenReturn(Optional.of(created));
 
         stockService.setPackaging(PRODUCT_ID, 500, 10, 5, 2);
 
-        InOrder order = inOrder(stockItemRepository);
+        InOrder order = inOrder(productCatalog, transactionManager, stockItemRepository);
+        order.verify(productCatalog).exists(PRODUCT_ID);
+        order.verify(transactionManager).getTransaction(any());
         order.verify(stockItemRepository).insertIfAbsent(PRODUCT_ID);
         order.verify(stockItemRepository).findByIdForUpdate(PRODUCT_ID);
         assertThat(created.getAvailableQuantity()).isZero();
         assertThat(created.getReservedQuantity()).isZero();
         assertThat(created.isPackagingConfigured()).isTrue();
+    }
+
+    @Test
+    void setPackaging_missingItem_productNotInCatalog_throwsNotFoundAndCreatesNothing() {
+        when(stockItemRepository.existsById(PRODUCT_ID)).thenReturn(false);
+        when(productCatalog.exists(PRODUCT_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> stockService.setPackaging(PRODUCT_ID, 500, 10, 5, 2))
+                .isInstanceOf(ProductNotFoundInCatalogException.class);
+
+        verify(stockItemRepository, never()).insertIfAbsent(any());
+        verifyNoInteractions(transactionManager);
+    }
+
+    @Test
+    void setPackaging_existingItem_neverCallsCatalog() {
+        when(stockItemRepository.findByIdForUpdate(PRODUCT_ID))
+                .thenReturn(Optional.of(StockItemEntity.builder().productId(PRODUCT_ID).build()));
+
+        stockService.setPackaging(PRODUCT_ID, 500, 10, 5, 2);
+
+        verifyNoInteractions(productCatalog);
     }
 
     @Test

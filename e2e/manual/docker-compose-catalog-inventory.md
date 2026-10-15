@@ -23,11 +23,13 @@ grep KAFKA catalog-service/.env inventory-service/.env
 ```
 
 - Catalog also needs `AUTH_INTERNAL_TOKEN` and `INVENTORY_SERVICE_URL` (see `catalog-service/.env.example`), and
-  Inventory needs `INTERNAL_TOKEN`. The two tokens must have the **same value** (Catalog calls Inventory's
-  readiness endpoint with it):
+  Inventory needs `INTERNAL_TOKEN` and `CATALOG_SERVICE_URL=http://catalog-service:8080` (see
+  `inventory-service/.env.example`). The two tokens must have the **same value**: Catalog calls Inventory's readiness
+  endpoint with it, and Inventory calls Catalog's `batch-get` when a worker adjusts stock or sets packaging for a
+  product without a StockItem (without `CATALOG_SERVICE_URL`, such calls answer `503`):
 
 ```bash
-grep -h "INTERNAL_TOKEN\|INVENTORY_SERVICE_URL" catalog-service/.env inventory-service/.env
+grep -h "INTERNAL_TOKEN\|INVENTORY_SERVICE_URL\|CATALOG_SERVICE_URL" catalog-service/.env inventory-service/.env
 ```
 
 - **Old volumes:** if a service fails at startup with a Flyway error such as `relation "products" already exists`,

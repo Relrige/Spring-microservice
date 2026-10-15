@@ -10,6 +10,9 @@ public class KafkaTopics {
     // Every event names its type in this header (the same convention in all services)
     public static final String EVENT_TYPE_HEADER = "eventType";
 
+    // Stock events also carry their eventId as a header (as Catalog's events do); the payload keeps it too
+    public static final String EVENT_ID_HEADER = "eventId";
+
     /**
      * Inventory's dead-letter topic for a consumed source topic, e.g. {@code catalog.product-events} →
      * {@code inventory.catalog.product-events.dlt}. Prefixed with the consumer, because the consumer owns its DLT

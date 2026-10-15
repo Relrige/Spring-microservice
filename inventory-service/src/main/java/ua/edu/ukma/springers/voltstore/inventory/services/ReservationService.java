@@ -71,7 +71,7 @@ public class ReservationService {
             int after = before - quantity;
             item.setAvailableQuantity(after);
             item.setReservedQuantity(item.getReservedQuantity() + quantity);
-            // Delivered only after the whole transaction commits
+            // Written to the outbox in this transaction; published by the relay after the commit
             StockEvents.forTransition(productId, before, after).ifPresent(stockEventPublisher::publish);
             reservations.add(StockItemReservationEntity.builder()
                     .orderId(orderId).productId(productId).quantity(quantity).build());
@@ -107,7 +107,7 @@ public class ReservationService {
             item.setAvailableQuantity(after);
             item.setReservedQuantity(item.getReservedQuantity() - reservation.getQuantity());
             reservation.setStatus(ReservationStatus.RELEASED);
-            // Delivered only after the whole transaction commits
+            // Written to the outbox in this transaction; published by the relay after the commit
             StockEvents.forTransition(reservation.getProductId(), before, after).ifPresent(stockEventPublisher::publish);
         }
     }

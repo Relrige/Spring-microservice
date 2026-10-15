@@ -11,6 +11,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import ua.edu.ukma.springers.voltstore.inventory.KafkaTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.inventory.PostgresTestContainerConfig;
+import ua.edu.ukma.springers.voltstore.inventory.support.CatalogKnowsEveryProduct;
 import ua.edu.ukma.springers.voltstore.inventory.entities.ReservationStatus;
 import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
 import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemReservationEntity;
@@ -31,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import({PostgresTestContainerConfig.class, KafkaTestContainerConfig.class})
+@Import({PostgresTestContainerConfig.class, KafkaTestContainerConfig.class, CatalogKnowsEveryProduct.class})
 class ReleaseReservationIntegrationTest {
 
     @Autowired

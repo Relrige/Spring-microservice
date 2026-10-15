@@ -62,7 +62,10 @@ After rebuilding an image with the same tag, load it again and restart the Deplo
 Order matters: the namespace first; Kafka before the services (they start without it but log connection
 warnings). The `*-template.yaml` Secrets contain local development values and are applied as they are. Catalog's
 `app-secret-template.yaml` (`AUTH_INTERNAL_TOKEN`) and Inventory's (`INTERNAL_TOKEN`) must hold the **same** token,
-because Catalog calls Inventory's readiness endpoint with it.
+because the services call each other with it: Catalog calls Inventory's readiness endpoint, and Inventory calls
+Catalog's `batch-get` when a worker adjusts stock or sets packaging for a product without a StockItem. The
+ConfigMaps set the addresses: `INVENTORY_SERVICE_URL` (`k8s/catalog/app-config.yaml`) and `CATALOG_SERVICE_URL`
+(`http://catalog-service:8081`, `k8s/inventory/app-config.yaml`).
 
 ```bash
 kubectl apply -f k8s/base/

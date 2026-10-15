@@ -1,10 +1,12 @@
 package ua.edu.ukma.springers.voltstore.inventory.services;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -13,12 +15,15 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.transaction.PlatformTransactionManager;
 import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
 import ua.edu.ukma.springers.voltstore.inventory.events.ProductStockDepletedEvent;
 import ua.edu.ukma.springers.voltstore.inventory.events.ProductStockReplenishedEvent;
 import ua.edu.ukma.springers.voltstore.inventory.events.StockEvent;
 import ua.edu.ukma.springers.voltstore.inventory.events.StockEventPublisher;
+import ua.edu.ukma.springers.voltstore.inventory.exceptions.CatalogUnavailableException;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.InsufficientStockException;
+import ua.edu.ukma.springers.voltstore.inventory.exceptions.ProductNotFoundInCatalogException;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemRepository;
 
 import java.util.List;
@@ -27,7 +32,10 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -43,8 +51,21 @@ class StockServiceTest {
     @Mock
     private StockEventPublisher stockEventPublisher;
 
+    @Mock
+    private ProductCatalog productCatalog;
+
+    // A mock transaction manager lets TransactionTemplate run the callback (no real transaction in a unit test)
+    @Mock
+    private PlatformTransactionManager transactionManager;
+
     @InjectMocks
     private StockService stockService;
+
+    @BeforeEach
+    void stockItemExistsByDefault() {
+        // Most tests work on an existing StockItem, so Catalog is not involved
+        lenient().when(stockItemRepository.existsById(PRODUCT_ID)).thenReturn(true);
+    }
 
     @Test
     void listStock_noFilter_passesPageableAndReturnsPage() {
@@ -102,19 +123,55 @@ class StockServiceTest {
         assertThat(item.getAvailableQuantity()).isEqualTo(2);
     }
 
-    /**
-     * TEMPORARY (task 19): the StockItem is created without a Catalog existence check.
-     * When the Catalog check arrives, this test changes: an unknown product must not be created.
-     */
     @Test
-    void adjustStock_missingStockItem_isCreatedOnDemandWithoutCatalogCheck_changesInTask19() {
-        StockItemEntity created = stockItem(0);
-        when(stockItemRepository.findByIdForUpdate(PRODUCT_ID)).thenReturn(Optional.of(created));
+    void adjustStock_missingStockItem_productInCatalog_isCreatedOnDemand_afterAskingCatalogOutsideTheTransaction() {
+        when(stockItemRepository.existsById(PRODUCT_ID)).thenReturn(false);
+        when(productCatalog.exists(PRODUCT_ID)).thenReturn(true);
+        when(stockItemRepository.findByIdForUpdate(PRODUCT_ID)).thenReturn(Optional.of(stockItem(0)));
 
         int result = stockService.adjustStock(PRODUCT_ID, 4);
 
-        verify(stockItemRepository).insertIfAbsent(PRODUCT_ID);
         assertThat(result).isEqualTo(4);
+        // Catalog is asked before the transaction starts, so no lock is held while waiting for it
+        InOrder order = inOrder(productCatalog, transactionManager, stockItemRepository);
+        order.verify(productCatalog).exists(PRODUCT_ID);
+        order.verify(transactionManager).getTransaction(any());
+        order.verify(stockItemRepository).insertIfAbsent(PRODUCT_ID);
+    }
+
+    @Test
+    void adjustStock_missingStockItem_productNotInCatalog_throwsNotFoundAndCreatesNothing() {
+        when(stockItemRepository.existsById(PRODUCT_ID)).thenReturn(false);
+        when(productCatalog.exists(PRODUCT_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> stockService.adjustStock(PRODUCT_ID, 4))
+                .isInstanceOf(ProductNotFoundInCatalogException.class)
+                .hasMessage("Product " + PRODUCT_ID + " not found in Catalog");
+
+        verify(stockItemRepository, never()).insertIfAbsent(any());
+        verifyNoInteractions(transactionManager, stockEventPublisher);
+    }
+
+    @Test
+    void adjustStock_missingStockItem_catalogUnavailable_propagatesAndChangesNothing() {
+        when(stockItemRepository.existsById(PRODUCT_ID)).thenReturn(false);
+        when(productCatalog.exists(PRODUCT_ID))
+                .thenThrow(new CatalogUnavailableException("Catalog answered 500", null));
+
+        assertThatThrownBy(() -> stockService.adjustStock(PRODUCT_ID, 4))
+                .isInstanceOf(CatalogUnavailableException.class);
+
+        verify(stockItemRepository, never()).insertIfAbsent(any());
+        verifyNoInteractions(transactionManager);
+    }
+
+    @Test
+    void adjustStock_existingStockItem_neverCallsCatalog() {
+        when(stockItemRepository.findByIdForUpdate(PRODUCT_ID)).thenReturn(Optional.of(stockItem(2)));
+
+        stockService.adjustStock(PRODUCT_ID, 1);
+
+        verifyNoInteractions(productCatalog);
     }
 
     @Test

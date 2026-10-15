@@ -21,7 +21,14 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      # Same values as the kafka-clients 4.x defaults, stated explicitly because delivery guarantees are a design
+      # decision: wait for all in-sync replicas, and let retries never duplicate or reorder a message
+      acks: all
       properties:
+        enable.idempotence: true
+        # How long send() may block waiting for broker metadata (default 60 s); keeps a dead broker from tying up
+        # the outbox relay for a minute per attempt
+        max.block.ms: 5000
         spring.json.add.type.headers: false
     consumer:
       group-id: inventory-service
@@ -42,16 +49,39 @@ inventory:
       product-events: ${CATALOG_PRODUCT_EVENTS_TOPIC:catalog.product-events}
       # Owned by Order Service. PROVISIONAL name following the <service>.<aggregate>-events convention; align it
       # when Order publishes OrderShipped (only records with header eventType=OrderShipped are consumed)
-      order-events: order.order-events
+      order-events: ${ORDER_EVENTS_TOPIC:order.order-events}
     product-created:
       # @RetryableTopic: 1 attempt on the source topic + 3 on retry topics (after 1 s, 2 s, 4 s), then the DLT
       attempts: 4
       backoff-delay-ms: 1000
+  outbox:
+    # How often the relay looks for unpublished stock events (fixed delay between runs)
+    relay-interval: 500ms
+    batch-size: 50
+    # Waiting longer than this for a broker acknowledgment counts as a failed attempt (the event may still
+    # arrive, and is then sent twice: delivery is at-least-once)
+    publish-timeout: 10s
+    # Exponential back-off per failing event (1 s, 2 s, 4 s, ...) is capped here; later events of the same
+    # product wait for it, other products do not
+    max-retry-delay: 5m
+    # Published events are deleted after this long by a job running every cleanup-interval
+    retention: 7d
+    cleanup-interval: 1h
   idempotency:
     # processed_events keys are kept far longer than any redelivery window (retry topics: seconds;
     # Catalog's outbox: minutes to hours during an outage), then deleted
     retention: 30d
     cleanup-interval: 1h
+clients:
+  catalog:
+    # Compose: http://catalog-service:8080; Kubernetes: http://catalog-service:8081 (Service port). The default
+    # is the host port of Catalog in docker-compose.yml, for running Inventory from the IDE
+    url: ${CATALOG_SERVICE_URL:http://localhost:8081}
+    connect-timeout: ${CATALOG_CONNECT_TIMEOUT:2s}
+    read-timeout: ${CATALOG_READ_TIMEOUT:3s}
+    # One retry for connection errors, timeouts and 5xx (task 20); worst case about 2 x 3 s + 0.45 s
+    max-retries: ${CATALOG_MAX_RETRIES:1}
+    retry-delay: ${CATALOG_RETRY_DELAY:300ms}
 auth:
   internal:
     # Shared secret of service-to-service calls (X-Internal-Token); supplied by the INTERNAL_TOKEN environment variable
