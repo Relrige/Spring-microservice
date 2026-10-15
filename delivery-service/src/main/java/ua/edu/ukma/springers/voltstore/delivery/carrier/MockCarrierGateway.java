@@ -7,6 +7,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
 
+import java.security.SecureRandom;
 import java.time.Clock;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,7 +46,9 @@ public class MockCarrierGateway implements CarrierGateway {
     @Autowired
     public MockCarrierGateway(MockCarrierProperties properties, TaskScheduler scheduler, Clock clock,
                               ObjectProvider<CarrierEventHandler> eventHandler) {
-        this(properties, RandomGenerator.getDefault(), scheduler, clock, eventHandler);
+        // SecureRandom is thread-safe: concurrent registrations (job runs, manual retries) must not get the same TTN,
+        // which RandomGenerator.getDefault() can produce when shared between threads
+        this(properties, new SecureRandom(), scheduler, clock, eventHandler);
     }
 
     // Tests pass a seeded or stubbed generator, so failures and TTNs are deterministic
