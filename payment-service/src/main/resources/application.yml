@@ -3,7 +3,8 @@ spring:
     name: payment-service
   jpa:
     hibernate:
-      ddl-auto: update
+      # Flyway owns the schema; Hibernate only checks that the entities match it
+      ddl-auto: validate
   mvc:
     problem-details:
       enabled: true
