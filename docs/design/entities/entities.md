@@ -132,8 +132,12 @@ An Anti-Corruption Layer (ACL) for the external payment gateway. Owns transactio
 - `status`: Enum `[SUCCESS, FAILED]`
 - `amount`: Decimal
 - `currency`: String (ISO 4217, e.g., "UAH")
-- `gatewayTransactionId`: String (Nullable, returned by external gateway)
+- `gatewayTransactionId`: String (Nullable, returned by external gateway; always set on `SUCCESS`)
+- `failureReason`: Enum `[INSUFFICIENT_FUNDS, CARD_DECLINED, REFUND_REJECTED, GATEWAY_TIMEOUT, GATEWAY_UNAVAILABLE]` (Nullable, set exactly on `FAILED`). The first three are definitive (the gateway said no); the last two are uncertain (no answer, the money may have moved)
+- `idempotencyKey`: String (the key the request was sent to the gateway with; a repeat with the same key is processed once)
 - `createdAt`: Timestamp
+
+Rows are append-only: a refund is a new `REFUND` row, never a change of the charge. At most one `SUCCESS` row per order and type.
 
 ---
 

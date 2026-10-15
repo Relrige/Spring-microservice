@@ -8,6 +8,20 @@ spring:
   mvc:
     problem-details:
       enabled: true
+  autoconfigure:
+    # Callers are identified by the internal token; there is no username/password login, so no default in-memory user
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+payment:
+  gateway:
+    # Which PaymentGateway adapter is used. Only "mock" exists (MockPaymentGateway); any other value fails at startup
+    provider: ${PAYMENT_GATEWAY_PROVIDER:mock}
+    mock:
+      # How long the mock waits before reporting a timeout for a card ending in 5000 ("charged, answer lost")
+      timeout-delay: ${PAYMENT_GATEWAY_MOCK_TIMEOUT_DELAY:2s}
+auth:
+  internal:
+    # Shared secret of service-to-service calls (X-Internal-Token); supplied by the INTERNAL_TOKEN environment variable
+    token: ${INTERNAL_TOKEN}
 management:
   endpoint:
     health:
