@@ -59,7 +59,7 @@ stateDiagram-v2
 | `PAID` | `CANCELLATION_REQUESTED` | Customer cancels (payment made, refund required) | Sync — customer API call to Order Service |
 | `PENDING_SHIPPING` | `SHIPPED` | Inventory worker confirms courier handover | Sync — worker API call to Order Service |
 | `PENDING_SHIPPING` | `CANCELLATION_REQUESTED` | Customer cancels before handover | Sync — customer API call to Order Service |
-| `SHIPPED` | `DELIVERED` | Carrier confirms delivery | Async — Delivery Service receives carrier webhook, publishes `OrderDelivered(orderId)`; Order Service consumes |
+| `SHIPPED` | `DELIVERED` | Carrier confirms delivery | Async — Delivery Service consumes `OrderShipped`, hands the parcel to the carrier (in-process mock), receives its delivery report, publishes `OrderDelivered(orderId)`; Order Service consumes |
 | `CANCELLATION_REQUESTED` | `CANCELLED` | Compensation saga completes all steps | Saga coordinator marks order cancelled after all compensation steps succeed |
 
 ---

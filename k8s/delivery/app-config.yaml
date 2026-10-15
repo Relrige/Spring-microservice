@@ -6,6 +6,20 @@ metadata:
 data:
   POSTGRES_DB: "delivery-service"
   SPRING_DATASOURCE_URL: "jdbc:postgresql://delivery-service-postgres:5432/delivery-service"
+  # Kafka broker Service from k8s/kafka
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  # Order-owned topic with OrderPaid and OrderShipped (provisional name until Order Service publishes)
+  ORDER_EVENTS_TOPIC: "order.order-events"
+  # Inventory Service (k8s/inventory/app-service.yaml, port 8084) for the packaging lookup
+  INVENTORY_SERVICE_URL: "http://inventory-service:8084"
+  # Inventory call tuning; no retry inside the call (the TTN generation job's attempts are the retries)
+  INVENTORY_CONNECT_TIMEOUT: "2s"
+  INVENTORY_READ_TIMEOUT: "3s"
+  # In-process mock carrier: probability that registering or cancelling a TTN fails (0.0-1.0), the latency of
+  # those calls, and how long after the handover the delivery is reported (shorten it for e2e runs)
+  DELIVERY_CARRIER_MOCK_FAILURE_RATE: "0.0"
+  DELIVERY_CARRIER_MOCK_LATENCY: "0"
+  DELIVERY_CARRIER_MOCK_DELIVERY_DELAY: "30s"
   # JVM settings live here only (not in the Dockerfile). Heap up to 70% of the container memory limit;
   # C1-only JIT and Serial GC: faster startup and less memory on a small local cluster
   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:TieredStopAtLevel=1 -XX:+UseSerialGC"

@@ -81,26 +81,35 @@
 - **Producer:** Order Service
 - **Consumers:** Customer Service, Delivery Service, Notification Service
 - **Trigger:** Successful payment is confirmed.
+- **Topic / key:** provisionally `order.order-events` (key `orderId`), header `eventType: OrderPaid` (and `eventId`), like `OrderShipped`.
 - **Consumer Actions:**
   - *Customer:* Clears the backend cart.
-  - *Delivery:* Initiates asynchronous TTN generation with the carrier.
+  - *Delivery:* Creates a `Shipment` (`TTN_PENDING`); its TTN generation job then registers the parcel with the carrier.
   - *Notification:* Sends receipt email.
-- **Payload:**
+- **Payload** (event-carried state transfer, decided 2026-10-15 in the [Delivery spec](../services-specs/delivery-service-spec.md)): the event carries everything Delivery needs to register the shipment, so Delivery never calls Order back. Consumers read only the fields they need and ignore the rest.
   ```json
   {
+    "eventId": "uuid",
     "orderId": "uuid",
     "customerId": "uuid (nullable)",
-    "customerEmail": "user@example.com"
+    "customerEmail": "user@example.com",
+    "deliveryDetails": { "name": "Ivan Petrenko", "phone": "+380501234567", "address": "Kyiv, branch 12", "carrier": "NOVA_POSHTA" },
+    "items": [ { "productId": "uuid", "quantity": 2 } ],
+    "totalAmount": 1500.00,
+    "currency": "UAH",
+    "paidAt": "2026-10-15T12:00:00Z"
   }
   ```
+  `deliveryDetails` and `items` are copied from the order's snapshot; `totalAmount` becomes the shipment's declared value. The topic therefore contains personal data of the recipient.
 
 ### `OrderShipped`
 - **Producer:** Order Service
-- **Consumers:** Inventory Service, Notification Service
+- **Consumers:** Inventory Service, Delivery Service, Notification Service
 - **Trigger:** Inventory worker dispatches the parcel.
 - **Topic / key:** owned by Order Service; provisionally `order.order-events` (key `orderId`). Every message must carry the header `eventType: OrderShipped`: the topic holds all order events, and Inventory consumes only records with this header.
 - **Consumer Actions:**
   - *Inventory:* Permanently deducts `reservedQuantity` (consumes the reservation).
+  - *Delivery:* Marks the shipment `IN_TRANSIT` and hands the parcel to the carrier, which later reports the delivery.
   - *Notification:* Sends tracking email.
 - **Payload:**
   ```json
@@ -128,30 +137,39 @@
 
 ## 3. Delivery Updates
 
+> **Conventions for this section:** topic `delivery.shipment-events`, owned and declared by Delivery Service (3 partitions), message key = `orderId`. Each record carries the headers `eventType` (`TTNGenerated` or `OrderDelivered`) and `eventId`. Payloads are JSON without Java type headers and carry a mandatory `eventId` and an ISO-8601 UTC `timestamp`. **Delivery:** at-least-once, through Delivery's transactional outbox; consumers must be idempotent (Order's consumers are idempotent by state).
+
 ### `TTNGenerated`
 - **Producer:** Delivery Service
 - **Consumers:** Order Service
-- **Trigger:** Delivery successfully registers the parcel with the carrier gateway.
+- **Trigger:** Delivery successfully registers the parcel with the carrier gateway (automatic generation or a worker's manual retry).
+- **Topic / key:** `delivery.shipment-events`, key `orderId`, header `eventType: TTNGenerated`.
 - **Consumer Actions:**
   - *Order:* Transitions status from `PAID` to `PENDING_SHIPPING`.
 - **Payload:**
   ```json
   {
+    "eventId": "uuid",
     "orderId": "uuid",
-    "ttn": "CARRIER-123456789"
+    "ttn": "20450012345678",
+    "timestamp": "2026-10-15T12:00:05Z"
   }
   ```
 
 ### `OrderDelivered`
 - **Producer:** Delivery Service
 - **Consumers:** Order Service, Notification Service
-- **Trigger:** Carrier webhook confirms the parcel reached the customer.
+- **Trigger:** The carrier reports that the parcel reached the customer. While the carrier is mocked in-process, the mock reports it a configurable delay after the handover (`OrderShipped`). Emitted once per shipment.
+- **Topic / key:** `delivery.shipment-events`, key `orderId`, header `eventType: OrderDelivered`.
 - **Consumer Actions:**
   - *Order:* Transitions status to `DELIVERED`.
 - **Payload:**
   ```json
   {
+    "eventId": "uuid",
     "orderId": "uuid",
-    "ttn": "CARRIER-123456789"
+    "ttn": "20450012345678",
+    "timestamp": "2026-10-16T09:30:00Z"
   }
   ```
+  No `customerEmail`: customer contact data is not Delivery's responsibility. Notification Service resolves the recipient itself (from Auth or Customer Service); that is designed with Notification.
