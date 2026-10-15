@@ -6,13 +6,14 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+import ua.edu.ukma.springers.voltstore.payment.services.PaymentService;
 import ua.edu.ukma.springers.voltstore.payment.support.InternalHeaders;
-import ua.edu.ukma.springers.voltstore.payment.support.PaymentRoutesProbeController;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,12 +27,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * Guards the fail-closed default: every route of this service must have an explicit rule in {@link SecurityConfig}.
  * All routes are internal, so a route is covered if the internal service gets past the authorization step; a route
  * it gets 403 on has no rule, because the chain ends with {@code denyAll()}.
- * <p>
- * Until tasks 06 and 07 add the real controller, the routes come from {@link PaymentRoutesProbeController}; the real
- * controllers are picked up automatically by this slice.
  */
 @WebMvcTest
-@Import({SecurityConfig.class, PaymentRoutesProbeController.class})
+@Import(SecurityConfig.class)
 class RouteSecurityRulesTest {
 
     @Autowired
@@ -39,6 +37,9 @@ class RouteSecurityRulesTest {
 
     @Autowired
     private RequestMappingHandlerMapping handlerMapping;
+
+    @MockitoBean
+    private PaymentService paymentService;
 
     @Test
     void everyApplicationRouteHasAnExplicitRule() throws Exception {

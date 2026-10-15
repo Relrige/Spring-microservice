@@ -11,7 +11,7 @@ class PaymentCardTest {
 
     @Test
     void toString_showsOnlyTheLastFourDigits() {
-        assertThat(CARD.toString()).isEqualTo("PaymentCard[**** 4242]")
+        assertThat(CARD.toString()).isEqualTo("PaymentCard[**** **** **** 4242]")
                 .doesNotContain("4242424242424242").doesNotContain("987").doesNotContain("2031");
     }
 
@@ -19,6 +19,6 @@ class PaymentCardTest {
     void chargeCommand_printsTheCardMasked() {
         ChargeCommand command = new ChargeCommand("k1", BigDecimal.TEN, "UAH", CARD);
 
-        assertThat(command.toString()).contains("**** 4242").doesNotContain("4242424242424242").doesNotContain("987");
+        assertThat(command.toString()).contains("**** **** **** 4242").doesNotContain("4242424242424242").doesNotContain("987");
     }
 }

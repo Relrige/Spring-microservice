@@ -7,15 +7,24 @@ package ua.edu.ukma.springers.voltstore.payment.gateway;
 public record PaymentCard(String number, int expiryMonth, int expiryYear, String cvv) {
 
     public String lastFour() {
-        return number.substring(Math.max(0, number.length() - 4));
+        return lastFour(number);
     }
 
     public String masked() {
-        return "**** " + lastFour();
+        return mask(number);
+    }
+
+    /** {@code **** **** **** 4242}: the only form of a card number that may appear in logs or messages. */
+    public static String mask(String number) {
+        return "**** **** **** " + lastFour(number);
     }
 
     @Override
     public String toString() {
         return "PaymentCard[" + masked() + "]";
+    }
+
+    private static String lastFour(String number) {
+        return number.substring(Math.max(0, number.length() - 4));
     }
 }

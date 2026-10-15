@@ -13,12 +13,16 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import ua.edu.ukma.springers.voltstore.payment.entities.FailureReason;
 import ua.edu.ukma.springers.voltstore.payment.exceptions.NoSuccessfulChargeException;
 import ua.edu.ukma.springers.voltstore.payment.exceptions.OrderAlreadyChargedException;
 import ua.edu.ukma.springers.voltstore.payment.exceptions.OrderAlreadyRefundedException;
+import ua.edu.ukma.springers.voltstore.payment.exceptions.PaymentAttemptInProgressException;
 import ua.edu.ukma.springers.voltstore.payment.exceptions.PaymentDeclinedException;
 import ua.edu.ukma.springers.voltstore.payment.exceptions.PaymentGatewayTimeoutException;
 import ua.edu.ukma.springers.voltstore.payment.exceptions.PaymentGatewayUnavailableException;
+import ua.edu.ukma.springers.voltstore.payment.exceptions.RefundAmountMismatchException;
+import ua.edu.ukma.springers.voltstore.payment.exceptions.RefundRejectedException;
 
 import java.net.URI;
 import java.time.Instant;
@@ -63,10 +67,30 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem(HttpStatus.CONFLICT, "conflict", "Order already refunded", ex.getMessage());
     }
 
+    @ExceptionHandler(PaymentAttemptInProgressException.class)
+    public ProblemDetail handlePaymentAttemptInProgress(PaymentAttemptInProgressException ex) {
+        return problem(HttpStatus.CONFLICT, "conflict", "Payment attempt in progress", ex.getMessage());
+    }
+
     @ExceptionHandler(NoSuccessfulChargeException.class)
     public ProblemDetail handleNoSuccessfulCharge(NoSuccessfulChargeException ex) {
         return problem(HttpStatus.UNPROCESSABLE_ENTITY, "no-successful-charge", "No successful charge",
                 ex.getMessage());
+    }
+
+    @ExceptionHandler(RefundAmountMismatchException.class)
+    public ProblemDetail handleRefundAmountMismatch(RefundAmountMismatchException ex) {
+        return problem(HttpStatus.UNPROCESSABLE_ENTITY, "partial-refund", "Only full refunds are supported",
+                ex.getMessage());
+    }
+
+    @ExceptionHandler(RefundRejectedException.class)
+    public ProblemDetail handleRefundRejected(RefundRejectedException ex) {
+        log.warn("Refund rejected by the payment provider, answering 502: {}", ex.getMessage());
+        ProblemDetail problem = problem(HttpStatus.BAD_GATEWAY, "refund-rejected", "Refund rejected",
+                ex.getMessage());
+        problem.setProperty("reason", FailureReason.REFUND_REJECTED.code());
+        return problem;
     }
 
     @ExceptionHandler(PaymentGatewayUnavailableException.class)

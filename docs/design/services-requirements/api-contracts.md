@@ -83,8 +83,8 @@
 
 | Method | Path | Auth Role | Description |
 |--------|------|-----------|-------------|
-| `POST` | `/payments/charge` | Internal | Charge card. <br> **Req:** `{orderId, amount, currency, cardDetails}` <br> **Res:** `200 OK` or `402 Payment Failed` |
-| `POST` | `/payments/refund` | Internal | Refund order. <br> **Req:** `{orderId, amount, currency}` <br> **Res:** `200 OK` |
+| `POST` | `/payments/charge` | Internal | Charge card. <br> **Req:** `{orderId, amount, currency: "UAH", cardDetails: {number, expiryMonth, expiryYear, cvv}}` <br> **Res:** `200 OK {transactionId, status}` or `400` (invalid) or `402 {reason}` (declined) or `409` (already charged / attempt in progress) or `502`/`504` (gateway; safe to repeat) |
+| `POST` | `/payments/refund` | Internal | Refund order in full. <br> **Req:** `{orderId, amount, currency}` <br> **Res:** `200 OK {transactionId, status}` or `409` (already refunded) or `422` (no charge / partial amount) or `502`/`504` |
 
 ---
 

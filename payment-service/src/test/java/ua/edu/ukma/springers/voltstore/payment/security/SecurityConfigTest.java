@@ -8,10 +8,13 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import ua.edu.ukma.springers.voltstore.payment.controllers.PaymentController;
+import ua.edu.ukma.springers.voltstore.payment.services.PaymentService;
 import ua.edu.ukma.springers.voltstore.payment.support.InternalHeaders;
-import ua.edu.ukma.springers.voltstore.payment.support.PaymentRoutesProbeController;
+import ua.edu.ukma.springers.voltstore.payment.support.PaymentRequests;
 
 import java.util.UUID;
 
@@ -22,28 +25,30 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Verifies the internal-only security chain against stand-ins of the charge and refund routes
- * ({@link PaymentRoutesProbeController}).
+ * Verifies the internal-only security chain on the charge and refund routes; the service is mocked.
  */
-@WebMvcTest(controllers = PaymentRoutesProbeController.class)
-@Import({SecurityConfig.class, PaymentRoutesProbeController.class})
+@WebMvcTest(PaymentController.class)
+@Import(SecurityConfig.class)
 class SecurityConfigTest {
-    private static final String VALID_BODY = "{\"orderId\":\"" + UUID.randomUUID() + "\"}";
+    private static final String VALID_BODY = PaymentRequests.charge(UUID.randomUUID(), PaymentRequests.APPROVED_CARD);
 
     @Autowired
     private MockMvc mockMvc;
 
+    @MockitoBean
+    private PaymentService paymentService;
+
     @ParameterizedTest
     @ValueSource(strings = {"/payments/charge", "/payments/refund"})
     void internalService_isAllowed(String path) throws Exception {
-        mockMvc.perform(postJson(path, VALID_BODY).headers(InternalHeaders.asInternalService()))
+        mockMvc.perform(postJson(path, validBody(path)).headers(InternalHeaders.asInternalService()))
                 .andExpect(status().isOk());
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"/payments/charge", "/payments/refund"})
     void anonymousCaller_getsFixed401Problem(String path) throws Exception {
-        mockMvc.perform(postJson(path, VALID_BODY))
+        mockMvc.perform(postJson(path, validBody(path)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(401))
@@ -107,6 +112,10 @@ class SecurityConfigTest {
     void healthEndpoint_isOpenToAnonymousCallers() throws Exception {
         // No actuator in this slice, so reaching the dispatcher (404) proves security let the call through
         mockMvc.perform(get("/actuator/health")).andExpect(status().isNotFound());
+    }
+
+    private static String validBody(String path) {
+        return path.endsWith("/refund") ? PaymentRequests.refund(UUID.randomUUID(), "1499.90") : VALID_BODY;
     }
 
     private static MockHttpServletRequestBuilder postJson(String path, String body) {
