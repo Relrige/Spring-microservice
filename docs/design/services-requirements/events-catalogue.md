@@ -10,7 +10,7 @@
 
 > **Conventions for this section:** every event carries a mandatory `eventId` (UUID, unique per event) so consumers can deduplicate at-least-once deliveries. The Kafka message key is `productId`; `ProductStockReplenished` and `ProductStockDepleted` share one topic so that events of one product keep their order. Consumers ignore unknown payload fields.
 >
-> **Stock events topic:** `inventory.stock-events`, owned and declared by Inventory Service (3 partitions). Both stock events have the same payload shape, so each record carries a Kafka header **`eventType`** with the value `ProductStockReplenished` or `ProductStockDepleted`; consumers choose the event type from this header. Records are JSON without Java type headers. Inventory publishes after the database commit; until the transactional outbox is in place, an event can be lost if the broker is down at that moment.
+> **Stock events topic:** `inventory.stock-events`, owned and declared by Inventory Service (3 partitions). Both stock events have the same payload shape, so each record carries a Kafka header **`eventType`** with the value `ProductStockReplenished` or `ProductStockDepleted`; consumers choose the event type from this header. Each record also carries the header **`eventId`** (the same value as in the payload). Records are JSON without Java type headers. **Delivery:** at-least-once, through Inventory's transactional outbox: the event is stored in the same transaction as the stock change and published by a relay afterwards, so a broker outage only delays it. Events of one product are published in the order of their stock changes, also with several Inventory replicas. A consumer may receive an event more than once and must ignore repeats by `eventId` or be idempotent by state (as Catalog's `stockStatus` update is).
 >
 > **`ProductCreated` topic:** owned and declared by Catalog Service; consumers take its name from configuration.
 
@@ -35,7 +35,7 @@
 - **Producer:** Inventory Service
 - **Consumers:** Catalog Service
 - **Trigger:** `availableQuantity` of a product transitions from `0` to `> 0` (any product, regardless of its Catalog status): a restock (EP-INV-02) or a reservation release (EP-INV-07).
-- **Topic / key:** `inventory.stock-events` (3 partitions), message key = `productId`; header `eventType: ProductStockReplenished`. Shared with `ProductStockDepleted`: one topic and one key per product keep both event types in order, so a delayed `Depleted` can never overtake a later `Replenished`. Catalog sends messages it cannot process to its dead-letter topic `catalog.stock-events-dlt`.
+- **Topic / key:** `inventory.stock-events` (3 partitions), message key = `productId`; headers `eventType: ProductStockReplenished` and `eventId`. Shared with `ProductStockDepleted`: one topic and one key per product keep both event types in order, so a delayed `Depleted` can never overtake a later `Replenished`. Catalog sends messages it cannot process to its dead-letter topic `catalog.stock-events-dlt`.
 - **Payload:**
   ```json
   {
@@ -49,7 +49,7 @@
 - **Producer:** Inventory Service
 - **Consumers:** Catalog Service
 - **Trigger:** `availableQuantity` of a product transitions from `> 0` to `0` (any product, regardless of its Catalog status): a write-off (EP-INV-02) or a reservation (EP-INV-06). Shipping an order (`OrderShipped`) does not emit it, because shipping does not change `availableQuantity`.
-- **Topic / key:** `inventory.stock-events` (same topic as `ProductStockReplenished`), message key = `productId`; header `eventType: ProductStockDepleted`.
+- **Topic / key:** `inventory.stock-events` (same topic as `ProductStockReplenished`), message key = `productId`; headers `eventType: ProductStockDepleted` and `eventId`.
 - **Payload:**
   ```json
   {

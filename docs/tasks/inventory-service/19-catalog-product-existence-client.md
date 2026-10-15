@@ -1,5 +1,5 @@
 ---
-status: TODO
+status: DONE
 service: inventory-service
 ---
 # Catalog Product Existence Check (Sync Inter-Service Call)
@@ -11,18 +11,18 @@ Until now, adjust ([task 04](04-adjust-stock-quantity.md)) and set-packaging ([t
 *References:* [Inventory Spec — EP-INV-02, EP-INV-03](../../design/services-specs/inventory-service-spec.md), [Catalog batch-get task](../catalog-service/17-batch-get-products-internal.md), [Declarative HTTP Client (order-service)](../order-service/declarative-http-client.md), [Internal token sender (order-service)](../order-service/internal-token-sender-and-security.md)
 
 ## Acceptance Criteria
-- [ ] Declarative `@HttpExchange` interface `CatalogClient` with `@GetExchange("/catalog/products/batch-get")` taking `ids`, on `RestClient` + `HttpServiceProxyFactory` (no `RestTemplate`).
-- [ ] Response DTO is a tolerant reader (`@JsonIgnoreProperties(ignoreUnknown = true)`): `[ { productId, title, basePrice, status } ]`; only the presence of the requested `productId` matters here. Empty array = product not found.
-- [ ] A small interface (for example `ProductCatalog.exists(productId)`) hides the client from the services; the adapter returns `true`/`false` for found/not found.
-- [ ] The existing get-or-create method from task 09 (shared with task 04) calls the check **only when no `StockItem` exists**. Existing items never trigger a call.
-- [ ] Product not found → `404` ("product not found in Catalog") and no `StockItem` is created. Found → the `StockItem` is created idempotently (two concurrent first-time requests still produce one row) and the operation continues.
-- [ ] Catalog unreachable, timeout, `5xx`, or an unexpected `4xx` such as `401`/`403` → `CatalogUnavailableException` → `503`; nothing is changed. An unexpected `4xx` is logged as an error (configuration problem).
-- [ ] `InternalTokenInterceptor` adds `X-Internal-Token` from `INTERNAL_TOKEN`; registered only on the `RestClient` that targets Catalog; the token is never logged. `X-User-Id` / `X-User-Role` are not forwarded. A correlation-ID interceptor is added if the order-service client has one.
-- [ ] Base URL configurable (`CATALOG_SERVICE_URL`; check the Service name and port in `k8s/catalog/` and `docker-compose.yml`) in `.env.example`, Compose and `k8s/inventory/app-config.yaml`. Connect timeout 2s, read timeout 3s, both configurable.
-- [ ] The call is made **outside** the database transaction that locks stock rows (do not hold a lock while waiting for another service), and the `StockItem` creation afterwards is race-safe.
-- [ ] The temporary-deviation comments and tests from tasks 04 and 09 are replaced by real behaviour and tests.
-- [ ] Documentation: update EP-INV-02 and EP-INV-03 in the Inventory spec to name `batch-get` instead of `GET /catalog/products/{productId}`.
-- [ ] Tests with WireMock: found, not found (empty array), `500`, timeout, connection refused, `401`; assertions that the token header is sent and user headers are not; end-to-end controller tests of adjust and packaging for `200`, `404`, `503`; and a test proving no call is made when the `StockItem` already exists.
+- [x] Declarative `@HttpExchange` interface `CatalogClient` with `@GetExchange("/catalog/products/batch-get")` taking `ids`, on `RestClient` + `HttpServiceProxyFactory` (no `RestTemplate`).
+- [x] Response DTO is a tolerant reader (`@JsonIgnoreProperties(ignoreUnknown = true)`): `[ { productId, title, basePrice, status } ]`; only the presence of the requested `productId` matters here. Empty array = product not found.
+- [x] A small interface (for example `ProductCatalog.exists(productId)`) hides the client from the services; the adapter returns `true`/`false` for found/not found.
+- [x] The existing get-or-create method from task 09 (shared with task 04) calls the check **only when no `StockItem` exists**. Existing items never trigger a call.
+- [x] Product not found → `404` ("product not found in Catalog") and no `StockItem` is created. Found → the `StockItem` is created idempotently (two concurrent first-time requests still produce one row) and the operation continues.
+- [x] Catalog unreachable, timeout, `5xx`, or an unexpected `4xx` such as `401`/`403` → `CatalogUnavailableException` → `503`; nothing is changed. An unexpected `4xx` is logged as an error (configuration problem).
+- [x] `InternalTokenInterceptor` adds `X-Internal-Token` from `INTERNAL_TOKEN`; registered only on the `RestClient` that targets Catalog; the token is never logged. `X-User-Id` / `X-User-Role` are not forwarded. A correlation-ID interceptor is added if the order-service client has one.
+- [x] Base URL configurable (`CATALOG_SERVICE_URL`; check the Service name and port in `k8s/catalog/` and `docker-compose.yml`) in `.env.example`, Compose and `k8s/inventory/app-config.yaml`. Connect timeout 2s, read timeout 3s, both configurable.
+- [x] The call is made **outside** the database transaction that locks stock rows (do not hold a lock while waiting for another service), and the `StockItem` creation afterwards is race-safe.
+- [x] The temporary-deviation comments and tests from tasks 04 and 09 are replaced by real behaviour and tests.
+- [x] Documentation: update EP-INV-02 and EP-INV-03 in the Inventory spec to name `batch-get` instead of `GET /catalog/products/{productId}`.
+- [x] Tests with WireMock: found, not found (empty array), `500`, timeout, connection refused, `401`; assertions that the token header is sent and user headers are not; end-to-end controller tests of adjust and packaging for `200`, `404`, `503`; and a test proving no call is made when the `StockItem` already exists.
 
 ## Technical Notes / Constraints
 - Both services are ready for this: Catalog's `batch-get` is internal (`hasRole("SERVICE")`), which is why Inventory must send the internal token. Keep both ends of the contract (path, parameter name, response shape) in the same PR description.
@@ -35,3 +35,13 @@ Until now, adjust ([task 04](04-adjust-stock-quantity.md)) and set-packaging ([t
 - **Error mapping:** `ProductNotFoundInCatalogException` → `404` and `CatalogUnavailableException` → `503` go into `GlobalExceptionHandler` with the shared `ProblemDetail` shape. The `404` uses the same `not-found` type as `StockItemNotFoundException`.
 - **Packaging returns `204`** (not `200`) since [task 09](09-set-packaging-parameters.md); end-to-end tests should expect that.
 - **Documentation criterion:** EP-INV-02/03 in the Inventory spec already name `batch-get` and the `503` (updated at sprint end).
+
+## Implementation Notes (2026-10-14)
+- **Code:** package `clients/`: `CatalogClient` (`@GetExchange("/catalog/products/batch-get")`, `@RequestParam("ids")`), `CatalogProduct` (tolerant reader record; `status` kept as text), `CatalogClientProperties` (`clients.catalog.*`), `ClientsConfiguration` (JDK `HttpClient` + `JdkClientHttpRequestFactory`, `RestClient`, `HttpServiceProxyFactory`), `InternalTokenInterceptor`, `CorrelationIdInterceptor`, and the adapter `CatalogProductCatalog implements services.ProductCatalog`. The structure mirrors Catalog's Inventory client (Catalog task 21).
+- **Correlation ID:** Inventory had no correlation-ID handling yet, so `filters/CorrelationIdFilter` (MDC, `X-Correlation-Id`, same names as order-service and catalog-service) was added together with the interceptor.
+- **Where the check runs:** `StockService.adjustStock` and `setPackaging` are no longer `@Transactional`. They call `requireKnownProduct(productId)` first (`existsById`, then Catalog only if the StockItem is missing), with no transaction and no lock open, and then run the old locked code in a `TransactionTemplate`. A StockItem created by someone else in between is harmless: `insertIfAbsent` is race-safe. Reads (`checkReadiness`, `getPackaging`) and `ensureStockItem` (the `ProductCreated` path, which needs no check) are unchanged.
+- **Errors:** `ProductNotFoundInCatalogException` → `404` with the shared `not-found` type ("Product … not found in Catalog"); `CatalogUnavailableException` → `503` type `service-unavailable` with a fixed text ("The product cannot be checked in the catalog right now. Please try again later."); the cause is logged once at `ERROR` by the handler. An unexpected `4xx` (`401`/`403`) is logged by the adapter at `ERROR` as a configuration problem; `5xx` and transport errors at `WARN`. The token is never logged.
+- **Configuration:** `CATALOG_SERVICE_URL` (default `http://localhost:8081`, Catalog's Compose host port), `CATALOG_CONNECT_TIMEOUT` (2 s), `CATALOG_READ_TIMEOUT` (3 s). `.env.example`: `http://catalog-service:8080`; `k8s/inventory/app-config.yaml`: `http://catalog-service:8081` (Catalog's Service port). Compose reads the variable through `inventory-service/.env`.
+- **Contract (both ends):** Inventory → Catalog `GET /catalog/products/batch-get?ids={productId}` with `X-Internal-Token` (Catalog: `hasRole("SERVICE")`), answer `[ { productId, title, basePrice, status } ]`; empty array = not found. The token values must be equal (`INTERNAL_TOKEN` here, `AUTH_INTERNAL_TOKEN` in Catalog).
+- **Tests:** `clients/CatalogProductCatalogTest` (WireMock, no Spring context): found, empty answer, other products only, correlation ID forwarded, `500`, read timeout, connection reset, connection refused, `401`; token sent, user headers absent. `integration/CatalogExistenceCheckIntegrationTest` (WireMock + Testcontainers): adjust `200`/`404`/`503`, packaging `204`/`404`/`503` (`401` from Catalog), no Catalog call for an existing StockItem, two concurrent first-time adjusts → one row with both deltas. Unit tests: the temporary `…WithoutCatalogCheck_changesInTask19` test is replaced by found/not-found/unavailable/existing cases that also check that Catalog is asked before the transaction starts. Other integration tests import `support/CatalogKnowsEveryProduct` (a `@Primary ProductCatalog` that knows every product), since they are not about the Catalog call.
+- *Spec update (2026-10-14):* the Inventory spec now has the `503` (no longer *planned*), the `service-unavailable` type, a *Catalog existence check* section and a *Configuration* table.

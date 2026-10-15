@@ -25,6 +25,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.kafka.KafkaContainer;
 import ua.edu.ukma.springers.voltstore.inventory.KafkaTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.inventory.PostgresTestContainerConfig;
+import ua.edu.ukma.springers.voltstore.inventory.support.CatalogKnowsEveryProduct;
 import ua.edu.ukma.springers.voltstore.inventory.config.KafkaTopics;
 import ua.edu.ukma.springers.voltstore.inventory.entities.ReservationStatus;
 import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
@@ -56,7 +57,7 @@ import static org.mockito.Mockito.verify;
  * producers' part with a plain Kafka producer, using the payloads from the Event Catalogue.
  */
 @SpringBootTest
-@Import({PostgresTestContainerConfig.class, KafkaTestContainerConfig.class, ConsumedEventsIntegrationTest.SourceTopics.class})
+@Import({PostgresTestContainerConfig.class, KafkaTestContainerConfig.class, CatalogKnowsEveryProduct.class, ConsumedEventsIntegrationTest.SourceTopics.class})
 class ConsumedEventsIntegrationTest {
     private static final String PRODUCT_EVENTS = "catalog.product-events";
     private static final String ORDER_EVENTS = "order.order-events";

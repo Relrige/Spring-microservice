@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import ua.edu.ukma.springers.voltstore.inventory.KafkaTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.inventory.PostgresTestContainerConfig;
+import ua.edu.ukma.springers.voltstore.inventory.support.CatalogKnowsEveryProduct;
 import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemRepository;
 import ua.edu.ukma.springers.voltstore.inventory.services.StockService;
@@ -31,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import({PostgresTestContainerConfig.class, KafkaTestContainerConfig.class})
+@Import({PostgresTestContainerConfig.class, KafkaTestContainerConfig.class, CatalogKnowsEveryProduct.class})
 class SetPackagingIntegrationTest {
     private static final String BODY = "{\"grossWeightGrams\":500,\"lengthCm\":10,\"widthCm\":5,\"heightCm\":2}";
 
