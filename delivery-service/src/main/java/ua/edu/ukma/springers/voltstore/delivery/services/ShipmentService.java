@@ -1,23 +1,37 @@
 package ua.edu.ukma.springers.voltstore.delivery.services;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import ua.edu.ukma.springers.voltstore.delivery.carrier.Recipient;
+import ua.edu.ukma.springers.voltstore.delivery.dto.ShipmentStatusResponse;
 import ua.edu.ukma.springers.voltstore.delivery.entities.Shipment;
 import ua.edu.ukma.springers.voltstore.delivery.entities.ShipmentItem;
 import ua.edu.ukma.springers.voltstore.delivery.events.OrderPaidEvent;
+import ua.edu.ukma.springers.voltstore.delivery.exceptions.InvalidQueryParameterException;
 import ua.edu.ukma.springers.voltstore.delivery.repositories.ShipmentRepository;
 
 import java.time.Clock;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 public class ShipmentService {
+    static final int MAX_BATCH_SIZE = 100;
+    private static final String ORDER_IDS = "orderIds";
+
     private final ShipmentRepository repository;
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
@@ -45,6 +59,30 @@ public class ShipmentService {
         } else {
             log.info("OrderPaid for order {} ignored: a shipment already exists", event.orderId());
         }
+    }
+
+    /**
+     * EP-DEL-01: one entry per distinct requested order, in request order, loaded with one query. An order without
+     * a shipment gets {@code status = null}.
+     */
+    @Transactional(readOnly = true)
+    public List<ShipmentStatusResponse> getStatuses(@Nullable List<UUID> orderIds) {
+        // A list such as "?orderIds=a,,b" binds an empty element as null
+        if (orderIds == null || orderIds.isEmpty() || orderIds.stream().anyMatch(Objects::isNull)) {
+            throw new InvalidQueryParameterException(ORDER_IDS, "must be a non-empty list of UUIDs");
+        }
+        Set<UUID> distinct = new LinkedHashSet<>(orderIds);
+        if (distinct.size() > MAX_BATCH_SIZE) {
+            throw new InvalidQueryParameterException(ORDER_IDS,
+                    "must contain at most " + MAX_BATCH_SIZE + " distinct values");
+        }
+        Map<UUID, Shipment> byOrderId = repository.findAllByOrderIdIn(distinct).stream()
+                .collect(Collectors.toMap(Shipment::getOrderId, Function.identity()));
+        return distinct.stream()
+                .map(orderId -> byOrderId.containsKey(orderId)
+                        ? ShipmentStatusResponse.of(byOrderId.get(orderId))
+                        : ShipmentStatusResponse.notFound(orderId))
+                .toList();
     }
 
     /**
