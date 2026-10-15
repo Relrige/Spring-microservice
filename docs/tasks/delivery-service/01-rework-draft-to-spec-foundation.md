@@ -1,5 +1,5 @@
 ---
-status: TODO
+status: DONE
 service: delivery-service
 ---
 # Rework Draft Module into the Spec Foundation
@@ -27,16 +27,25 @@ This task prepares the module so the following tasks add features on a clean bas
 *References:* [Delivery Service Spec](../../design/services-specs/delivery-service-spec.md), [Domain Entities — Delivery](../../design/entities/entities.md), [Inventory foundation task](../inventory-service/01-rework-draft-to-spec-foundation.md)
 
 ## Acceptance Criteria
-- [ ] Remove the draft code that contradicts the spec: `DeliveryController`, `DeliveryService`, `ConsignmentRepository`, `Consignment`, `DeliverySnapshot`, `ParcelSnapshot`.
-- [ ] Align the package layout with `inventory-service` (`controllers`, `services`, `repositories`, `entities`, `dto`, `exceptions`, `config`, `security`, `clients`, `events`, `outbox`), plus `carrier` for the carrier port and its mock (task 07).
-- [ ] Update `pom.xml` against `inventory-service/pom.xml`: add `spring-boot-starter-validation` and the matching test starters; remove `spring-boot-devtools` if the other services do not use it. Security, Kafka and HTTP-client dependencies are added in their own tasks.
-- [ ] `application.yml`: `ddl-auto: validate`; keep problem details and the actuator probes.
-- [ ] Test `TestcontainersConfiguration` uses `postgres:18-alpine` (the version in `docker-compose.yml` and `k8s/`).
-- [ ] A context-load smoke test passes against a real PostgreSQL.
-- [ ] `.env.example` and `k8s/delivery/app-config.yaml` stay consistent (database settings only; the other variables come with tasks 04, 05 and 09).
+- [x] Remove the draft code that contradicts the spec: `DeliveryController`, `DeliveryService`, `ConsignmentRepository`, `Consignment`, `DeliverySnapshot`, `ParcelSnapshot`.
+- [x] Align the package layout with `inventory-service` (`controllers`, `services`, `repositories`, `entities`, `dto`, `exceptions`, `config`, `security`, `clients`, `events`, `outbox`), plus `carrier` for the carrier port and its mock (task 07).
+- [x] Update `pom.xml` against `inventory-service/pom.xml`: add `spring-boot-starter-validation` and the matching test starters; remove `spring-boot-devtools` if the other services do not use it. Security, Kafka and HTTP-client dependencies are added in their own tasks.
+- [x] `application.yml`: `ddl-auto: validate`; keep problem details and the actuator probes.
+- [x] Test `TestcontainersConfiguration` uses `postgres:18-alpine` (the version in `docker-compose.yml` and `k8s/`).
+- [x] A context-load smoke test passes against a real PostgreSQL.
+- [x] `.env.example` and `k8s/delivery/app-config.yaml` stay consistent (database settings only; the other variables come with tasks 04, 05 and 09).
 
 ## Technical Notes / Constraints
 - Nothing outside this module calls the draft `/api/v1/delivery` endpoints from code, but the Postman collections `VoltStore_API_Tests.json` and `VoltStore_API_Tests2.json` do. Remove or mark those requests so they do not mislead.
 - `order-service` has its own `DeliverySnapshot` entity (the recipient copy on the order). It belongs to Order's model and is unaffected.
 - Avoid Lombok `@Data` on JPA entities; follow the entity convention of Catalog and Inventory.
 - `target/` and `.idea/` are build artefacts; do not edit them by hand.
+
+## Implementation Notes (2026-10-15)
+- **Removed:** the draft `controllers`, `services`, `repositories` and `domain.entity` classes (`Consignment`, `DeliverySnapshot`, `ParcelSnapshot`) and the old `TestcontainersConfiguration`. The module now contains only the application class; the packages from the list are created by the tasks that fill them (Git does not keep empty folders).
+- **`pom.xml`:** added `spring-boot-starter-validation` plus the `actuator-test` and `validation-test` starters, as in Inventory. `spring-boot-devtools` stays, because Inventory and Catalog still declare it.
+- **`application.yml`:** `ddl-auto: validate`, problem details and probes kept; `accept-float-as-int: false` copied from Inventory.
+- **Tests:** `PostgresTestContainerConfig` (`postgres:18-alpine`, same name as in Inventory) replaces `TestcontainersConfiguration`; `DeliveryServiceApplicationTests` loads the context against it.
+- **Postman:** the "5. Delivery Context" folder (draft `/api/v1/delivery` requests) was removed from `VoltStore_API_Tests.json` and `VoltStore_API_Tests2.json`.
+- `.env.example` and `k8s/delivery/app-config.yaml` already contain only the database settings; unchanged.
+- **Verified (2026-10-15):** `.\mvnw.cmd test` passes (context-load test against Testcontainers PostgreSQL).

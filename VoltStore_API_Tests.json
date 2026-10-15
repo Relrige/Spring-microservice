@@ -259,51 +259,6 @@
           }
         }
       ]
-    },
-    {
-      "name": "5. Delivery Context",
-      "item": [
-        {
-          "name": "Create Consignment",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"carrier\": \"NovaPoshta\",\n  \"parcelParams\": {\n    \"weightKg\": 2.15,\n    \"dimensions\": \"355x248x16\",\n    \"declaredValue\": 120000.00\n  },\n  \"recipient\": {\n    \"fullName\": \"Oleh Petrenko\",\n    \"phoneNumber\": \"+380509999999\",\n    \"city\": \"Lviv\",\n    \"warehouseAddress\": \"NP #15\"\n  }\n}"
-            },
-            "url": { "raw": "{{deliveryUrl}}/api/v1/delivery", "host": ["{{deliveryUrl}}"], "path": ["api", "v1", "delivery"] }
-          }
-        },
-        {
-          "name": "Update Waybill",
-          "request": {
-            "method": "PATCH",
-            "url": {
-              "raw": "{{deliveryUrl}}/api/v1/delivery/{{orderId}}/waybill?waybillNumber={{waybillNumber}}",
-              "host": ["{{deliveryUrl}}"],
-              "path": ["api", "v1", "delivery", "{{orderId}}", "waybill"],
-              "query": [
-                { "key": "waybillNumber", "value": "{{waybillNumber}}" }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Track Parcel",
-          "request": {
-            "method": "GET",
-            "url": { "raw": "{{deliveryUrl}}/api/v1/delivery/track/{{waybillNumber}}", "host": ["{{deliveryUrl}}"], "path": ["api", "v1", "delivery", "track", "{{waybillNumber}}"] }
-          }
-        },
-        {
-          "name": "Cancel Delivery",
-          "request": {
-            "method": "POST",
-            "url": { "raw": "{{deliveryUrl}}/api/v1/delivery/{{orderId}}/cancel", "host": ["{{deliveryUrl}}"], "path": ["api", "v1", "delivery", "{{orderId}}", "cancel"] }
-          }
-        }
-      ]
     }
   ]
 }

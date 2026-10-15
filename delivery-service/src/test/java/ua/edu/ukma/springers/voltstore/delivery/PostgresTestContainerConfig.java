@@ -6,13 +6,14 @@ import org.springframework.context.annotation.Bean;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+// Same PostgreSQL version as docker-compose.yml and k8s/delivery
 @TestConfiguration(proxyBeanMethods = false)
-class TestcontainersConfiguration {
+public class PostgresTestContainerConfig {
 
 	@Bean
 	@ServiceConnection
 	PostgreSQLContainer postgresContainer() {
-		return new PostgreSQLContainer(DockerImageName.parse("postgres:latest"));
+		return new PostgreSQLContainer(DockerImageName.parse("postgres:18-alpine"));
 	}
 
 }
