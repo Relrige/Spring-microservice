@@ -118,7 +118,7 @@ Guest orders are supported: orders without a registered account are identified b
 4. Call Payment Service to charge: `POST /payments/charge { orderId, amount: Order.totalAmount, currency, cardDetails }`.
 5. **On Payment Service success (`200 OK`):**
    - Set `Order.status = PAID`.
-   - Publish event `OrderPaid { orderId, customerId, customerEmail }`.
+   - Publish event `OrderPaid` with the order snapshot (fat event, see **Emits**).
    - Return `200 OK`.
 6. **On Payment Service failure (`402`):**
    - `Order.status` remains `PENDING_PAYMENT`. Stock reservation TTL is **not** reset.
@@ -137,7 +137,7 @@ Guest orders are supported: orders without a registered account are identified b
 **External calls:**
 - Payment Service: `POST /payments/charge` — **sync**
 
-**Emits:** `OrderPaid { orderId, customerId (nullable), customerEmail }` → consumed by Customer Service (EP-CUST-EVT-01), Delivery Service (EP-DEL-EVT-01), Notification Service (EP-NOTIF-EVT-02)
+**Emits:** `OrderPaid { eventId, orderId, customerId (nullable), customerEmail, deliveryDetails { name, phone, address, carrier }, items [ { productId, quantity } ], totalAmount, currency, paidAt }` → consumed by Customer Service (EP-CUST-EVT-01), Delivery Service (EP-DEL-EVT-01), Notification Service (EP-NOTIF-EVT-02). The order snapshot is included so Delivery can register the shipment without calling Order back (event-carried state transfer, see the [Delivery spec](delivery-service-spec.md)). The status change and the event must be stored atomically (transactional outbox, as in Catalog and Inventory).
 **Refs:** US-CUST-10, US-CUST-11, SCN-C16, SCN-C17
 
 ---
@@ -203,7 +203,7 @@ Guest orders are supported: orders without a registered account are identified b
 5. **For guests:** dispatch a one-time cancellation verification link/code to `Order.guestEmail`. Return `202 Accepted` ("Verification email sent — confirm cancellation via the link"). Do **not** set status yet. Guest must confirm via the verification link (separate flow — deferred, N-11).
 6. **Cancellation saga execution** (for registered customers, or after guest confirms):
    - Call Inventory Service: `POST /inventory/reservations/{orderId}/release` — release reserved stock. **sync**
-   - Call Delivery Service: `DELETE /delivery/shipments/{orderId}` — cancel TTN if one was generated. **sync**
+   - Call Delivery Service: `DELETE /delivery/shipments/{orderId}` — mark the shipment `CANCELLED` and cancel the TTN if one was generated (`204`, idempotent, also when no shipment exists yet). **sync**
    - If `Order.status` at cancellation time was `PAID` or `PENDING_SHIPPING` — call Payment Service: `POST /payments/refund { orderId, amount: Order.totalAmount, currency }`. **sync**
    - Set `Order.status = CANCELLED`.
    - Publish event `OrderCancelled { orderId, customerEmail, reason: "CUSTOMER_CANCELLED" }`.
@@ -242,7 +242,7 @@ Guest orders are supported: orders without a registered account are identified b
 4. Merge the delivery status data onto each order entry: `{ orderId, status, placedAt, items (from OrderItemSnapshot), deliveryDetails, deliveryStatus, ttn, failureReason }`.
 5. Return `200 OK [ merged order list ]`.
 
-> Delivery status (`TTN_GENERATED`, `TTN_FAILED`, etc.) is **not** stored on the `Order` entity — it lives exclusively in Delivery Service. This endpoint fetches it on demand via a single sync batch call to avoid data duplication.
+> Delivery status (`TTN_PENDING`, `TTN_FAILED`, `TTN_GENERATED`, or `null` while `OrderPaid` is not processed yet) is **not** stored on the `Order` entity — it lives exclusively in Delivery Service. This endpoint fetches it on demand via a single sync batch call to avoid data duplication.
 
 **Edge cases:**
 - No orders in `PAID` / `PENDING_SHIPPING` state → return `200 OK []`
@@ -279,7 +279,7 @@ Guest orders are supported: orders without a registered account are identified b
 **External calls:**
 - Delivery Service: `GET /delivery/shipments?orderIds={orderId}` — verify TTN generated — **sync**
 
-**Emits:** `OrderShipped { orderId, ttn }` → consumed by Inventory Service (EP-INV-EVT-02) and Notification Service (EP-NOTIF-EVT-03)
+**Emits:** `OrderShipped { orderId, ttn }` → consumed by Inventory Service (EP-INV-EVT-02), Delivery Service (EP-DEL-EVT-02, hands the parcel to the carrier) and Notification Service (EP-NOTIF-EVT-03)
 **Refs:** US-INV-07, SCN-INV06, inventory-worker-technical-insights §4, N-09
 
 ---
@@ -313,7 +313,7 @@ Guest orders are supported: orders without a registered account are identified b
 
 **Type:** Event consumer
 **Producer:** Delivery Service
-**Trigger:** Carrier confirms delivery via webhook; Delivery Service processes and publishes this event.
+**Trigger:** The carrier reports the delivery to Delivery Service (in-process mock, a configurable delay after `OrderShipped`); Delivery Service publishes this event.
 
 **Payload received:** `{ orderId, ttn }`
 

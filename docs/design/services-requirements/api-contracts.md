@@ -92,7 +92,8 @@
 
 | Method | Path | Auth Role | Description |
 |--------|------|-----------|-------------|
-| `GET` | `/delivery/shipments` | Internal | Batch fetch TTN statuses (Used by Order fulfillment queue). <br> **Query:** `?orderIds=uuid1,uuid2` <br> **Res:** `200 OK [{orderId, status, ttn, failureReason}]` |
-| `DELETE`| `/delivery/shipments/{orderId}`| Internal | Cancel TTN via carrier (Used by Order Saga). <br> **Res:** `200 OK` |
-| `POST` | `/delivery/orders/{id}/ttn/retry`| `INVENTORY_WORKER`| Manually retry TTN generation. <br> **Res:** `200 OK` or `424 Failed Dependency` |
-| `POST` | `/delivery/carrier-webhook` | None | Carrier delivery confirmation. <br> **Req:** `{orderId, ttn, status}` <br> **Res:** `200 OK` |
+| `GET` | `/delivery/shipments` | Internal | Batch fetch TTN statuses (Used by Order fulfillment queue). <br> **Query:** `?orderIds=uuid1,uuid2` (1–100) <br> **Res:** `200 OK [{orderId, status, ttn, failureReason}]` (`status: null` when no shipment exists yet; statuses `TTN_PENDING`, `TTN_FAILED`, `TTN_GENERATED`, `IN_TRANSIT`, `DELIVERED`, `CANCELLED`) |
+| `DELETE`| `/delivery/shipments/{orderId}`| Internal | Cancel shipment / TTN via carrier (Used by Order Saga). Idempotent; carrier cancellation is best-effort. <br> **Res:** `204 No Content` or `409 Conflict` (already handed to the carrier or delivered) |
+| `POST` | `/delivery/orders/{id}/ttn/retry`| `INVENTORY_WORKER`| Manually retry TTN generation (only in `TTN_FAILED`). <br> **Res:** `200 OK {ttn}` or `404` or `409 Conflict` or `424 Failed Dependency {reason}` |
+
+Delivery has no public endpoint: the carrier is mocked in-process and reports deliveries through a Java interface, not a webhook (see the [Delivery spec](../services-specs/delivery-service-spec.md)).

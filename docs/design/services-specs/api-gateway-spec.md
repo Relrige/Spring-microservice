@@ -119,7 +119,6 @@ Derived from the [API Contracts](../services-requirements/api-contracts.md). Row
 | `GET` | `/orders/fulfillment-queue` | order-service *(deferred)* | Required | `INVENTORY_WORKER` |
 | `POST` | `/orders/{id}/ship` | order-service *(deferred)* | Required | `INVENTORY_WORKER` |
 | `POST` | `/delivery/orders/{id}/ttn/retry` | delivery-service *(deferred)* | Required | `INVENTORY_WORKER` |
-| `POST` | `/delivery/carrier-webhook` | delivery-service *(deferred)* | Public | — (see open issues) |
 
 **Not routed (internal endpoints):** `GET /catalog/products/batch-get`; `GET /inventory/stock/{id}/readiness`; `GET /inventory/stock/{id}/packaging`; `POST /inventory/reservations`; `POST /inventory/reservations/{orderId}/release`; `POST /payments/charge`; `POST /payments/refund`; `GET /delivery/shipments`; `DELETE /delivery/shipments/{orderId}`.
 
@@ -161,7 +160,7 @@ The Ingress (`k8s/ingress/ingress.yaml`) forwards **all** external traffic, with
 
 ## Open Issues and Deferred
 
-- **Carrier webhook** (`POST /delivery/carrier-webhook`) is public, as in the contracts. Delivery Service may verify a shared secret or signature; until then anyone can call it.
+- **Carrier webhook:** removed from the contracts (Delivery spec, decision 2026-10-15). The carrier is mocked in-process and reports deliveries without HTTP. If the deferred out-of-process carrier simulator is built, a public `POST /delivery/carrier-webhook` route returns, with an HMAC signature verified by Delivery Service.
 - **Rate limiting** (especially for `/auth/login` and registration), **CORS**, request/response transformation, and observability hooks (such as a correlation ID generated at the edge) are deferred.
 - **Token revocation / logout** is not supported; tokens live until they expire (default 1 hour). Refresh tokens are out of scope.
 - **HS256** means the gateway could mint valid tokens. Moving to an asymmetric algorithm (gateway holds only the public key) is a possible later improvement.

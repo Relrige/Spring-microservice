@@ -44,13 +44,14 @@ Triggered when `availableQty` increases from `0` to `> 0` for an `ACTIVE` produc
 
 Triggered after SCN-C16 (payment success).
 
-1. Order Service publishes event: `OrderPaid(orderId)`.
-2. Delivery Service consumes `OrderPaid`.
+1. Order Service publishes event: `OrderPaid` with the order snapshot (recipient, items, total).
+2. Delivery Service consumes `OrderPaid` and creates a `Shipment` (`TTN_PENDING`); its TTN generation job picks it up.
 3. Delivery Service fetches packaging dimensions from Inventory Service for each item in the order: `GET /inventory/stock/{productId}/packaging`.
 4. Delivery Service calls the carrier gateway to register the consignment (orderId, recipientDetails, parcels).
 5. Carrier gateway returns a TTN (tracking number).
-6. Delivery Service stores the TTN and sets `deliveryStatus = TTN_GENERATED`.
-7. The TTN is now visible in the fulfillment queue (SCN-INV04).
+6. Delivery Service stores the TTN, sets `deliveryStatus = TTN_GENERATED` and publishes `TTNGenerated(orderId, ttn)`.
+7. Order Service consumes `TTNGenerated` → sets `Order.status = PENDING_SHIPPING`.
+8. The TTN is now visible in the fulfillment queue (SCN-INV04).
 
 ---
 
@@ -92,7 +93,7 @@ Triggered after SCN-C23 or SCN-C24 sets `Order.status = CANCELLATION_REQUESTED`.
 
 1. **Inventory Service** releases the stock reservation for all order items: `reservedQty → availableQty`.
    - If any item transitions from `0` to `> 0` stock on an `ACTIVE` product → publishes `ProductStockReplenished`.
-2. **Delivery Service** cancels the registered consignment / TTN with the carrier gateway (if a TTN was generated).
+2. **Delivery Service** marks the shipment `CANCELLED` and cancels the registered consignment / TTN with the carrier gateway (if a TTN was generated; best-effort). If `OrderPaid` was not consumed yet, it records a `CANCELLED` tombstone so the late event creates no shipment.
 3. **Payment Service** calls the payment gateway to refund the charged amount.
    - Records `PaymentRecord(status=REFUNDED)`.
 4. **Order Service** sets `Order.status = CANCELLED`.
@@ -105,16 +106,18 @@ Triggered after SCN-C23 or SCN-C24 sets `Order.status = CANCELLATION_REQUESTED`.
 
 ---
 
-## SCN-S08: Carrier Webhook → Order DELIVERED
+## SCN-S08: Parcel Handover → Carrier Delivery Report → Order DELIVERED
 
-Triggered by a carrier delivery confirmation (simulated via webhook or background job for development purposes).
+Triggered after SCN-INV06 (the worker confirms courier handover; Order Service publishes `OrderShipped`). The carrier is an in-process mock, so there is no webhook: the mock reports the delivery itself after a configurable delay.
 
-1. Carrier gateway sends delivery confirmation: `POST /delivery/carrier-webhook` with `{orderId, ttn, status: DELIVERED}`.
-2. Delivery Service validates the webhook payload.
-3. Delivery Service sets `deliveryStatus = DELIVERED`.
+1. Delivery Service consumes `OrderShipped`, sets `deliveryStatus = IN_TRANSIT` and hands the parcel over to the carrier gateway (`handOver(ttn)`).
+2. After the configured delay (default 30 s), the mock carrier reports the delivery to Delivery Service (`onDelivered(ttn)`, an in-process call).
+3. Delivery Service sets `deliveryStatus = DELIVERED` (only from `IN_TRANSIT`; a repeated report changes nothing).
 4. Delivery Service publishes event: `OrderDelivered(orderId, ttn)`.
 5. Order Service consumes `OrderDelivered` → sets `Order.status = DELIVERED`.
 6. Notification Service consumes `OrderDelivered` → sends "Parcel Delivered" email.
+
+*With a real carrier (or the deferred out-of-process simulator) step 2 becomes a signed webhook call; steps 3–6 do not change.*
 
 ---
 
