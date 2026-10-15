@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+import ua.edu.ukma.springers.voltstore.delivery.services.ManualTtnRetryService;
 import ua.edu.ukma.springers.voltstore.delivery.services.ShipmentService;
 import ua.edu.ukma.springers.voltstore.delivery.support.TrustedHeaders;
 
@@ -42,6 +43,9 @@ class RouteSecurityRulesTest {
 
     @MockitoBean
     private ShipmentService shipmentService;
+
+    @MockitoBean
+    private ManualTtnRetryService manualTtnRetryService;
 
     @Test
     void everyApplicationRouteHasAnExplicitRule() throws Exception {
