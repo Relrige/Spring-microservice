@@ -47,6 +47,8 @@ public class OrderEventsListener {
         String eventType = header == null ? null : new String(header.value(), StandardCharsets.UTF_8);
         if (OrderPaidEvent.TYPE.equals(eventType)) {
             shipmentService.createFromOrderPaid(read(record.value(), OrderPaidEvent.class));
+        } else if (OrderShippedEvent.TYPE.equals(eventType)) {
+            shipmentService.handOver(read(record.value(), OrderShippedEvent.class));
         } else {
             log.debug("Skipping order event key={} of type {}", record.key(), eventType);
         }

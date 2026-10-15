@@ -16,6 +16,7 @@ import ua.edu.ukma.springers.voltstore.delivery.entities.Shipment;
 import ua.edu.ukma.springers.voltstore.delivery.entities.ShipmentItem;
 import ua.edu.ukma.springers.voltstore.delivery.entities.ShipmentStatus;
 import ua.edu.ukma.springers.voltstore.delivery.events.OrderPaidEvent;
+import ua.edu.ukma.springers.voltstore.delivery.events.OrderShippedEvent;
 import ua.edu.ukma.springers.voltstore.delivery.exceptions.InvalidQueryParameterException;
 import ua.edu.ukma.springers.voltstore.delivery.exceptions.InvalidShipmentStateException;
 import ua.edu.ukma.springers.voltstore.delivery.repositories.ShipmentRepository;
@@ -67,6 +68,48 @@ public class ShipmentService {
                     event.items().size());
         } else {
             log.info("OrderPaid for order {} ignored: a shipment already exists", event.orderId());
+        }
+    }
+
+    /**
+     * EP-DEL-EVT-02: the courier collected the parcel. {@code TTN_GENERATED} → {@code IN_TRANSIT} and commit, then
+     * the parcel is handed to the carrier, which reports the delivery later (EP-DEL-04). If the service stops between
+     * the commit and the handover, the startup recovery hands it over again ({@link HandoverRecovery}).
+     * A duplicate ({@code IN_TRANSIT}, {@code DELIVERED}) is acknowledged; an unknown order or any other status is
+     * logged and acknowledged, because Order ships only after checking {@code TTN_GENERATED}.
+     */
+    public void handOver(OrderShippedEvent event) {
+        UUID orderId = event.orderId();
+        String ttn = transactionTemplate.execute(status -> {
+            Shipment shipment = repository.findByOrderId(orderId).orElse(null);
+            if (shipment == null) {
+                log.warn("OrderShipped for order {} without a shipment; ignored", orderId);
+                return null;
+            }
+            switch (shipment.getStatus()) {
+                case TTN_GENERATED -> {
+                    if (event.ttn() != null && !event.ttn().equals(shipment.getTtn())) {
+                        log.warn("OrderShipped for order {} names TTN {}, but the shipment has {}; using the "
+                                + "shipment's TTN", orderId, event.ttn(), shipment.getTtn());
+                    }
+                    shipment.markInTransit(clock.instant());
+                    return shipment.getTtn();
+                }
+                case IN_TRANSIT, DELIVERED -> {
+                    log.info("OrderShipped for order {} is a duplicate (shipment is {}); nothing to do", orderId,
+                            shipment.getStatus());
+                    return null;
+                }
+                default -> {
+                    log.warn("OrderShipped for order {} while the shipment is {}; ignored (Order should ship only "
+                            + "TTN_GENERATED shipments)", orderId, shipment.getStatus());
+                    return null;
+                }
+            }
+        });
+        if (ttn != null) {
+            carrierGateway.handOver(ttn);
+            log.info("Order {} (TTN {}) handed over to the carrier", orderId, ttn);
         }
     }
 
