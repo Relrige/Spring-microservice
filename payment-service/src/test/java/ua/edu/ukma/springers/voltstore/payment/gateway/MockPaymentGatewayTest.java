@@ -17,7 +17,7 @@ class MockPaymentGatewayTest {
     private static final PaymentCard INSUFFICIENT_FUNDS = card("4000000000000002");
     private static final PaymentCard LOST_ANSWER = card("4000000000005000");
 
-    private final MockPaymentGateway gateway = new MockPaymentGateway(new MockGatewayProperties(Duration.ZERO));
+    private final MockPaymentGateway gateway = new MockPaymentGateway(withTimeout(Duration.ZERO));
 
     @Test
     void card4242_isApproved() {
@@ -55,7 +55,7 @@ class MockPaymentGatewayTest {
 
     @Test
     void card5000_waitsForTheConfiguredDelayBeforeReportingTheTimeout() {
-        MockPaymentGateway slowGateway = new MockPaymentGateway(new MockGatewayProperties(Duration.ofMillis(200)));
+        MockPaymentGateway slowGateway = new MockPaymentGateway(withTimeout(Duration.ofMillis(200)));
         long start = System.nanoTime();
 
         assertThatThrownBy(() -> slowGateway.charge(charge("k1", LOST_ANSWER)))
@@ -125,6 +125,10 @@ class MockPaymentGatewayTest {
 
     private String approvedChargeId() {
         return ((GatewayResult.Approved) gateway.charge(charge("charge:1", APPROVED))).gatewayTransactionId();
+    }
+
+    private static GatewayProperties withTimeout(Duration timeout) {
+        return new GatewayProperties("mock", timeout, 0, Duration.ZERO);
     }
 
     private static ChargeCommand charge(String key, PaymentCard card) {

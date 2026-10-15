@@ -100,29 +100,15 @@ class ChargeIntegrationTest {
     }
 
     @Test
-    void lostAnswer_is504_andRepeatingTheRequest_getsTheApprovalWithoutChargingAgain() throws Exception {
-        charge(LOST_ANSWER_CARD).andExpect(status().isGatewayTimeout());
-        assertThat(chargedSinceStart()).as("the provider took the money although we got no answer").isEqualTo(1);
-
+    void lostAnswer_isSettledByTheInternalRepeat_withTheSameKey_andChargesOnce() throws Exception {
+        // The first call times out after the provider took the money; the repeat gets the stored approval
         charge(LOST_ANSWER_CARD).andExpect(status().isOk());
 
         assertThat(chargedSinceStart()).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForList("SELECT coalesce(failure_reason, status) || ' ' || idempotency_key "
-                + "FROM payment_transactions WHERE order_id = ? ORDER BY created_at", String.class, orderId))
-                .as("the timeout did not end the attempt, so the repeat reused its key")
-                .containsExactly("GATEWAY_TIMEOUT charge:" + orderId + ":1", "SUCCESS charge:" + orderId + ":1");
-    }
-
-    @Test
-    void afterALostAnswer_anotherCard_is409_untilTheSameRequestIsRepeated() throws Exception {
-        charge(LOST_ANSWER_CARD).andExpect(status().isGatewayTimeout());
-
-        charge(APPROVED_CARD)
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.title").value("Payment attempt in progress"));
-        charge(LOST_ANSWER_CARD).andExpect(status().isOk());
-
-        assertThat(chargedSinceStart()).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForList("SELECT status || ' ' || idempotency_key FROM payment_transactions "
+                + "WHERE order_id = ?", String.class, orderId))
+                .as("only the final outcome is recorded")
+                .containsExactly("SUCCESS charge:" + orderId + ":1");
     }
 
     @Test

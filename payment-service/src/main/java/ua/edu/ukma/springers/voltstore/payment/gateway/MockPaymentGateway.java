@@ -2,7 +2,6 @@ package ua.edu.ukma.springers.voltstore.payment.gateway;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Component;
 import ua.edu.ukma.springers.voltstore.payment.exceptions.PaymentGatewayTimeoutException;
 
@@ -35,12 +34,12 @@ import java.util.function.Supplier;
 @Slf4j
 @Component
 @ConditionalOnProperty(name = "payment.gateway.provider", havingValue = "mock")
-@EnableConfigurationProperties(MockGatewayProperties.class)
 public class MockPaymentGateway implements PaymentGateway {
     static final String APPROVED_CARD_SUFFIX = "4242";
     static final String INSUFFICIENT_FUNDS_CARD_SUFFIX = "0002";
     static final String LOST_ANSWER_CARD_SUFFIX = "5000";
 
+    // The "lost answer" is reported after the gateway time limit, as a real adapter's read timeout would
     private final Duration timeoutDelay;
     // Fingerprints may contain the card number: kept in memory like a provider's records, never logged
     private final Map<String, StoredResult> resultsByKey = new ConcurrentHashMap<>();
@@ -49,8 +48,8 @@ public class MockPaymentGateway implements PaymentGateway {
     private final AtomicInteger approvedChargeCount = new AtomicInteger();
     private final AtomicInteger approvedRefundCount = new AtomicInteger();
 
-    public MockPaymentGateway(MockGatewayProperties properties) {
-        this.timeoutDelay = properties.timeoutDelay();
+    public MockPaymentGateway(GatewayProperties properties) {
+        this.timeoutDelay = properties.timeout();
     }
 
     @Override

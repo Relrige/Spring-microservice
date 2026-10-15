@@ -2,7 +2,9 @@
 
 An Anti-Corruption Layer (ACL) for the external payment gateway. It isolates all payment protocol specifics from the rest of the system. No other service knows about card details, gateway APIs, or transaction identifiers — they communicate only with this service. All commands arrive synchronously from Order Service; the service never initiates contact with other domain services.
 
-A `MockPaymentGateway` is used in every environment (there is no real provider in this project), selected by `PAYMENT_GATEWAY_PROVIDER=mock`. The outcome depends on the card number's last four digits: `4242` succeeds, `0002` fails with "insufficient funds", `5000` is charged but the answer is lost (a timeout is reported; a repeat with the same idempotency key returns the approval), any other number is declined.
+A `MockPaymentGateway` is used in every environment (there is no real provider in this project), selected by `PAYMENT_GATEWAY_PROVIDER=mock`. The outcome depends on the card number's last four digits: `4242` succeeds, `0002` fails with "insufficient funds", `5000` is charged but the answer is lost (a timeout is reported after `PAYMENT_GATEWAY_TIMEOUT`; the internal repeat with the same idempotency key gets the approval, so the request ends with `200` after about 2.5 s), any other number is declined.
+
+**Known limits** (accepted): real providers keep idempotency keys for a limited time (Stripe: 24 h), far longer than Order's payment window; the mock keeps them in memory, so a Payment Service restart between a lost answer and its repeat loses the protection, and the service must run as one replica. No circuit breaker: there is one caller, low volume, and the repeats are already bounded.
 
 ---
 
@@ -44,9 +46,10 @@ Double charges and refunds are prevented by the gateway, not by locks: every req
 5. **On a decline (insufficient funds, card declined):**
    - Persist `PaymentTransaction(type=CHARGE, status=FAILED, failureReason)`.
    - Return `402 Payment Required { reason }` (`insufficient_funds`, `card_declined`). The next charge of the order uses a new key, so the customer can try another card.
-6. **On gateway timeout / connectivity error:**
+6. **On gateway timeout / connectivity error** (no answer within `PAYMENT_GATEWAY_TIMEOUT`, default 2 s): the outcome is unknown, the money may have been taken. The call is repeated with the **same** idempotency key (`PAYMENT_GATEWAY_MAX_RETRIES`, default 1, after `PAYMENT_GATEWAY_RETRY_DELAY`, default 300 ms + jitter); the provider replays the stored result or processes the request for the first time, never twice. Only the final outcome is recorded. If every attempt stays unanswered:
    - Persist `PaymentTransaction(type=CHARGE, status=FAILED, failureReason=GATEWAY_TIMEOUT | GATEWAY_UNAVAILABLE)`.
-   - Return `504 Gateway Timeout` / `502 Bad Gateway`. The money may have been taken; repeating the same request is safe and returns the real outcome.
+   - Return `504 Gateway Timeout` / `502 Bad Gateway`. Repeating the same request later is safe (it reuses the key) and returns the real outcome.
+   - Worst case per request is about 4.5 s with the defaults; Order Service's read timeout for `/payments/**` must be longer (6 s or more).
 7. **On an idempotency-key mismatch** (the unresolved attempt was made with other details, e.g. another card after a timeout) → `409 Conflict` ("Payment attempt in progress"); nothing is recorded. Repeat the original request to settle it.
 
 **Edge cases:**
@@ -80,7 +83,7 @@ Double charges and refunds are prevented by the gateway, not by locks: every req
    - Persist `PaymentTransaction(type=REFUND, status=SUCCESS, gatewayTransactionId=<refund ID>)`.
    - Return `200 OK { transactionId, status: "SUCCESS" }`.
 7. **On a rejected refund:** persist `REFUND/FAILED` (`REFUND_REJECTED`) and return `502 Bad Gateway { reason: "refund_rejected" }` so the saga coordinator can decide how to handle it (retry / alert).
-8. **On gateway timeout / connectivity error:** persist `REFUND/FAILED` (`GATEWAY_TIMEOUT` / `GATEWAY_UNAVAILABLE`) and return `504` / `502`. A repeat uses the same key, so it cannot refund twice.
+8. **On gateway timeout / connectivity error:** repeated with the same key as in EP-PAY-01 step 6; if every attempt stays unanswered, persist `REFUND/FAILED` (`GATEWAY_TIMEOUT` / `GATEWAY_UNAVAILABLE`) and return `504` / `502`. A later repeat uses the same key, so it cannot refund twice.
 
 **Edge cases:**
 - No prior successful charge → `422`

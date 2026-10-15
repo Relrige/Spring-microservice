@@ -24,6 +24,7 @@ import ua.edu.ukma.springers.voltstore.payment.exceptions.RefundAmountMismatchEx
 import ua.edu.ukma.springers.voltstore.payment.exceptions.RefundRejectedException;
 import ua.edu.ukma.springers.voltstore.payment.gateway.ChargeCommand;
 import ua.edu.ukma.springers.voltstore.payment.gateway.DeclineReason;
+import ua.edu.ukma.springers.voltstore.payment.gateway.GatewayProperties;
 import ua.edu.ukma.springers.voltstore.payment.gateway.GatewayResult;
 import ua.edu.ukma.springers.voltstore.payment.gateway.PaymentCard;
 import ua.edu.ukma.springers.voltstore.payment.gateway.PaymentGateway;
@@ -33,6 +34,7 @@ import ua.edu.ukma.springers.voltstore.payment.repositories.PaymentTransactionRe
 import java.math.BigDecimal;
 import java.net.ConnectException;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -43,6 +45,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -67,7 +70,9 @@ class PaymentServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PaymentService(repository, gateway);
+        // One repeat of an uncertain call, as configured by default
+        service = new PaymentService(repository, gateway,
+                new GatewayProperties("mock", Duration.ZERO, 1, Duration.ofMillis(1)));
         // Saving returns the entity with an ID, as the database would
         lenient().when(repository.saveAndFlush(any())).thenAnswer(invocation -> {
             PaymentTransactionEntity entity = invocation.getArgument(0);
@@ -122,20 +127,54 @@ class PaymentServiceTest {
         }
 
         @Test
-        void timeout_isRecordedAsUncertain_andPassedOn() {
+        void timeout_isRepeatedWithTheSameKey_andOnlyTheFinalOutcomeIsRecorded() {
+            when(gateway.charge(any()))
+                    .thenThrow(new PaymentGatewayTimeoutException("no answer"))
+                    .thenReturn(new GatewayResult.Approved("gw-1"));
+
+            assertThat(charge()).isEqualTo(SAVED_ID);
+
+            ArgumentCaptor<ChargeCommand> captor = ArgumentCaptor.forClass(ChargeCommand.class);
+            verify(gateway, times(2)).charge(captor.capture());
+            assertThat(captor.getAllValues()).extracting(ChargeCommand::idempotencyKey).containsOnly(
+                    "charge:" + ORDER_ID + ":1");
+            assertThat(savedEntity().getStatus()).isEqualTo(SUCCESS);
+        }
+
+        @Test
+        void unavailable_isRepeated_too() {
+            when(gateway.charge(any()))
+                    .thenThrow(new PaymentGatewayUnavailableException("refused", new ConnectException()))
+                    .thenReturn(new GatewayResult.Approved("gw-1"));
+
+            assertThat(charge()).isEqualTo(SAVED_ID);
+            verify(gateway, times(2)).charge(any());
+        }
+
+        @Test
+        void timeoutOnEveryAttempt_isRecordedOnceAsUncertain_andPassedOn() {
             when(gateway.charge(any())).thenThrow(new PaymentGatewayTimeoutException("no answer"));
 
             assertThatThrownBy(() -> charge()).isInstanceOf(PaymentGatewayTimeoutException.class);
+            verify(gateway, times(2)).charge(any());
             assertFailureSaved(FailureReason.GATEWAY_TIMEOUT, "charge:" + ORDER_ID + ":1");
         }
 
         @Test
-        void unavailable_isRecordedAsUncertain_andPassedOn() {
+        void unavailableOnEveryAttempt_isRecordedOnceAsUncertain_andPassedOn() {
             when(gateway.charge(any()))
                     .thenThrow(new PaymentGatewayUnavailableException("refused", new ConnectException()));
 
             assertThatThrownBy(() -> charge()).isInstanceOf(PaymentGatewayUnavailableException.class);
             assertFailureSaved(FailureReason.GATEWAY_UNAVAILABLE, "charge:" + ORDER_ID + ":1");
+        }
+
+        @Test
+        void definitiveDecline_isNotRepeated() {
+            when(gateway.charge(any())).thenReturn(new GatewayResult.Declined(DeclineReason.CARD_DECLINED));
+
+            assertThatThrownBy(() -> charge()).isInstanceOf(PaymentDeclinedException.class);
+            verify(gateway, times(1)).charge(any());
         }
 
         @Test
@@ -246,12 +285,32 @@ class PaymentServiceTest {
         }
 
         @Test
-        void timeout_isRecordedAsUncertain_andPassedOn() {
+        void timeout_isRepeatedWithTheSameKey() {
+            givenCharge();
+            when(gateway.refund(any()))
+                    .thenThrow(new PaymentGatewayTimeoutException("no answer"))
+                    .thenReturn(new GatewayResult.Approved("gw-refund"));
+
+            assertThat(refund(AMOUNT)).isEqualTo(SAVED_ID);
+            verify(gateway, times(2)).refund(eq(new RefundCommand("refund:" + ORDER_ID, "gw-charge", AMOUNT, "UAH")));
+        }
+
+        @Test
+        void timeoutOnEveryAttempt_isRecordedAsUncertain_andPassedOn() {
             givenCharge();
             when(gateway.refund(any())).thenThrow(new PaymentGatewayTimeoutException("no answer"));
 
             assertThatThrownBy(() -> refund(AMOUNT)).isInstanceOf(PaymentGatewayTimeoutException.class);
             assertThat(savedEntity().getFailureReason()).isEqualTo(FailureReason.GATEWAY_TIMEOUT);
+        }
+
+        @Test
+        void rejection_isNotRepeated() {
+            givenCharge();
+            when(gateway.refund(any())).thenReturn(new GatewayResult.Declined(DeclineReason.REFUND_REJECTED));
+
+            assertThatThrownBy(() -> refund(AMOUNT)).isInstanceOf(RefundRejectedException.class);
+            verify(gateway, times(1)).refund(any());
         }
 
         @Test

@@ -15,9 +15,14 @@ payment:
   gateway:
     # Which PaymentGateway adapter is used. Only "mock" exists (MockPaymentGateway); any other value fails at startup
     provider: ${PAYMENT_GATEWAY_PROVIDER:mock}
-    mock:
-      # How long the mock waits before reporting a timeout for a card ending in 5000 ("charged, answer lost")
-      timeout-delay: ${PAYMENT_GATEWAY_MOCK_TIMEOUT_DELAY:2s}
+    # Time limit of one gateway call; after it the outcome is unknown (the money may have moved). The mock waits this
+    # long before reporting the "lost answer" of a card ending in 5000
+    timeout: ${PAYMENT_GATEWAY_TIMEOUT:2s}
+    # A call with an unknown outcome is repeated with the same idempotency key, so a repeat cannot charge twice.
+    # Worst case per request: 2 x 2 s + 0.3-0.45 s = about 4.5 s, so Order Service's read timeout for /payments/**
+    # must be longer (6 s or more), or Order gives up before Payment has recorded the outcome
+    max-retries: ${PAYMENT_GATEWAY_MAX_RETRIES:1}
+    retry-delay: ${PAYMENT_GATEWAY_RETRY_DELAY:300ms}
 auth:
   internal:
     # Shared secret of service-to-service calls (X-Internal-Token); supplied by the INTERNAL_TOKEN environment variable

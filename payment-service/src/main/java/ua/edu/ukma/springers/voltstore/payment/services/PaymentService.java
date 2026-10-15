@@ -1,8 +1,10 @@
 package ua.edu.ukma.springers.voltstore.payment.services;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.core.retry.RetryException;
+import org.springframework.core.retry.RetryPolicy;
+import org.springframework.core.retry.RetryTemplate;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import ua.edu.ukma.springers.voltstore.payment.entities.FailureReason;
@@ -19,6 +21,7 @@ import ua.edu.ukma.springers.voltstore.payment.exceptions.RefundAmountMismatchEx
 import ua.edu.ukma.springers.voltstore.payment.exceptions.RefundRejectedException;
 import ua.edu.ukma.springers.voltstore.payment.gateway.ChargeCommand;
 import ua.edu.ukma.springers.voltstore.payment.gateway.DeclineReason;
+import ua.edu.ukma.springers.voltstore.payment.gateway.GatewayProperties;
 import ua.edu.ukma.springers.voltstore.payment.gateway.GatewayResult;
 import ua.edu.ukma.springers.voltstore.payment.gateway.PaymentCard;
 import ua.edu.ukma.springers.voltstore.payment.gateway.PaymentGateway;
@@ -26,6 +29,7 @@ import ua.edu.ukma.springers.voltstore.payment.gateway.RefundCommand;
 import ua.edu.ukma.springers.voltstore.payment.repositories.PaymentTransactionRepository;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -42,13 +46,27 @@ import static ua.edu.ukma.springers.voltstore.payment.entities.TransactionType.R
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class PaymentService {
     static final String SUCCESSFUL_CHARGE_INDEX = "uq_payment_transactions_successful_charge";
     static final String SUCCESSFUL_REFUND_INDEX = "uq_payment_transactions_successful_refund";
 
     private final PaymentTransactionRepository repository;
     private final PaymentGateway gateway;
+    private final RetryTemplate retryTemplate;
+
+    public PaymentService(PaymentTransactionRepository repository, PaymentGateway gateway,
+                          GatewayProperties gatewayProperties) {
+        this.repository = repository;
+        this.gateway = gateway;
+        // Spring Framework 7's built-in retry; only uncertain outcomes are repeated (safe thanks to the idempotency key)
+        Duration retryDelay = gatewayProperties.retryDelay();
+        this.retryTemplate = new RetryTemplate(RetryPolicy.builder()
+                .maxRetries(gatewayProperties.maxRetries())
+                .delay(retryDelay)
+                .jitter(retryDelay.dividedBy(2))
+                .includes(PaymentGatewayTimeoutException.class, PaymentGatewayUnavailableException.class)
+                .build());
+    }
 
     /**
      * Charges the order's card once.
@@ -57,7 +75,7 @@ public class PaymentService {
      * @throws OrderAlreadyChargedException       the order is already paid (also the losing side of a race)
      * @throws PaymentDeclinedException           the provider refused; the customer may retry with another card
      * @throws PaymentAttemptInProgressException  an earlier request of this attempt, with other details, is unresolved
-     * @throws PaymentGatewayTimeoutException     no answer; a repeat of the same request is safe
+     * @throws PaymentGatewayTimeoutException     no answer, even after the retries; a repeat of the same request is safe
      * @throws PaymentGatewayUnavailableException provider unreachable; a repeat of the same request is safe
      */
     public UUID charge(UUID orderId, BigDecimal amount, String currency, PaymentCard card) {
@@ -128,19 +146,36 @@ public class PaymentService {
         return "charge:" + orderId + ":" + (endedAttempts + 1);
     }
 
-    /** Records an uncertain outcome before passing it on, so the history shows the attempt and its key. */
+    /**
+     * Calls the gateway, repeating a call whose outcome is unknown (timeout, provider unreachable) with the same
+     * idempotency key: the provider either returns the stored result or processes the request for the first time, so
+     * a repeat can never move money twice. A definitive answer (approved, declined, key mismatch) is never repeated.
+     * If every attempt stays uncertain, that is recorded before it is passed on, so the history shows the attempt and
+     * its key; the caller may repeat the request later and will reuse the key.
+     */
     private GatewayResult callGateway(TransactionType type, UUID orderId, BigDecimal amount, String currency,
                                       String key, Supplier<GatewayResult> call) {
         try {
-            return call.get();
-        } catch (PaymentGatewayTimeoutException e) {
-            repository.saveAndFlush(PaymentTransactionEntity.failed(type, orderId, amount, currency,
-                    FailureReason.GATEWAY_TIMEOUT, key));
-            throw e;
-        } catch (PaymentGatewayUnavailableException e) {
-            repository.saveAndFlush(PaymentTransactionEntity.failed(type, orderId, amount, currency,
-                    FailureReason.GATEWAY_UNAVAILABLE, key));
-            throw e;
+            return retryTemplate.execute(() -> {
+                try {
+                    return call.get();
+                } catch (PaymentGatewayTimeoutException | PaymentGatewayUnavailableException e) {
+                    log.warn("{} of order {} with key {}: outcome unknown ({})", type, orderId, key, e.getMessage());
+                    throw e;
+                }
+            });
+        } catch (RetryException e) {
+            Throwable last = e.getLastException();
+            if (last instanceof PaymentGatewayTimeoutException || last instanceof PaymentGatewayUnavailableException) {
+                FailureReason reason = last instanceof PaymentGatewayTimeoutException
+                        ? FailureReason.GATEWAY_TIMEOUT
+                        : FailureReason.GATEWAY_UNAVAILABLE;
+                repository.saveAndFlush(PaymentTransactionEntity.failed(type, orderId, amount, currency, reason, key));
+            }
+            if (last instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw new IllegalStateException("Payment gateway call failed", last);
         }
     }
 
