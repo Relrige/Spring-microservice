@@ -6,6 +6,8 @@ service: api-gateway
 
 ## Context
 **Blocked** until the services below implement their contract paths. [Task 03](03-route-table.md) routes every row of the spec's route table whose service is implemented (auth, catalog, inventory). Order and Delivery Service are still drafts whose endpoints (`/api/v1/orders`, `/api/v1/delivery`) do not match the API contracts, and Customer Service does not exist. Their routes are added once each service exposes the contract paths, so the route table never points at endpoints that do not exist.
+
+**Update (2026-10-15): the Delivery part is unblocked.** Delivery implements its contract paths ([Delivery task 16](../delivery-service/16-containerization-and-deployment.md)): `POST /delivery/orders/{orderId}/ttn/retry` (role `INVENTORY_WORKER`) is the only route to add; Delivery listens on container port 8080 (Compose host port 8083, Kubernetes Service port 8083). Order and Customer remain blocked.
 *References:* [API Gateway Spec — Route Table](../../design/services-specs/api-gateway-spec.md#route-table), [API Contracts](../../design/services-requirements/api-contracts.md)
 
 ## Acceptance Criteria
