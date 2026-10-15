@@ -1,0 +1,205 @@
+# Network trust boundary (API Gateway spec, "Trust Boundary"): services trust the X-User-* headers only
+# because nothing but the gateway and other services can reach them.
+#
+# Enforced only by a CNI that supports NetworkPolicy. minikube's default CNI silently ignores these
+# objects; start minikube with "--cni=calico" (see k8s.txt).
+#
+# Only ingress is restricted. Pods are selected by the labels app.kubernetes.io/component
+# (gateway | service | database | broker) and app (the individual workload).
+# kubectl port-forward enters the pod directly and is not affected (used by the e2e/manual runbooks).
+
+# 1. Nothing in the namespace accepts traffic unless a policy below allows it
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: voltstore
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# 2. The gateway accepts traffic from the Ingress controller (minikube addon namespace "ingress-nginx")
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-from-ingress-controller
+  namespace: voltstore
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 8080
+---
+# 3. Services accept traffic from the gateway and from other services (service-to-service calls with
+#    X-Internal-Token), nothing else
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: services-from-gateway-and-services
+  namespace: voltstore
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: gateway
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: service
+      ports:
+        - port: 8080
+---
+# 4. The Kafka broker accepts clients (the services) on 9092; the controller listener (9093) is used only
+#    inside the broker pod
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka-from-services
+  namespace: voltstore
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: broker
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: service
+      ports:
+        - port: 9092
+---
+# Database per service: only its own service may connect
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: auth-db-from-auth-service
+  namespace: voltstore
+spec:
+  podSelector:
+    matchLabels:
+      app: auth-service-postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: auth-service
+      ports:
+        - port: 5432
+---
+# Database per service: only its own service may connect
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: catalog-db-from-catalog-service
+  namespace: voltstore
+spec:
+  podSelector:
+    matchLabels:
+      app: catalog-service-postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: catalog-service
+      ports:
+        - port: 5432
+---
+# Database per service: only its own service may connect
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: order-db-from-order-service
+  namespace: voltstore
+spec:
+  podSelector:
+    matchLabels:
+      app: order-service-postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: order-service
+      ports:
+        - port: 5432
+---
+# Database per service: only its own service may connect
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: inventory-db-from-inventory-service
+  namespace: voltstore
+spec:
+  podSelector:
+    matchLabels:
+      app: inventory-service-postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: inventory-service
+      ports:
+        - port: 5432
+---
+# Database per service: only its own service may connect
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: delivery-db-from-delivery-service
+  namespace: voltstore
+spec:
+  podSelector:
+    matchLabels:
+      app: delivery-service-postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: delivery-service
+      ports:
+        - port: 5432
+---
+# Database per service: only its own service may connect
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: payment-db-from-payment-service
+  namespace: voltstore
+spec:
+  podSelector:
+    matchLabels:
+      app: payment-service-postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: payment-service
+      ports:
+        - port: 5432

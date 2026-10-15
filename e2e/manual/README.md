@@ -6,8 +6,10 @@ Testcontainers `ComposeContainer` module).
 
 | Runbook | Environment | Status |
 |---|---|---|
-| [docker-compose-catalog-inventory.md](docker-compose-catalog-inventory.md) | Docker Compose | Run successfully on 2026-10-12; updated 2026-10-13 after merging main (Catalog security headers, outbox, stock-event consumer, Inventory retry/DLT topics), not re-run since. The steps were re-checked on 2026-10-14 in an isolated Compose project with Inventory tasks 17–20 (outbox, Catalog existence check), see [Inventory task 18](../../docs/tasks/inventory-service/18-containerization-and-deployment.md) |
-| [k8s-catalog-inventory.md](k8s-catalog-inventory.md) | minikube | Run successfully on 2026-10-13; updated the same day after merging main, and on 2026-10-14 for Inventory's `CATALOG_SERVICE_URL`; not re-run since |
+| [docker-compose-catalog-inventory.md](docker-compose-catalog-inventory.md) | Docker Compose | Run successfully on 2026-10-12; updated 2026-10-13 after merging main (Catalog security headers, outbox, stock-event consumer, Inventory retry/DLT topics), not re-run since |
+| [k8s-catalog-inventory.md](k8s-catalog-inventory.md) | minikube | Run successfully on 2026-10-13; updated the same day after merging main, not re-run since |
+| [docker-compose-gateway.md](docker-compose-gateway.md) | Docker Compose | Run successfully on 2026-10-14 |
+| [k8s-gateway.md](k8s-gateway.md) | minikube (Calico CNI) | Run successfully on 2026-10-14 (separate minikube profile) |
 
 The fault-tolerance experiment (broker outage, consumer failure after commit, poison message) is recorded
 separately in [docs/reports/messaging-fault-tolerance.md](../../docs/reports/messaging-fault-tolerance.md).

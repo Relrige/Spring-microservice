@@ -22,6 +22,8 @@ spec:
     metadata:
       labels:
         app: kafka
+        app.kubernetes.io/part-of: voltstore
+        app.kubernetes.io/component: broker
     spec:
       # Otherwise Kubernetes injects KAFKA_PORT=tcp://... for the "kafka" Service, and the image
       # turns every KAFKA_* variable into a broker setting, which breaks startup

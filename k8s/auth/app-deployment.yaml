@@ -12,6 +12,8 @@ spec:
     metadata:
       labels:
         app: auth-service
+        app.kubernetes.io/part-of: voltstore
+        app.kubernetes.io/component: service
     spec:
       securityContext:
         runAsNonRoot: true

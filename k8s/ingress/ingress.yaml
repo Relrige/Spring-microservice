@@ -1,3 +1,6 @@
+# The API Gateway is the only external entry point: every path goes to it unchanged (no rewrite), and it
+# routes by method + path to the services. Services have no Ingress rules of their own.
+# TLS is not terminated here in the local setup (plain HTTP through "minikube tunnel").
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -5,46 +8,15 @@ metadata:
   namespace: voltstore
   labels:
     app: voltstore-platform
-  annotations:
-    nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
   ingressClassName: nginx
   rules:
     - http:
         paths:
-          - path: /catalog(/|$)(.*)
-            pathType: ImplementationSpecific
+          - path: /
+            pathType: Prefix
             backend:
               service:
-                name: catalog-service
+                name: api-gateway
                 port:
-                  number: 8081
-          - path: /orders(/|$)(.*)
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: order-service
-                port:
-                  number: 8082
-          - path: /delivery(/|$)(.*)
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: delivery-service
-                port:
-                  number: 8083
-          - path: /inventory(/|$)(.*)
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: inventory-service
-                port:
-                  number: 8084
-          - path: /payment(/|$)(.*)
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: payment-service
-                port:
-                  number: 8085
+                  number: 8080

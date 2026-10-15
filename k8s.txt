@@ -1,11 +1,14 @@
 # Cluster size is fixed when the cluster is created. To change it: "minikube delete", then start again.
 # 6 CPUs / 6 GB fit inside Docker Desktop's default VM (about 7.4 GB on a 16 GB laptop) only if the
 # Docker Compose stack is stopped while minikube runs ("docker compose stop").
-minikube start --cpus=6 --memory=6g
+# --cni=calico: the default CNI silently ignores the NetworkPolicy objects in k8s\network\ (trust boundary).
+# The CNI cannot be changed on an existing cluster: "minikube delete" first.
+minikube start --cpus=6 --memory=6g --cni=calico
 # The dashboard addon runs extra pods; enable it only when needed
 minikube addons disable dashboard
 
 
+docker build -t  voltstore/api-gateway:latest .\api-gateway
 docker build -t  voltstore/auth-service:latest .\auth-service
 docker build -t  voltstore/catalog-service:latest .\catalog-service
 docker build -t  voltstore/delivery-service:latest .\delivery-service
@@ -15,6 +18,7 @@ docker build -t  voltstore/payment-service:latest .\payment-service
 
 
 
+minikube image load voltstore/api-gateway:latest
 minikube image load voltstore/auth-service:latest
 minikube image load voltstore/catalog-service:latest
 minikube image load voltstore/delivery-service:latest
@@ -35,6 +39,11 @@ kubectl apply -f k8s\ -R
 #   kubectl apply -f k8s\kafka\
 #   kubectl apply -f k8s\catalog\
 #   kubectl apply -f k8s\inventory\
+# The gateway with the services it routes to (images: api-gateway, auth, catalog, inventory):
+#   kubectl apply -f k8s\base\ ; kubectl apply -f k8s\kafka\
+#   kubectl apply -f k8s\auth\ ; kubectl apply -f k8s\catalog\ ; kubectl apply -f k8s\inventory\
+#   kubectl apply -f k8s\gateway\
+# AUTH_JWT_SECRET must have the same value in auth-secrets and gateway-secrets.
 # Images already built by Docker Compose can be reused instead of "docker build":
 #   docker tag spring-microservice-inventory-service:latest voltstore/inventory-service:latest
 
@@ -47,6 +56,8 @@ kubectl get pods -n voltstore
 
 
 
+# External traffic: Ingress -> api-gateway only (k8s\ingress\). With "minikube tunnel" running the gateway is at
+# http://127.0.0.1/ (see e2e\manual\k8s-gateway.md)
 minikube addons enable ingress
 
 minikube tunnel

@@ -1,0 +1,177 @@
+spring:
+  application:
+    name: api-gateway
+  http:
+    clients:
+      # Upstream calls: an unreachable upstream fails fast (502), a slow one is cut off (504).
+      # The read timeout leaves room for upstreams that call other services with retries (catalog -> inventory).
+      connect-timeout: 2s
+      read-timeout: 15s
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          # Explicit allowlist: one route per method + path pair, no wildcards. Anything not listed is a 404.
+          # Paths are forwarded unchanged. Each route needs metadata.authMode (PUBLIC | OPTIONAL | REQUIRED) and,
+          # for REQUIRED routes, optionally metadata.roles (comma-separated), and must apply the TrustBoundary
+          # filter (strip/authenticate/authorize/propagate). RouteAccessPolicy refuses to start otherwise.
+          routes:
+            # --- auth-service ---
+            - id: auth-register
+              uri: ${gateway.upstreams.auth}
+              predicates:
+                - Method=POST
+                - Path=/user/register
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: PUBLIC
+            - id: auth-login
+              uri: ${gateway.upstreams.auth}
+              predicates:
+                - Method=POST
+                - Path=/auth/login
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: PUBLIC
+            - id: auth-create-non-customer
+              uri: ${gateway.upstreams.auth}
+              predicates:
+                - Method=POST
+                - Path=/user/non-customer
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: ADMIN
+
+            # --- catalog-service ---
+            # Optional: catalog managers get extra filters; a stale token is a 401, not a silent guest
+            - id: catalog-browse-products
+              uri: ${gateway.upstreams.catalog}
+              predicates:
+                - Method=GET
+                - Path=/catalog/products
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: OPTIONAL
+            # {id} is a UUID, so the internal GET /catalog/products/batch-get never matches here
+            - id: catalog-get-product
+              uri: ${gateway.upstreams.catalog}
+              predicates:
+                - Method=GET
+                - Path=/catalog/products/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: PUBLIC
+            - id: catalog-create-product
+              uri: ${gateway.upstreams.catalog}
+              predicates:
+                - Method=POST
+                - Path=/catalog/products
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CATALOG_MANAGER
+            - id: catalog-update-product
+              uri: ${gateway.upstreams.catalog}
+              predicates:
+                - Method=PUT
+                - Path=/catalog/products/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CATALOG_MANAGER
+            - id: catalog-change-product-status
+              uri: ${gateway.upstreams.catalog}
+              predicates:
+                - Method=PATCH
+                - Path=/catalog/products/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}/status
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CATALOG_MANAGER
+            - id: catalog-list-categories
+              uri: ${gateway.upstreams.catalog}
+              predicates:
+                - Method=GET
+                - Path=/catalog/categories
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: PUBLIC
+            - id: catalog-create-category
+              uri: ${gateway.upstreams.catalog}
+              predicates:
+                - Method=POST
+                - Path=/catalog/categories
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CATALOG_MANAGER
+            - id: catalog-modify-category
+              uri: ${gateway.upstreams.catalog}
+              predicates:
+                - Method=PUT,DELETE
+                - Path=/catalog/categories/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CATALOG_MANAGER
+
+            # --- inventory-service ---
+            # Not routed (internal): GET .../readiness, GET .../packaging, /inventory/reservations/**
+            - id: inventory-view-stock
+              uri: ${gateway.upstreams.inventory}
+              predicates:
+                - Method=GET
+                - Path=/inventory/stock
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: INVENTORY_WORKER
+            - id: inventory-adjust-stock
+              uri: ${gateway.upstreams.inventory}
+              predicates:
+                - Method=POST
+                - Path=/inventory/stock/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}/adjust
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: INVENTORY_WORKER
+            # Only PUT: GET on the same path is internal
+            - id: inventory-set-packaging
+              uri: ${gateway.upstreams.inventory}
+              predicates:
+                - Method=PUT
+                - Path=/inventory/stock/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}/packaging
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: INVENTORY_WORKER
+            # order, delivery and customer routes: task 10 (services do not expose the contract paths yet)
+
+auth:
+  jwt:
+    leeway: 30s
+
+management:
+  server:
+    # Actuator (health probes) on its own port, which is neither published nor routed: /actuator/** on the
+    # public port 8080 is a 404 like any other unrouted path
+    port: 8090
+  endpoint:
+    health:
+      probes:
+        enabled: true
