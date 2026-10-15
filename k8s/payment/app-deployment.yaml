@@ -4,7 +4,8 @@ metadata:
   name: payment-service
   namespace: voltstore
 spec:
-  # One replica is enough for the local minikube cluster; scale up temporarily to test consumer groups
+  # Must stay at one replica: the mock payment gateway keeps its idempotency keys in memory per pod, so a second pod
+  # would not recognise a repeated request and could charge twice
   replicas: 1
   selector:
     matchLabels:
@@ -31,6 +32,8 @@ spec:
                 name: payment-config
             - secretRef:
                 name: payment-db-credentials
+            - secretRef:
+                name: payment-secrets
           resources:
             requests:
               cpu: 100m

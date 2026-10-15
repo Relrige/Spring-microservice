@@ -1,34 +1,33 @@
 package ua.edu.ukma.springers.voltstore.payment.controllers;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import ua.edu.ukma.springers.voltstore.payment.domain.entity.PaymentTransaction;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import ua.edu.ukma.springers.voltstore.payment.dto.ChargeRequest;
+import ua.edu.ukma.springers.voltstore.payment.dto.PaymentResponse;
+import ua.edu.ukma.springers.voltstore.payment.dto.RefundRequest;
 import ua.edu.ukma.springers.voltstore.payment.services.PaymentService;
 
-import java.math.BigDecimal;
-import java.util.UUID;
-
+/** Internal endpoints called by Order Service only (see SecurityConfig); never routed by the API Gateway. */
 @RestController
-@RequestMapping("/api/v1/payments")
+@RequestMapping("/payments")
 @RequiredArgsConstructor
 public class PaymentController {
     private final PaymentService paymentService;
 
-    @PostMapping("/initiate")
-    public ResponseEntity<PaymentTransaction> initiate(@RequestParam UUID orderId, @RequestParam BigDecimal amount) {
-        return ResponseEntity.ok(paymentService.initiatePayment(orderId, amount));
+    // EP-PAY-01
+    @PostMapping("/charge")
+    public PaymentResponse charge(@Valid @RequestBody ChargeRequest request) {
+        return PaymentResponse.success(paymentService.charge(request.orderId(), request.amount(), request.currency(),
+                request.cardDetails().toPaymentCard()));
     }
 
-    @PostMapping("/callback")
-    public ResponseEntity<PaymentTransaction> callback(@RequestParam UUID orderId,
-                                                       @RequestParam String externalId,
-                                                       @RequestParam boolean success) {
-        return ResponseEntity.ok(paymentService.completePayment(orderId, externalId, success));
-    }
-
-    @PostMapping("/refund/{orderId}")
-    public ResponseEntity<PaymentTransaction> refund(@PathVariable UUID orderId) {
-        return ResponseEntity.ok(paymentService.refundPayment(orderId));
+    // EP-PAY-02
+    @PostMapping("/refund")
+    public PaymentResponse refund(@Valid @RequestBody RefundRequest request) {
+        return PaymentResponse.success(paymentService.refund(request.orderId(), request.amount(), request.currency()));
     }
 }

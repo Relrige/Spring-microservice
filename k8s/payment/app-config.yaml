@@ -6,6 +6,12 @@ metadata:
 data:
   POSTGRES_DB: "payment-service"
   SPRING_DATASOURCE_URL: "jdbc:postgresql://payment-service-postgres:5432/payment-service"
+  # Payment provider adapter (only the mock exists) and its call budget: time limit per call, and one repeat with
+  # the same idempotency key when the outcome is unknown (worst case about 4.5 s; Order's read timeout must exceed it)
+  PAYMENT_GATEWAY_PROVIDER: "mock"
+  PAYMENT_GATEWAY_TIMEOUT: "2s"
+  PAYMENT_GATEWAY_MAX_RETRIES: "1"
+  PAYMENT_GATEWAY_RETRY_DELAY: "300ms"
   # JVM settings live here only (not in the Dockerfile). Heap up to 70% of the container memory limit;
   # C1-only JIT and Serial GC: faster startup and less memory on a small local cluster
   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:TieredStopAtLevel=1 -XX:+UseSerialGC"
