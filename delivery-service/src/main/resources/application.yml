@@ -8,6 +8,12 @@ spring:
   mvc:
     problem-details:
       enabled: true
+  task:
+    scheduling:
+      pool:
+        # One scheduler runs the outbox relay and cleanup, the TTN generation job and the mock carrier's delivery
+        # reports; with the default single thread a slow relay run would delay all the others
+        size: 4
   autoconfigure:
     # Callers are identified by gateway headers; there is no username/password login, so no default in-memory user
     exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
@@ -63,6 +69,13 @@ delivery:
     # Published events are deleted after this long by a job running every cleanup-interval
     retention: 7d
     cleanup-interval: 1h
+  carrier:
+    mock:
+      # In-process mock carrier (MockCarrierGateway): probability that register/cancel fail (0.0-1.0), their
+      # latency, and the time between a handover and the delivery report (shorten it for e2e tests)
+      failure-rate: ${DELIVERY_CARRIER_MOCK_FAILURE_RATE:0.0}
+      latency: ${DELIVERY_CARRIER_MOCK_LATENCY:0}
+      delivery-delay: ${DELIVERY_CARRIER_MOCK_DELIVERY_DELAY:30s}
 management:
   endpoint:
     health:
