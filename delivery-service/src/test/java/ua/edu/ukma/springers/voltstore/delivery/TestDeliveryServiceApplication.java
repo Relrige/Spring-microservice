@@ -5,7 +5,7 @@ import org.springframework.boot.SpringApplication;
 public class TestDeliveryServiceApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.from(DeliveryServiceApplication::main).with(PostgresTestContainerConfig.class).run(args);
+		SpringApplication.from(DeliveryServiceApplication::main).with(PostgresTestContainerConfig.class, KafkaTestContainerConfig.class).run(args);
 	}
 
 }
