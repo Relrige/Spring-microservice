@@ -1,9 +1,13 @@
 package ua.edu.ukma.springers.voltstore.delivery.controllers;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import ua.edu.ukma.springers.voltstore.delivery.dto.ShipmentStatusResponse;
 import ua.edu.ukma.springers.voltstore.delivery.services.ShipmentService;
@@ -26,5 +30,15 @@ public class ShipmentController {
     public List<ShipmentStatusResponse> getShipmentStatuses(
             @RequestParam(required = false) List<UUID> orderIds) {
         return shipmentService.getStatuses(orderIds);
+    }
+
+    /**
+     * EP-DEL-02 (internal, Order's cancellation saga): {@code 204} for every outcome except a parcel already handed
+     * to the carrier ({@code 409}).
+     */
+    @DeleteMapping("/shipments/{orderId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void cancelShipment(@PathVariable UUID orderId) {
+        shipmentService.cancel(orderId);
     }
 }
