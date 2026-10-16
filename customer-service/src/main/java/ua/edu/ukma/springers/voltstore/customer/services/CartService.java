@@ -53,6 +53,35 @@ public class CartService {
         return changeIfExists(customerId, cart -> cart.remove(productId));
     }
 
+    /**
+     * EP-CUST-07: the cart becomes exactly {@code lines}. Duplicates are rejected before the lock is taken, since they
+     * depend only on the request.
+     */
+    @Transactional
+    public List<CartLine> replaceCart(UUID customerId, List<CartLine> lines) {
+        CartLine.requireNoDuplicates(lines);
+        return changeCreatingIfMissing(customerId, cart -> cart.replaceAll(lines));
+    }
+
+    /**
+     * EP-CUST-08: sums the quantities of products already in the cart. An empty request returns the current cart
+     * without creating or locking it. Not idempotent: a retried request is summed again (accepted limitation).
+     */
+    @Transactional
+    public List<CartLine> mergeIntoCart(UUID customerId, List<CartLine> lines) {
+        CartLine.requireNoDuplicates(lines);
+        if (lines.isEmpty()) {
+            return getCart(customerId);
+        }
+        return changeCreatingIfMissing(customerId, cart -> cart.mergeFrom(lines));
+    }
+
+    /** EP-CUST-09 and the OrderPaid consumer: deletes every line, keeps the cart row; no cart → nothing to do. */
+    @Transactional
+    public List<CartLine> clearCart(UUID customerId) {
+        return changeIfExists(customerId, Cart::clear);
+    }
+
     /** Create the cart if missing, lock it, apply the change; returns the resulting lines. */
     @Transactional
     public List<CartLine> changeCreatingIfMissing(UUID customerId, Consumer<Cart> change) {

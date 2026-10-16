@@ -8,11 +8,13 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ua.edu.ukma.springers.voltstore.customer.dto.AddCartItemRequest;
 import ua.edu.ukma.springers.voltstore.customer.dto.CartItemResponse;
+import ua.edu.ukma.springers.voltstore.customer.dto.CartItemsRequest;
 import ua.edu.ukma.springers.voltstore.customer.dto.SetCartItemQuantityRequest;
 import ua.edu.ukma.springers.voltstore.customer.security.AuthenticatedUser;
 import ua.edu.ukma.springers.voltstore.customer.services.CartService;
@@ -34,6 +36,26 @@ public class CartController {
     @GetMapping
     public List<CartItemResponse> getCart(@AuthenticationPrincipal AuthenticatedUser customer) {
         return CartItemResponse.from(cartService.getCart(customer.id()));
+    }
+
+    /** EP-CUST-07: replace the whole cart (idempotent) */
+    @PutMapping
+    public List<CartItemResponse> replaceCart(@AuthenticationPrincipal AuthenticatedUser customer,
+                                              @Valid @RequestBody CartItemsRequest request) {
+        return CartItemResponse.from(cartService.replaceCart(customer.id(), request.toLines()));
+    }
+
+    /** EP-CUST-08: merge items into the cart, summing quantities (not idempotent) */
+    @PostMapping("/merge")
+    public List<CartItemResponse> mergeIntoCart(@AuthenticationPrincipal AuthenticatedUser customer,
+                                                @Valid @RequestBody CartItemsRequest request) {
+        return CartItemResponse.from(cartService.mergeIntoCart(customer.id(), request.toLines()));
+    }
+
+    /** EP-CUST-09: delete every item, keep the cart (idempotent) */
+    @DeleteMapping
+    public List<CartItemResponse> clearCart(@AuthenticationPrincipal AuthenticatedUser customer) {
+        return CartItemResponse.from(cartService.clearCart(customer.id()));
     }
 
     /** EP-CUST-04 */
