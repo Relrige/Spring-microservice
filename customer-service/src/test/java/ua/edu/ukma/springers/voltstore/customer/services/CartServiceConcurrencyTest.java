@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import ua.edu.ukma.springers.voltstore.customer.KafkaTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.customer.PostgresTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.customer.entities.CartLine;
 import ua.edu.ukma.springers.voltstore.customer.exceptions.CartRuleViolation;
@@ -24,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * exceed the limits, or fail on the primary key. Threads are released together to provoke those races.
  */
 @SpringBootTest
-@Import(PostgresTestContainerConfig.class)
+@Import({PostgresTestContainerConfig.class, KafkaTestContainerConfig.class})
 class CartServiceConcurrencyTest {
     private static final UUID PRODUCT = UUID.randomUUID();
 

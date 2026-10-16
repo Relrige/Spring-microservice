@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import ua.edu.ukma.springers.voltstore.customer.KafkaTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.customer.PostgresTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.customer.support.Concurrently;
 import ua.edu.ukma.springers.voltstore.customer.support.TrustedHeaders;
@@ -26,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 // Task 04 (EP-CUST-01, EP-CUST-02)
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(PostgresTestContainerConfig.class)
+@Import({PostgresTestContainerConfig.class, KafkaTestContainerConfig.class})
 class CustomerProfileIntegrationTest {
     private static final String VALID = """
             {"firstName":"Ivan","lastName":"Petrenko","phone":"+380501234567","defaultAddress":"Kyiv, branch 12"}

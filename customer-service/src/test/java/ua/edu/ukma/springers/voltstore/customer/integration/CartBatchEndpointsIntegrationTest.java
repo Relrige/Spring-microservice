@@ -8,6 +8,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import ua.edu.ukma.springers.voltstore.customer.KafkaTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.customer.PostgresTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.customer.support.CartApi;
 
@@ -24,7 +25,7 @@ import static ua.edu.ukma.springers.voltstore.customer.support.CartApi.items;
 // Task 07 (EP-CUST-07 to EP-CUST-09)
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(PostgresTestContainerConfig.class)
+@Import({PostgresTestContainerConfig.class, KafkaTestContainerConfig.class})
 class CartBatchEndpointsIntegrationTest {
     private static final UUID A = UUID.fromString("00000000-0000-0000-0000-00000000000a");
     private static final UUID B = UUID.fromString("00000000-0000-0000-0000-00000000000b");
