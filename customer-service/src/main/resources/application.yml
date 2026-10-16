@@ -11,6 +11,9 @@ spring:
   mvc:
     problem-details:
       enabled: true
+  autoconfigure:
+    # Callers are identified by gateway headers; there is no username/password login, so no default in-memory user
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   jackson:
     deserialization:
       # Reject 1.5 for an integer field instead of silently truncating it to 1
