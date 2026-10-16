@@ -21,11 +21,15 @@
 |--------|------|-----------|-------------|
 | `GET` | `/customers/me/profile` | `CUSTOMER` | Get profile (lazy creation if missing). <br> **Res:** `200 OK {firstName, lastName, phone, defaultAddress}` |
 | `PUT` | `/customers/me/profile` | `CUSTOMER` | Upsert profile. <br> **Req:** `{firstName, lastName, phone, defaultAddress}` <br> **Res:** `200 OK` |
-| `GET` | `/customers/cart` | `CUSTOMER` | Get cart items. <br> **Res:** `200 OK [{productId, quantity}]` |
-| `POST` | `/customers/cart/items` | `CUSTOMER` | Add item or increment quantity. <br> **Req:** `{productId, quantity}` <br> **Res:** `200 OK` (returns updated cart) |
-| `PATCH`| `/customers/cart/items/{id}`| `CUSTOMER` | Update explicit quantity. <br> **Req:** `{quantity}` <br> **Res:** `200 OK` |
-| `DELETE`|`/customers/cart/items/{id}`| `CUSTOMER` | Remove item from cart. <br> **Res:** `200 OK` |
-| `POST` | `/customers/cart/merge` | `CUSTOMER` | Merge guest cart after login. <br> **Req:** `{items: [{productId, quantity}]}` <br> **Res:** `200 OK` |
+| `GET` | `/customers/cart` | `CUSTOMER` | Get cart items (missing cart → empty). <br> **Res:** `200 OK [{productId, quantity}]` |
+| `PUT` | `/customers/cart` | `CUSTOMER` | Replace the whole cart (idempotent). <br> **Req:** `{items: [{productId, quantity}]}` <br> **Res:** `200 OK [{productId, quantity}]` or `400` or `422` (duplicate `productId`, > 10 products, quantity > 10) |
+| `POST` | `/customers/cart/merge` | `CUSTOMER` | Merge items into the cart, summing quantities of products already in it (not idempotent). <br> **Req:** `{items: [{productId, quantity}]}` <br> **Res:** `200 OK [{productId, quantity}]` or `400` or `422` (duplicate `productId`, merged result > 10 products or any quantity > 10) |
+| `DELETE`| `/customers/cart` | `CUSTOMER` | Clear the cart (deletes all items, keeps the cart; idempotent). <br> **Res:** `200 OK []` |
+| `POST` | `/customers/cart/items` | `CUSTOMER` | Add item or increment quantity. <br> **Req:** `{productId, quantity}` <br> **Res:** `200 OK [{productId, quantity}]` or `400` or `422` (cart would exceed 10 products or quantity 10) |
+| `PATCH`| `/customers/cart/items/{productId}`| `CUSTOMER` | Set explicit quantity. <br> **Req:** `{quantity}` <br> **Res:** `200 OK [{productId, quantity}]` or `400` or `404` (item not in cart) or `422` (quantity > 10) |
+| `DELETE`|`/customers/cart/items/{productId}`| `CUSTOMER` | Remove item from cart (idempotent). <br> **Res:** `200 OK [{productId, quantity}]` |
+
+Cart rules: at most 10 distinct products per cart, quantity 1–10 per product. `400` = malformed request (including `quantity` < 1); `422` = a cart rule is broken (Problem Details body with a `violation` code). See the Customer Service spec, *Cart Aggregate* section.
 
 ---
 
