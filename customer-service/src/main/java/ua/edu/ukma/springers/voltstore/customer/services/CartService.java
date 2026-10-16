@@ -20,6 +20,9 @@ import java.util.function.Consumer;
  *       behaves as an empty one.</li>
  * </ul>
  * The change itself is a call on the {@link Cart} aggregate, which checks the invariants. Reads take no lock.
+ * <p>
+ * The endpoint methods call the access paths on {@code this}, which bypasses the transactional proxy, so each of them
+ * is {@code @Transactional} itself.
  */
 @Service
 @RequiredArgsConstructor
@@ -30,6 +33,24 @@ public class CartService {
     @Transactional(readOnly = true)
     public List<CartLine> getCart(UUID customerId) {
         return cartRepository.findById(customerId).map(Cart::lines).orElseGet(List::of);
+    }
+
+    /** EP-CUST-04 */
+    @Transactional
+    public List<CartLine> addItem(UUID customerId, UUID productId, int quantity) {
+        return changeCreatingIfMissing(customerId, cart -> cart.add(productId, quantity));
+    }
+
+    /** EP-CUST-05: no cart or no such line → 404 */
+    @Transactional
+    public List<CartLine> setItemQuantity(UUID customerId, UUID productId, int quantity) {
+        return changeIfExists(customerId, cart -> cart.setQuantity(productId, quantity));
+    }
+
+    /** EP-CUST-06: idempotent */
+    @Transactional
+    public List<CartLine> removeItem(UUID customerId, UUID productId) {
+        return changeIfExists(customerId, cart -> cart.remove(productId));
     }
 
     /** Create the cart if missing, lock it, apply the change; returns the resulting lines. */

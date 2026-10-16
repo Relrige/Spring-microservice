@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+import ua.edu.ukma.springers.voltstore.customer.services.CartService;
 import ua.edu.ukma.springers.voltstore.customer.services.CustomerProfileService;
 import ua.edu.ukma.springers.voltstore.customer.support.TrustedHeaders;
 
@@ -41,6 +42,9 @@ class RouteSecurityRulesTest {
 
     @MockitoBean
     private CustomerProfileService customerProfileService;
+
+    @MockitoBean
+    private CartService cartService;
 
     @Test
     void everyApplicationRouteHasAnExplicitRule() throws Exception {
