@@ -134,6 +134,34 @@ services:
     env_file:
       - order-service/.env
 
+  # customer-service section
+  customer-service-postgres:
+    container_name: customer-service-pg
+    image: postgres:18-alpine
+    volumes:
+      - customer-service-postgres:/var/lib/postgresql
+    env_file:
+      - customer-service/.env
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  customer-service:
+    container_name: customer-service
+    build:
+      context: ./customer-service
+    depends_on:
+      customer-service-postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8087:8080"
+    env_file:
+      - customer-service/.env
+
   # delivery-service section
   delivery-service-postgres:
     container_name: delivery-service-pg
@@ -221,6 +249,7 @@ volumes:
   auth-service-postgres:
   catalog-service-postgres:
   order-service-postgres:
+  customer-service-postgres:
   delivery-service-postgres:
   inventory-service-postgres:
   payment-service-postgres:

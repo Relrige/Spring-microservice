@@ -11,6 +11,7 @@ minikube addons disable dashboard
 docker build -t  voltstore/api-gateway:latest .\api-gateway
 docker build -t  voltstore/auth-service:latest .\auth-service
 docker build -t  voltstore/catalog-service:latest .\catalog-service
+docker build -t  voltstore/customer-service:latest .\customer-service
 docker build -t  voltstore/delivery-service:latest .\delivery-service
 docker build -t  voltstore/inventory-service:latest .\inventory-service
 docker build -t  voltstore/order-service:latest .\order-service
@@ -21,6 +22,7 @@ docker build -t  voltstore/payment-service:latest .\payment-service
 minikube image load voltstore/api-gateway:latest
 minikube image load voltstore/auth-service:latest
 minikube image load voltstore/catalog-service:latest
+minikube image load voltstore/customer-service:latest
 minikube image load voltstore/delivery-service:latest
 minikube image load voltstore/inventory-service:latest
 minikube image load voltstore/order-service:latest
