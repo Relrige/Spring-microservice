@@ -19,8 +19,8 @@
 
 | Method | Path | Auth Role | Description |
 |--------|------|-----------|-------------|
-| `GET` | `/customers/me/profile` | `CUSTOMER` | Get profile (lazy creation if missing). <br> **Res:** `200 OK {firstName, lastName, phone, defaultAddress}` |
-| `PUT` | `/customers/me/profile` | `CUSTOMER` | Upsert profile. <br> **Req:** `{firstName, lastName, phone, defaultAddress}` <br> **Res:** `200 OK` |
+| `GET` | `/customers/me/profile` | `CUSTOMER` | Get profile; a customer who never saved one gets all fields `null` (no row is created). <br> **Res:** `200 OK {firstName, lastName, phone, defaultAddress}` |
+| `PUT` | `/customers/me/profile` | `CUSTOMER` | Upsert profile. <br> **Req:** `{firstName, lastName, phone, defaultAddress}` (names required; `phone` required, E.164; `defaultAddress` optional) <br> **Res:** `200 OK {firstName, lastName, phone, defaultAddress}` or `400` (field errors) |
 | `GET` | `/customers/cart` | `CUSTOMER` | Get cart items (missing cart → empty). <br> **Res:** `200 OK [{productId, quantity}]` |
 | `PUT` | `/customers/cart` | `CUSTOMER` | Replace the whole cart (idempotent). <br> **Req:** `{items: [{productId, quantity}]}` <br> **Res:** `200 OK [{productId, quantity}]` or `400` or `422` (duplicate `productId`, > 10 products, quantity > 10) |
 | `POST` | `/customers/cart/merge` | `CUSTOMER` | Merge items into the cart, summing quantities of products already in it (not idempotent). <br> **Req:** `{items: [{productId, quantity}]}` <br> **Res:** `200 OK [{productId, quantity}]` or `400` or `422` (duplicate `productId`, merged result > 10 products or any quantity > 10) |
