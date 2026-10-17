@@ -15,7 +15,8 @@ import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 import ua.edu.ukma.springers.voltstore.order.config.CheckoutConfig;
 import ua.edu.ukma.springers.voltstore.order.services.CheckoutCheckService;
-import ua.edu.ukma.springers.voltstore.order.services.OrderAccess;
+import ua.edu.ukma.springers.voltstore.order.services.OrderPaymentService;
+import ua.edu.ukma.springers.voltstore.order.services.OrderQueryService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderPlacementService;
 import ua.edu.ukma.springers.voltstore.order.support.OrderRoutesProbeController;
 import ua.edu.ukma.springers.voltstore.order.support.TrustedHeaders;
@@ -47,7 +48,10 @@ class RouteSecurityRulesTest {
     private RequestMappingHandlerMapping handlerMapping;
 
     @MockitoBean
-    private OrderAccess orderAccess;
+    private OrderPaymentService payment;
+
+    @MockitoBean
+    private OrderQueryService queries;
 
     @MockitoBean
     private CheckoutCheckService checkoutCheck;

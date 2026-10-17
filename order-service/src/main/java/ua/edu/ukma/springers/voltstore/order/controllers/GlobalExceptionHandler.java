@@ -23,6 +23,7 @@ import ua.edu.ukma.springers.voltstore.order.exceptions.PaymentAttemptInProgress
 import ua.edu.ukma.springers.voltstore.order.exceptions.PaymentDeclinedException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.PaymentWindowExpiredException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.TtnNotGeneratedException;
+import ua.edu.ukma.springers.voltstore.order.paging.InvalidQueryParameterException;
 
 import java.net.URI;
 import java.time.Instant;
@@ -97,6 +98,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(TtnNotGeneratedException.class)
     public ProblemDetail handleTtnNotGenerated(TtnNotGeneratedException ex) {
         return problem(HttpStatus.CONFLICT, "conflict", "TTN not generated", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidQueryParameterException.class)
+    public ProblemDetail handleInvalidQueryParameter(InvalidQueryParameterException ex) {
+        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "validation", "Validation failed", ex.getMessage());
+        problem.setProperty("errors", Map.of(ex.getParameter(), List.of(ex.getMessage())));
+        return problem;
     }
 
     @ExceptionHandler(MissingCustomerEmailException.class)

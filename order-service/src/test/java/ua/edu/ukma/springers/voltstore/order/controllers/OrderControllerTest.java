@@ -10,18 +10,32 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.mockito.ArgumentCaptor;
 import ua.edu.ukma.springers.voltstore.order.config.CheckoutConfig;
+import ua.edu.ukma.springers.voltstore.order.dto.CardDetailsRequest;
 import ua.edu.ukma.springers.voltstore.order.dto.IneligibleItem;
 import ua.edu.ukma.springers.voltstore.order.dto.InsufficientItem;
+import ua.edu.ukma.springers.voltstore.order.dto.OrderDetailsResponse;
+import ua.edu.ukma.springers.voltstore.order.dto.OrderSummaryResponse;
+import ua.edu.ukma.springers.voltstore.order.dto.PaidOrderResponse;
 import ua.edu.ukma.springers.voltstore.order.dto.PlacedOrderResponse;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderStatus;
 import ua.edu.ukma.springers.voltstore.order.exceptions.DependencyUnavailableException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.IneligibleItemsException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.InsufficientStockException;
+import ua.edu.ukma.springers.voltstore.order.exceptions.InvalidOrderStateException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.MissingCustomerEmailException;
+import ua.edu.ukma.springers.voltstore.order.exceptions.OrderNotFoundException;
+import ua.edu.ukma.springers.voltstore.order.exceptions.PaymentDeclinedException;
+import ua.edu.ukma.springers.voltstore.order.exceptions.PaymentWindowExpiredException;
+import ua.edu.ukma.springers.voltstore.order.paging.InvalidQueryParameterException;
+import ua.edu.ukma.springers.voltstore.order.paging.PageResponse;
+import ua.edu.ukma.springers.voltstore.order.ports.Shipments;
 import ua.edu.ukma.springers.voltstore.order.security.SecurityConfig;
 import ua.edu.ukma.springers.voltstore.order.services.CheckoutCheckService;
+import ua.edu.ukma.springers.voltstore.order.services.OrderPaymentService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderPlacementService;
+import ua.edu.ukma.springers.voltstore.order.services.OrderQueryService;
 import ua.edu.ukma.springers.voltstore.order.support.TrustedHeaders;
 
 import java.math.BigDecimal;
@@ -31,23 +45,29 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasKey;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** EP-ORD-01 and EP-ORD-02 at the HTTP boundary: validation, status codes and bodies, with the services mocked. */
+/** EP-ORD-01 to EP-ORD-05 at the HTTP boundary: validation, status codes and bodies, with the services mocked. */
 @WebMvcTest(OrderController.class)
 @Import({SecurityConfig.class, CheckoutConfig.class})
 class OrderControllerTest {
     private static final UUID CUSTOMER_ID = UUID.randomUUID();
     private static final String PHONE = UUID.randomUUID().toString();
+    private static final String CARD =
+            "{\"number\":\"4242424242424242\",\"expiryMonth\":12,\"expiryYear\":2099,\"cvv\":\"123\"}";
     private static final String DELIVERY = """
             {"name":"Ivan Petrenko","phone":"+380501234567","address":"Kyiv, branch 12","carrier":"NOVA_POSHTA"}""";
 
@@ -59,6 +79,12 @@ class OrderControllerTest {
 
     @MockitoBean
     private OrderPlacementService placement;
+
+    @MockitoBean
+    private OrderPaymentService payment;
+
+    @MockitoBean
+    private OrderQueryService queries;
 
     // ---- EP-ORD-01 ----
 
@@ -226,6 +252,150 @@ class OrderControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content(placeBody(DELIVERY)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.detail").value("Authentication required"));
+    }
+
+    // ---- EP-ORD-03 ----
+
+    @Test
+    void pay_is200_withTheNewStatus() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        when(payment.pay(eq(orderId), any(), any())).thenReturn(new PaidOrderResponse(orderId, OrderStatus.PAID));
+
+        pay(orderId, CARD)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orderId").value(orderId.toString()))
+                .andExpect(jsonPath("$.status").value("PAID"));
+
+        ArgumentCaptor<CardDetailsRequest> card = ArgumentCaptor.forClass(CardDetailsRequest.class);
+        verify(payment).pay(eq(orderId), any(), card.capture());
+        assertThat(card.getValue().number()).isEqualTo("4242424242424242");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {
+            "{\"number\":\"4242\",\"expiryMonth\":12,\"expiryYear\":2099,\"cvv\":\"123\"}",
+            "{\"number\":\"4242424242424242\",\"expiryMonth\":13,\"expiryYear\":2099,\"cvv\":\"123\"}",
+            "{\"number\":\"4242424242424242\",\"expiryMonth\":1,\"expiryYear\":2020,\"cvv\":\"123\"}",
+            "{\"number\":\"4242424242424242\",\"expiryMonth\":12,\"expiryYear\":2099,\"cvv\":\"12\"}",
+            "{\"number\":\"4242424242424242\",\"expiryMonth\":12,\"expiryYear\":2099}"
+    })
+    void pay_invalidCard_is400_beforeAnyCall_andNeverEchoesTheCard(String card) throws Exception {
+        String response = pay(UUID.randomUUID(), card)
+                .andExpect(status().isBadRequest())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(response).doesNotContain("4242424242424242").doesNotContain("\"123\"");
+        verifyNoInteractions(payment);
+    }
+
+    @Test
+    void pay_withoutCardDetails_is400() throws Exception {
+        mockMvc.perform(post("/orders/" + UUID.randomUUID() + "/pay").headers(TrustedHeaders.asCustomer(CUSTOMER_ID))
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors", hasKey("cardDetails")));
+    }
+
+    @Test
+    void pay_declined_is402_withTheReason() throws Exception {
+        when(payment.pay(any(), any(), any())).thenThrow(new PaymentDeclinedException("insufficient_funds"));
+
+        pay(UUID.randomUUID(), CARD)
+                .andExpect(status().isPaymentRequired())
+                .andExpect(jsonPath("$.reason").value("insufficient_funds"));
+    }
+
+    @Test
+    void pay_windowExpired_is409_withItsOwnType() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        when(payment.pay(any(), any(), any())).thenThrow(new PaymentWindowExpiredException(orderId));
+
+        pay(orderId, CARD)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/payment-window-expired"));
+    }
+
+    @Test
+    void pay_notAwaitingPayment_is409_withTheStatus() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        when(payment.pay(any(), any(), any()))
+                .thenThrow(new InvalidOrderStateException(orderId, OrderStatus.CANCELLED, "be paid"));
+
+        pay(orderId, CARD)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.orderStatus").value("CANCELLED"));
+    }
+
+    @Test
+    void pay_someoneElsesOrder_is404() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        when(payment.pay(any(), any(), any())).thenThrow(new OrderNotFoundException(orderId));
+
+        pay(orderId, CARD).andExpect(status().isNotFound());
+    }
+
+    // ---- EP-ORD-04 / EP-ORD-05 ----
+
+    @Test
+    void history_defaultsToTheFirstPageOf20() throws Exception {
+        when(queries.history(any(), eq(0), eq(20))).thenReturn(new PageResponse<>(List.of(new OrderSummaryResponse(
+                UUID.randomUUID(), OrderStatus.PAID, new BigDecimal("100.00"), "UAH",
+                Instant.parse("2026-10-17T10:00:00Z"))), 0, 20, 1));
+
+        mockMvc.perform(get("/orders").headers(TrustedHeaders.asCustomer(CUSTOMER_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].status").value("PAID"))
+                .andExpect(jsonPath("$.content[0].placedAt").value("2026-10-17T10:00:00Z"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void history_invalidPaging_is400_namingTheParameter() throws Exception {
+        when(queries.history(any(), eq(0), eq(500)))
+                .thenThrow(new InvalidQueryParameterException("size", "size must be between 1 and 100"));
+
+        mockMvc.perform(get("/orders?size=500").headers(TrustedHeaders.asCustomer(CUSTOMER_ID)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.size[0]").value("size must be between 1 and 100"));
+        mockMvc.perform(get("/orders?page=abc").headers(TrustedHeaders.asCustomer(CUSTOMER_ID)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void details_is200_withItemsDeliveryAndShipment() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        when(queries.details(eq(orderId), any())).thenReturn(new OrderDetailsResponse(orderId, OrderStatus.PAID,
+                List.of(new OrderDetailsResponse.Item(UUID.fromString(PHONE), "Phone", new BigDecimal("100.00"), 2)),
+                new OrderDetailsResponse.Delivery("Ivan Petrenko", "+380501234567", "Kyiv, branch 12",
+                        "NOVA_POSHTA"),
+                new BigDecimal("200.00"), "UAH", Instant.parse("2026-10-17T10:00:00Z"),
+                Instant.parse("2026-10-17T10:01:00Z"), Instant.parse("2026-10-17T10:15:00Z"), "20450012345678",
+                Shipments.DeliveryStatus.TTN_GENERATED));
+
+        mockMvc.perform(get("/orders/" + orderId).headers(TrustedHeaders.asCustomer(CUSTOMER_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].productTitle").value("Phone"))
+                .andExpect(jsonPath("$.items[0].unitPriceAtOrder").value(100.00))
+                .andExpect(jsonPath("$.deliveryDetails.address").value("Kyiv, branch 12"))
+                .andExpect(jsonPath("$.paidAt").value("2026-10-17T10:01:00Z"))
+                .andExpect(jsonPath("$.ttn").value("20450012345678"))
+                .andExpect(jsonPath("$.deliveryStatus").value("TTN_GENERATED"));
+    }
+
+    @Test
+    void details_ofAMissingOrForeignOrder_is404() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        when(queries.details(eq(orderId), any())).thenThrow(new OrderNotFoundException(orderId));
+
+        mockMvc.perform(get("/orders/" + orderId).headers(TrustedHeaders.asCustomer(CUSTOMER_ID)))
+                .andExpect(status().isNotFound());
+    }
+
+    private ResultActions pay(UUID orderId, String card) throws Exception {
+        return mockMvc.perform(post("/orders/" + orderId + "/pay").headers(TrustedHeaders.asCustomer(CUSTOMER_ID))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"cardDetails\":" + card + "}"));
     }
 
     private ResultActions validate(String body) throws Exception {

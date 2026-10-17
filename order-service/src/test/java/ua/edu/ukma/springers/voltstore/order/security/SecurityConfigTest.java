@@ -19,7 +19,8 @@ import ua.edu.ukma.springers.voltstore.order.controllers.OrderController;
 import ua.edu.ukma.springers.voltstore.order.dto.PlacedOrderResponse;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderStatus;
 import ua.edu.ukma.springers.voltstore.order.services.CheckoutCheckService;
-import ua.edu.ukma.springers.voltstore.order.services.OrderAccess;
+import ua.edu.ukma.springers.voltstore.order.services.OrderPaymentService;
+import ua.edu.ukma.springers.voltstore.order.services.OrderQueryService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderPlacementService;
 import ua.edu.ukma.springers.voltstore.order.support.OrderRoutesProbeController;
 import ua.edu.ukma.springers.voltstore.order.support.TrustedHeaders;
@@ -48,17 +49,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, CheckoutConfig.class, OrderRoutesProbeController.class})
 class SecurityConfigTest {
     private static final String ORDER = "/orders/" + UUID.randomUUID();
-    // Valid for both real POST endpoints (the soft check ignores deliveryDetails)
+    // Valid for all three real POST endpoints (each ignores the fields of the others)
     private static final String BODY = """
             {"items":[{"productId":"%s","quantity":1}],
              "deliveryDetails":{"name":"Ivan Petrenko","phone":"+380501234567","address":"Kyiv, branch 12",
-                                "carrier":"NOVA_POSHTA"}}""".formatted(UUID.randomUUID());
+                                "carrier":"NOVA_POSHTA"},
+             "cardDetails":{"number":"4242424242424242","expiryMonth":12,"expiryYear":2099,"cvv":"123"}}"""
+            .formatted(UUID.randomUUID());
 
     @Autowired
     private MockMvc mockMvc;
 
     @MockitoBean
-    private OrderAccess orderAccess;
+    private OrderPaymentService payment;
+
+    @MockitoBean
+    private OrderQueryService queries;
 
     @MockitoBean
     private CheckoutCheckService checkoutCheck;
