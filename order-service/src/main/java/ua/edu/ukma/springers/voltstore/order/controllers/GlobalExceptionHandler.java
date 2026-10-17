@@ -17,6 +17,7 @@ import ua.edu.ukma.springers.voltstore.order.exceptions.DependencyUnavailableExc
 import ua.edu.ukma.springers.voltstore.order.exceptions.IneligibleItemsException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.InsufficientStockException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.InvalidOrderStateException;
+import ua.edu.ukma.springers.voltstore.order.exceptions.MissingCustomerEmailException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.OrderNotFoundException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.PaymentAttemptInProgressException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.PaymentDeclinedException;
@@ -96,6 +97,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(TtnNotGeneratedException.class)
     public ProblemDetail handleTtnNotGenerated(TtnNotGeneratedException ex) {
         return problem(HttpStatus.CONFLICT, "conflict", "TTN not generated", ex.getMessage());
+    }
+
+    @ExceptionHandler(MissingCustomerEmailException.class)
+    public ProblemDetail handleMissingCustomerEmail(MissingCustomerEmailException ex) {
+        // Not the customer's fault: the gateway or Auth does not pass the email on (decision D1)
+        log.error("A customer request has no X-User-Email header: check that Auth puts the email claim into the JWT "
+                + "and the API Gateway forwards it");
+        return problem(HttpStatus.UNAUTHORIZED, "unauthorized", "Unauthorized", "Authentication required");
     }
 
     @ExceptionHandler(DependencyUnavailableException.class)

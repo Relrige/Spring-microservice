@@ -30,6 +30,11 @@ spring:
         spring.json.add.type.headers: false
 
 order:
+  checkout:
+    # How long a new order may be paid; its reservation is released after that
+    payment-window: ${ORDER_PAYMENT_WINDOW:15m}
+    # Carriers a customer may choose at checkout; Delivery must be able to register parcels with each of them
+    carriers: ${ORDER_CARRIERS:NOVA_POSHTA}
   kafka:
     topics:
       # Owned and declared by Order: OrderPlaced, OrderPaid, OrderShipped, OrderCancelled (key = orderId).

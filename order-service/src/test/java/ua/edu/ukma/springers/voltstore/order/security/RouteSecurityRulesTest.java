@@ -13,7 +13,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+import ua.edu.ukma.springers.voltstore.order.config.CheckoutConfig;
+import ua.edu.ukma.springers.voltstore.order.services.CheckoutCheckService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderAccess;
+import ua.edu.ukma.springers.voltstore.order.services.OrderPlacementService;
 import ua.edu.ukma.springers.voltstore.order.support.OrderRoutesProbeController;
 import ua.edu.ukma.springers.voltstore.order.support.TrustedHeaders;
 
@@ -34,7 +37,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * controllers are picked up by this slice automatically.
  */
 @WebMvcTest
-@Import({SecurityConfig.class, OrderRoutesProbeController.class})
+@Import({SecurityConfig.class, CheckoutConfig.class, OrderRoutesProbeController.class})
 class RouteSecurityRulesTest {
 
     @Autowired
@@ -45,6 +48,12 @@ class RouteSecurityRulesTest {
 
     @MockitoBean
     private OrderAccess orderAccess;
+
+    @MockitoBean
+    private CheckoutCheckService checkoutCheck;
+
+    @MockitoBean
+    private OrderPlacementService placement;
 
     @Test
     void everyApplicationRouteHasAnExplicitRule() throws Exception {

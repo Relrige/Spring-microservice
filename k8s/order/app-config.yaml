@@ -13,6 +13,9 @@ data:
   DELIVERY_SERVICE_URL: "http://delivery-service:8083"
   # At least 6s: Payment's own worst case is about 4.5 s
   PAYMENT_READ_TIMEOUT: "8s"
+  # How long a new order may be paid; its reservation is released after that
+  ORDER_PAYMENT_WINDOW: "15m"
+  ORDER_CARRIERS: "NOVA_POSHTA"
   SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
   ORDER_EVENTS_TOPIC: "order.order-events"
   # JVM settings live here only (not in the Dockerfile). Heap up to 70% of the container memory limit;
