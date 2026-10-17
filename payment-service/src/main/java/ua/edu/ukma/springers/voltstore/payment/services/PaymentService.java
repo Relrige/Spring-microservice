@@ -1,5 +1,6 @@
 package ua.edu.ukma.springers.voltstore.payment.services;
 
+import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.core.retry.RetryException;
@@ -53,11 +54,13 @@ public class PaymentService {
     private final PaymentTransactionRepository repository;
     private final PaymentGateway gateway;
     private final RetryTemplate retryTemplate;
+    private final PaymentMetrics metrics;
 
     public PaymentService(PaymentTransactionRepository repository, PaymentGateway gateway,
-                          GatewayProperties gatewayProperties) {
+                          GatewayProperties gatewayProperties, PaymentMetrics metrics) {
         this.repository = repository;
         this.gateway = gateway;
+        this.metrics = metrics;
         // Spring Framework 7's built-in retry; only uncertain outcomes are repeated (safe thanks to the idempotency key)
         Duration retryDelay = gatewayProperties.retryDelay();
         this.retryTemplate = new RetryTemplate(RetryPolicy.builder()
@@ -87,9 +90,12 @@ public class PaymentService {
                 () -> gateway.charge(new ChargeCommand(key, amount, currency, card)));
 
         return switch (result) {
-            case GatewayResult.Approved approved -> saveSuccess(CHARGE, orderId, amount, currency,
-                    approved.gatewayTransactionId(), key, SUCCESSFUL_CHARGE_INDEX,
-                    () -> new OrderAlreadyChargedException(orderId));
+            case GatewayResult.Approved approved -> {
+                UUID id = saveSuccess(CHARGE, orderId, amount, currency, approved.gatewayTransactionId(), key,
+                        SUCCESSFUL_CHARGE_INDEX, () -> new OrderAlreadyChargedException(orderId));
+                metrics.recordApprovedAmount(CHARGE, amount, currency);
+                yield id;
+            }
             case GatewayResult.Declined declined -> {
                 FailureReason reason = toFailureReason(declined.reason());
                 repository.saveAndFlush(PaymentTransactionEntity.failed(CHARGE, orderId, amount, currency, reason, key));
@@ -123,9 +129,12 @@ public class PaymentService {
                 () -> gateway.refund(new RefundCommand(key, charge.getGatewayTransactionId(), amount, currency)));
 
         return switch (result) {
-            case GatewayResult.Approved approved -> saveSuccess(REFUND, orderId, amount, currency,
-                    approved.gatewayTransactionId(), key, SUCCESSFUL_REFUND_INDEX,
-                    () -> new OrderAlreadyRefundedException(orderId));
+            case GatewayResult.Approved approved -> {
+                UUID id = saveSuccess(REFUND, orderId, amount, currency, approved.gatewayTransactionId(), key,
+                        SUCCESSFUL_REFUND_INDEX, () -> new OrderAlreadyRefundedException(orderId));
+                metrics.recordApprovedAmount(REFUND, amount, currency);
+                yield id;
+            }
             case GatewayResult.Declined declined -> {
                 repository.saveAndFlush(PaymentTransactionEntity.failed(REFUND, orderId, amount, currency,
                         toFailureReason(declined.reason()), key));
@@ -155,8 +164,11 @@ public class PaymentService {
      */
     private GatewayResult callGateway(TransactionType type, UUID orderId, BigDecimal amount, String currency,
                                       String key, Supplier<GatewayResult> call) {
+        // Duration and outcome of the whole interaction, retries included; "error" only if something unexpected failed
+        Timer.Sample sample = metrics.startGatewayCall();
+        String outcome = "error";
         try {
-            return retryTemplate.execute(() -> {
+            GatewayResult result = retryTemplate.execute(() -> {
                 try {
                     return call.get();
                 } catch (PaymentGatewayTimeoutException | PaymentGatewayUnavailableException e) {
@@ -164,18 +176,23 @@ public class PaymentService {
                     throw e;
                 }
             });
+            outcome = PaymentMetrics.outcomeOf(result);
+            return result;
         } catch (RetryException e) {
             Throwable last = e.getLastException();
             if (last instanceof PaymentGatewayTimeoutException || last instanceof PaymentGatewayUnavailableException) {
-                FailureReason reason = last instanceof PaymentGatewayTimeoutException
-                        ? FailureReason.GATEWAY_TIMEOUT
-                        : FailureReason.GATEWAY_UNAVAILABLE;
+                boolean timeout = last instanceof PaymentGatewayTimeoutException;
+                outcome = timeout ? "timeout" : "unavailable";
+                FailureReason reason = timeout ? FailureReason.GATEWAY_TIMEOUT : FailureReason.GATEWAY_UNAVAILABLE;
                 repository.saveAndFlush(PaymentTransactionEntity.failed(type, orderId, amount, currency, reason, key));
             }
             if (last instanceof RuntimeException runtime) {
                 throw runtime;
             }
             throw new IllegalStateException("Payment gateway call failed", last);
+        } finally {
+            metrics.stopGatewayCall(sample, type, outcome);
+            metrics.recordPayment(type, outcome);
         }
     }
 

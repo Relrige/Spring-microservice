@@ -12,6 +12,11 @@ spec:
       app: payment-service
   template:
     metadata:
+      annotations:
+        # Scraped by Prometheus (k8s/monitoring/prometheus-config.yaml)
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8080"
       labels:
         app: payment-service
         app.kubernetes.io/part-of: voltstore

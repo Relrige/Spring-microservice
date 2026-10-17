@@ -1,5 +1,7 @@
 package ua.edu.ukma.springers.voltstore.delivery.services;
 
+import io.micrometer.core.instrument.LongTaskTimer;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -46,6 +48,12 @@ import static ua.edu.ukma.springers.voltstore.delivery.filters.CorrelationIdKeys
  * <p>
  * A paid order is never cancelled because of a carrier failure (SCN-S05): {@code TTN_FAILED} waits for the
  * worker's manual retry.
+ * <p>
+ * <b>Metric</b> {@code voltstore_ttn_job_seconds} ({@link LongTaskTimer}): a run can last long (a backlog of slow
+ * carrier calls), and a plain Timer records a duration only when the run has ended, so a hung run would be
+ * invisible. A LongTaskTimer reports runs <i>in progress</i>: {@code _count} is how many are running, {@code _sum}
+ * their total duration so far and {@code _max} how long the oldest one has been going, which the alert
+ * {@code TtnJobRunningTooLong} watches.
  */
 @Slf4j
 @Component
@@ -58,24 +66,30 @@ public class TtnGenerationJob {
     private final TtnJobProperties properties;
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
+    private final LongTaskTimer runTimer;
 
     public TtnGenerationJob(ShipmentRepository repository, TtnRegistrationService registrationService,
                             ShipmentEventPublisher eventPublisher, TtnJobProperties properties,
-                            PlatformTransactionManager transactionManager, Clock clock) {
+                            PlatformTransactionManager transactionManager, Clock clock, MeterRegistry registry) {
         this.repository = repository;
         this.registrationService = registrationService;
         this.eventPublisher = eventPublisher;
         this.properties = properties;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.clock = clock;
+        this.runTimer = LongTaskTimer.builder("voltstore.ttn.job")
+                .description("Runs of the automatic TTN generation job that are in progress")
+                .register(registry);
     }
 
     @Scheduled(fixedDelayString = "${delivery.ttn-job.interval}")
     public void run() {
-        // Keep going while full batches are claimed, so a backlog drains without waiting for the next run
-        while (runOnce() == properties.batchSize()) {
-            log.debug("Full batch of TTN attempts processed; claiming the next one");
-        }
+        runTimer.record(() -> {
+            // Keep going while full batches are claimed, so a backlog drains without waiting for the next run
+            while (runOnce() == properties.batchSize()) {
+                log.debug("Full batch of TTN attempts processed; claiming the next one");
+            }
+        });
     }
 
     /** One claim and the attempts of the claimed shipments; returns how many were claimed. */
