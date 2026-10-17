@@ -4,7 +4,9 @@ metadata:
   name: order-service
   namespace: voltstore
 spec:
-  # One replica is enough for the local minikube cluster; scale up temporarily to test consumer groups
+  # One replica is enough for the local minikube cluster. More are safe: the outbox relay takes an advisory lock,
+  # the cancellation job claims each order through its version, the expiry job is idempotent, and the Delivery-events
+  # listener shares its partitions within the consumer group
   replicas: 1
   selector:
     matchLabels:
@@ -31,6 +33,9 @@ spec:
                 name: order-config
             - secretRef:
                 name: order-db-credentials
+            # INTERNAL_TOKEN, app pod only (k8s/order/app-secret-template.yaml)
+            - secretRef:
+                name: order-secrets
           resources:
             requests:
               cpu: 100m

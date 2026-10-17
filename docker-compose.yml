@@ -129,6 +129,9 @@ services:
     depends_on:
       order-service-postgres:
         condition: service_healthy
+      # The outbox relay publishes order events and a listener consumes Delivery's events
+      kafka:
+        condition: service_healthy
     ports:
       - "8082:8080"
     env_file:
