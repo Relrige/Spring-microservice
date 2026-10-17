@@ -87,7 +87,7 @@ The model is safe only if all of these hold:
 
 ## Route Table
 
-Derived from the [API Contracts](../services-requirements/api-contracts.md). Rows marked *(deferred)* are not configured yet: Order and Delivery Service do not expose the contract paths yet and Customer Service does not exist; their routes are added per service. **Auth mode:** `Public` = no token needed; `Optional` = token used if present; `Required` = token needed and role checked. An empty roles column means any authenticated role (or anonymous, for `Public` and `Optional`).
+Derived from the [API Contracts](../services-requirements/api-contracts.md). Rows marked *(deferred)* are not configured yet; their routes are added per service ([task 10](../../tasks/api-getaway/10-remaining-service-routes.md)). Order routes are configured since 2026-10-17. **Auth mode:** `Public` = no token needed; `Optional` = token used if present; `Required` = token needed and role checked. An empty roles column means any authenticated role (or anonymous, for `Public` and `Optional`).
 
 | Method | Path | Upstream | Auth mode | Allowed roles |
 |---|---|---|---|---|
@@ -111,13 +111,13 @@ Derived from the [API Contracts](../services-requirements/api-contracts.md). Row
 | `GET` | `/inventory/stock` | inventory-service | Required | `INVENTORY_WORKER` |
 | `POST` | `/inventory/stock/{id}/adjust` | inventory-service | Required | `INVENTORY_WORKER` |
 | `PUT` | `/inventory/stock/{id}/packaging` | inventory-service | Required | `INVENTORY_WORKER` |
-| `POST` | `/orders/validate` | order-service *(deferred)* | Required | `CUSTOMER` |
-| `POST` | `/orders` | order-service *(deferred)* | Required | `CUSTOMER` |
-| `POST` | `/orders/{id}/pay` | order-service *(deferred)* | Required | `CUSTOMER` |
-| `GET` | `/orders` | order-service *(deferred)* | Required | `CUSTOMER` |
-| `GET`, `DELETE` | `/orders/{id}` | order-service *(deferred)* | Required | `CUSTOMER` (ownership is checked in the service; no guest access since 2026-10-16) |
-| `GET` | `/orders/fulfillment-queue` | order-service *(deferred)* | Required | `INVENTORY_WORKER` |
-| `POST` | `/orders/{id}/ship` | order-service *(deferred)* | Required | `INVENTORY_WORKER` |
+| `POST` | `/orders/validate` | order-service | Required | `CUSTOMER` |
+| `POST` | `/orders` | order-service | Required | `CUSTOMER` |
+| `POST` | `/orders/{id}/pay` | order-service | Required | `CUSTOMER` |
+| `GET` | `/orders` | order-service | Required | `CUSTOMER` |
+| `GET`, `DELETE` | `/orders/{id}` | order-service | Required | `CUSTOMER` (ownership is checked in the service; no guest access since 2026-10-16) |
+| `GET` | `/orders/fulfillment-queue` | order-service | Required | `INVENTORY_WORKER` |
+| `POST` | `/orders/{id}/ship` | order-service | Required | `INVENTORY_WORKER` |
 | `POST` | `/delivery/orders/{id}/ttn/retry` | delivery-service *(deferred)* | Required | `INVENTORY_WORKER` |
 
 **Not routed (internal endpoints):** `GET /catalog/products/batch-get`; `GET /inventory/stock/{id}/readiness`; `GET /inventory/stock/{id}/packaging`; `POST /inventory/reservations`; `POST /inventory/reservations/{orderId}/release`; `POST /payments/charge`; `POST /payments/refund`; `GET /delivery/shipments`; `DELETE /delivery/shipments/{orderId}`.
@@ -145,7 +145,7 @@ Derived from the [API Contracts](../services-requirements/api-contracts.md). Row
 |---|---|---|
 | `auth.jwt.secret` | `AUTH_JWT_SECRET` | HS256 verification key, identical to Auth Service's; at least 32 characters, checked at startup |
 | `auth.jwt.leeway` | `AUTH_JWT_LEEWAY` | Tolerated clock difference for `exp`; default `30s` |
-| `gateway.upstreams.auth` / `.catalog` / `.inventory` | `GATEWAY_UPSTREAMS_AUTH` / `_CATALOG` / `_INVENTORY` | Upstream base URLs. Kubernetes (ConfigMap `gateway-config`): Service name and port, e.g. `http://auth-service:8086`. Compose: service name and container port, e.g. `http://auth-service:8080` |
+| `gateway.upstreams.auth` / `.catalog` / `.inventory` / `.order` | `GATEWAY_UPSTREAMS_AUTH` / `_CATALOG` / `_INVENTORY` / `_ORDER` | Upstream base URLs. Kubernetes (ConfigMap `gateway-config`): Service name and port, e.g. `http://auth-service:8086`. Compose: service name and container port, e.g. `http://auth-service:8080` |
 | `spring.http.clients.connect-timeout` / `read-timeout` | `SPRING_HTTP_CLIENTS_CONNECT_TIMEOUT` / `_READ_TIMEOUT` | Upstream timeouts; defaults `2s` / `15s` (room for upstreams that call other services with retries) |
 | `management.server.port` | — | Actuator and health probes; `8090` |
 | Route definitions | — | `spring.cloud.gateway.server.webmvc.routes` in `application.yml`: one entry per configured row of the route table, with `Method` and `Path` predicates, the `TrustBoundary` filter and `metadata.authMode` / `metadata.roles` |

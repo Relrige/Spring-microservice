@@ -15,7 +15,7 @@ service: api-gateway
 *References:* [API Gateway Spec — Route Table](../../design/services-specs/api-gateway-spec.md#route-table), [API Contracts](../../design/services-requirements/api-contracts.md)
 
 ## Acceptance Criteria
-- [ ] Order-service routes from the spec table (`/orders/validate`, `/orders`, `/orders/{id}`, `/orders/{id}/pay`, `/orders/fulfillment-queue`, `/orders/{id}/ship`) with upstream `GATEWAY_UPSTREAMS_ORDER` (`http://order-service:8082`). `{id}` is a UUID, so `GET /orders/fulfillment-queue` does not match `GET /orders/{id}`.
+- [x] Order-service routes from the spec table (`/orders/validate`, `/orders`, `/orders/{id}`, `/orders/{id}/pay`, `/orders/fulfillment-queue`, `/orders/{id}/ship`) with upstream `GATEWAY_UPSTREAMS_ORDER` (`http://order-service:8082`). `{id}` is a UUID, so `GET /orders/fulfillment-queue` does not match `GET /orders/{id}`.
 - [ ] Delivery-service routes (`POST /delivery/orders/{id}/ttn/retry`; the carrier webhook was dropped from the contracts on 2026-10-15, see the Delivery spec) with upstream `GATEWAY_UPSTREAMS_DELIVERY` (`http://delivery-service:8083`). `GET /delivery/shipments` and `DELETE /delivery/shipments/{orderId}` stay unrouted.
 - [ ] Customer-service routes (the nine routes listed in the update above, all `CUSTOMER`) with upstream `GATEWAY_UPSTREAMS_CUSTOMER` (`http://customer-service:8087`).
 - [ ] The parameterized route, role-matrix and internal-endpoint tests of [task 06](06-gateway-security-tests.md) include the new routes; the ConfigMap, `.env.example` and Compose get the new upstream URLs.
@@ -24,3 +24,10 @@ service: api-gateway
 ## Technical Notes / Constraints
 - Add one service at a time, together with (or right after) the service task that implements its contract paths.
 - ~~Guest access to orders (`?token=`) is checked by Order Service.~~ Since 2026-10-16 only registered customers can order: every customer `/orders` route is `Required` with role `CUSTOMER` (see the updated route table in the gateway spec); worker routes stay `INVENTORY_WORKER`. The `X-User-Email` header the Order routes need is [task 11](11-forward-user-email-header.md).
+
+## Progress Notes: Order (2026-10-17)
+- Seven routes (`order-validate`, `order-submit`, `order-history`, `order-details-or-cancel` for `GET`/`DELETE`, `order-pay`, `order-fulfillment-queue`, `order-ship`), all `REQUIRED`: customer routes `CUSTOMER`, queue and ship `INVENTORY_WORKER`. `{id}` is a UUID, so `/orders/fulfillment-queue` never matches `/orders/{id}`.
+- Upstream `gateway.upstreams.order`: `http://order-service:8080` in `.env.example` (Compose, container port), `http://order-service:8082` in the ConfigMap (Kubernetes Service port). The criterion's `:8082` applies to Kubernetes only.
+- `RouteTableTest` (routing, unlisted methods, non-UUID ids, unrouted paths), `GatewaySecuritySuiteTest` (spec route set, every-route and role-matrix tests through `RouteSamples`) and the upstream-failure and management-port tests include Order.
+- End to end: [docker-compose-order.md](../../../e2e/manual/docker-compose-order.md), run successfully on 2026-10-17.
+- Open: Delivery and Customer (separate change), and the Kubernetes run for Order.

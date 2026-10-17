@@ -1,5 +1,5 @@
 ---
-status: TODO
+status: DONE
 service: auth-service
 ---
 # Email Claim in the JWT
@@ -9,12 +9,17 @@ Only registered customers can order (decision 2026-10-16), and Notification Serv
 *References:* [Auth Spec — JWT](../../design/services-specs/auth-service-spec.md#jwt), [Security Model](../../design/services-requirements/security-model.md), [Login task](04-login-and-jwt-issuance.md)
 
 ## Acceptance Criteria
-- [ ] `JwtTokenService` adds the claim `email` with the user's **normalized** email (trimmed, lower-cased, as stored) to every issued token, for every role.
-- [ ] The `TokenService` interface documents the new claim; the other claims (`sub`, `role`, `iat`, `exp`) are unchanged.
-- [ ] Tests: a login token contains `email` equal to the stored, normalized email (also when the user logged in with different letter case); existing token tests still pass.
-- [ ] The Auth spec's JWT table already lists the claim (updated 2026-10-16); check it matches the code.
+- [x] `JwtTokenService` adds the claim `email` with the user's **normalized** email (trimmed, lower-cased, as stored) to every issued token, for every role.
+- [x] The `TokenService` interface documents the new claim; the other claims (`sub`, `role`, `iat`, `exp`) are unchanged.
+- [x] Tests: a login token contains `email` equal to the stored, normalized email (also when the user logged in with different letter case); existing token tests still pass.
+- [x] The Auth spec's JWT table already lists the claim (updated 2026-10-16); check it matches the code.
 
 ## Technical Notes / Constraints
 - The token is signed, not encrypted: anyone holding it can read the email. That is acceptable (it is the user's own token), but the email must not be logged together with tokens.
 - Tokens issued before the change have no `email` claim and stay valid until they expire (default 1 h); the gateway handles the missing claim. No migration is needed.
 - Do not add other personal data to the token (no names, no phone): the JWT is an identity token, not a profile.
+
+## Implementation (2026-10-17)
+- `JwtTokenService` adds `email` from `UserEntity.getEmail()`: the stored value is already normalized at registration (`EmailNormalizer`), so no second normalization is needed. `TokenService` documents the claim.
+- Tests: `JwtTokenServiceTest` checks the claim; `UserLoginIntegrationTest` checks it for a login with different letter case and surrounding spaces (`Alice@Example.com` registered, `  ALICE@example.COM ` logged in → `alice@example.com`). All 93 Auth tests pass.
+- The Auth spec's JWT table matches the code. Verified end to end through the gateway (see [Order task 16](../order-service/16-containerization-and-deployment.md)).

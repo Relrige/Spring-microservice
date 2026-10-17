@@ -70,6 +70,7 @@ class UserLoginIntegrationTest {
         JWTClaimsSet claims = jwt.getJWTClaimsSet();
         assertThat(claims.getSubject()).isEqualTo(userId);
         assertThat(claims.getStringClaim("role")).isEqualTo("CUSTOMER");
+        assertThat(claims.getStringClaim("email")).isEqualTo("alice@example.com");
         assertThat(claims.getExpirationTime()).isAfter(new Date());
         assertThat(claims.getExpirationTime().getTime() - claims.getIssueTime().getTime())
                 .isEqualTo(jwtProperties.expiration().toMillis());
@@ -90,6 +91,15 @@ class UserLoginIntegrationTest {
         register("alice@example.com", "secret1");
 
         assertThat(login("  ALICE@Example.com ", "secret1")).isNotBlank();
+    }
+
+    @Test
+    void login_withDifferentLetterCase_tokenCarriesStoredNormalizedEmail() throws Exception {
+        register("Alice@Example.com", "secret1");
+
+        String token = login("  ALICE@example.COM ", "secret1");
+
+        assertThat(SignedJWT.parse(token).getJWTClaimsSet().getStringClaim("email")).isEqualTo("alice@example.com");
     }
 
     @Test

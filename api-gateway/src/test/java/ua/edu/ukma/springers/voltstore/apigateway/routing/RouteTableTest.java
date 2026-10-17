@@ -36,7 +36,15 @@ class RouteTableTest extends GatewayIntegrationTest {
             "DELETE, /catalog/categories/" + ID + ",         catalog",
             "GET,    /inventory/stock,                       inventory",
             "POST,   /inventory/stock/" + ID + "/adjust,     inventory",
-            "PUT,    /inventory/stock/" + ID + "/packaging,  inventory"
+            "PUT,    /inventory/stock/" + ID + "/packaging,  inventory",
+            "POST,   /orders/validate,                       order",
+            "POST,   /orders,                                order",
+            "GET,    /orders,                                order",
+            "GET,    /orders/" + ID + ",                     order",
+            "DELETE, /orders/" + ID + ",                     order",
+            "POST,   /orders/" + ID + "/pay,                 order",
+            "GET,    /orders/fulfillment-queue,              order",
+            "POST,   /orders/" + ID + "/ship,                order"
     })
     void routedMethodAndPath_reachesItsUpstreamUnchanged(String method, String path, String upstream)
             throws Exception {
@@ -61,7 +69,13 @@ class RouteTableTest extends GatewayIntegrationTest {
             "PUT,    /catalog/categories",
             "GET,    /catalog/categories/" + ID,
             "POST,   /inventory/stock",
-            "GET,    /inventory/stock/" + ID + "/adjust"
+            "GET,    /inventory/stock/" + ID + "/adjust",
+            "GET,    /orders/validate",
+            "PUT,    /orders",
+            "PATCH,  /orders/" + ID,
+            "GET,    /orders/" + ID + "/pay",
+            "POST,   /orders/fulfillment-queue",
+            "GET,    /orders/" + ID + "/ship"
     })
     void unlistedMethodOnRoutedPath_isNotFound(String method, String path) throws Exception {
         assertThat(send(method, path, "", adminToken()).statusCode()).isEqualTo(404);
@@ -97,7 +111,11 @@ class RouteTableTest extends GatewayIntegrationTest {
             "PATCH,  /catalog/products/x/status",
             "DELETE, /catalog/categories/batch-get",
             "POST,   /inventory/stock/abc/adjust",
-            "PUT,    /inventory/stock/1-1-1-1-1/packaging"
+            "PUT,    /inventory/stock/1-1-1-1-1/packaging",
+            "GET,    /orders/not-a-uuid",
+            "DELETE, /orders/123",
+            "POST,   /orders/abc/pay",
+            "POST,   /orders/fulfillment-queue/ship"
     })
     void nonUuidId_isNotFound(String method, String path) throws Exception {
         assertThat(send(method, path, "{}", adminToken()).statusCode()).isEqualTo(404);
@@ -107,7 +125,7 @@ class RouteTableTest extends GatewayIntegrationTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "/", "/user", "/user/other", "/user/register/", "/user/register/extra", "/auth/login/x", "/auth",
-            "/catalog", "/catalog/products/", "/inventory", "/orders", "/customers/cart",
+            "/catalog", "/catalog/products/", "/inventory", "/orders/", "/orders/history", "/customers/cart",
             "/actuator/env", "/UNKNOWN"
     })
     void unroutedPath_isNotFound(String path) throws Exception {
@@ -118,12 +136,16 @@ class RouteTableTest extends GatewayIntegrationTest {
 
     @Test
     void accessRulesAreParsedFromMetadata() {
-        assertThat(policy.all()).hasSize(14);
+        assertThat(policy.all()).hasSize(21);
         assertThat(policy.forRoute("auth-register")).contains(new RouteAccess(AuthMode.PUBLIC, Set.of()));
         assertThat(policy.forRoute("catalog-browse-products")).contains(new RouteAccess(AuthMode.OPTIONAL, Set.of()));
         assertThat(policy.forRoute("auth-create-non-customer"))
                 .contains(new RouteAccess(AuthMode.REQUIRED, Set.of(UserRole.ADMIN)));
         assertThat(policy.forRoute("inventory-adjust-stock"))
+                .contains(new RouteAccess(AuthMode.REQUIRED, Set.of(UserRole.INVENTORY_WORKER)));
+        assertThat(policy.forRoute("order-details-or-cancel"))
+                .contains(new RouteAccess(AuthMode.REQUIRED, Set.of(UserRole.CUSTOMER)));
+        assertThat(policy.forRoute("order-ship"))
                 .contains(new RouteAccess(AuthMode.REQUIRED, Set.of(UserRole.INVENTORY_WORKER)));
         assertThat(policy.forRoute("unknown")).isEmpty();
     }
@@ -132,6 +154,10 @@ class RouteTableTest extends GatewayIntegrationTest {
     private String tokenAllowedOn(String method, String path) {
         if (path.startsWith("/user/non-customer")) {
             return adminToken();
+        }
+        if (path.startsWith("/orders")) {
+            return token(path.equals("/orders/fulfillment-queue") || path.endsWith("/ship")
+                    ? UserRole.INVENTORY_WORKER : UserRole.CUSTOMER);
         }
         if (path.startsWith("/inventory")) {
             return token(UserRole.INVENTORY_WORKER);
