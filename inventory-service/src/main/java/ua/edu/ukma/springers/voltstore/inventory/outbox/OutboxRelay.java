@@ -113,8 +113,11 @@ public class OutboxRelay implements MeterBinder {
         return events.size() == properties.batchSize();
     }
 
-    // Published events are only needed for troubleshooting; keep them for the retention period
-    @Scheduled(fixedDelayString = "${inventory.outbox.cleanup-interval}")
+    // Published events are only needed for troubleshooting; keep them for the retention period.
+    // The first run waits one interval too: there is nothing urgent to delete at startup, and an immediate run
+    // would race with tests that backdate published_at and call this method themselves
+    @Scheduled(fixedDelayString = "${inventory.outbox.cleanup-interval}",
+            initialDelayString = "${inventory.outbox.cleanup-interval}")
     @Transactional
     public int deletePublishedEvents() {
         int deleted = repository.deletePublishedBefore(Instant.now().minus(properties.retention()));
