@@ -46,7 +46,7 @@ Cart rules: at most 10 distinct products per cart, quantity 1–10 per product. 
 | `POST` | `/catalog/categories` | `CATALOG_MANAGER`| Create category. <br> **Req:** `{name}` <br> **Res:** `201 Created {categoryId}` |
 | `PUT` | `/catalog/categories/{id}`| `CATALOG_MANAGER`| Rename category. <br> **Req:** `{name}` <br> **Res:** `200 OK` |
 | `DELETE`|`/catalog/categories/{id}`| `CATALOG_MANAGER`| Delete category. <br> **Res:** `200 OK` or `409 Conflict` (if products attached) |
-| `GET` | `/catalog/products/batch-get`| Internal | Fetch current product data for Order Service snapshotting and for Inventory's existence check. <br> **Query:** `?ids=uuid1,uuid2` (1–100 IDs) <br> **Res:** `200 OK [{productId, title, basePrice, status}]` — a flat array of the products that exist, in any status; unknown IDs are simply absent (the spec's `notFound` list was dropped on purpose). `400` for empty, malformed or too many `ids`. |
+| `GET` | `/catalog/products/batch-get`| Internal | Fetch current product data for Order Service snapshotting and for Inventory's existence check. <br> **Query:** `?ids=uuid1,uuid2` (1–100 IDs) <br> **Res:** `200 OK [{productId, title, basePrice, status, stockStatus}]` — a flat array of the products that exist, in any status; unknown IDs are simply absent (the spec's `notFound` list was dropped on purpose). `400` for empty, malformed or too many `ids`. |
 
 ---
 
@@ -68,15 +68,17 @@ Cart rules: at most 10 distinct products per cart, quantity 1–10 per product. 
 
 ## 5. Order Service
 
+*Only registered customers can order (2026-10-16): every customer route requires `CUSTOMER`; the customer comes from `X-User-Id` (and the email from `X-User-Email`), and another customer's order answers `404`. No guest checkout, no `?token=` access.*
+
 | Method | Path | Auth Role | Description |
 |--------|------|-----------|-------------|
-| `POST` | `/orders/validate` | None/`CUSTOMER`| Soft check cart for checkout eligibility. <br> **Req:** `{items: [{productId, quantity}]}` <br> **Res:** `200 OK` or `422 {ineligibleItems}` |
-| `POST` | `/orders` | None/`CUSTOMER`| Submit order & reserve stock. <br> **Req:** `{items, deliveryDetails, contactEmail}` <br> **Res:** `201 Created {orderId, orderAccessToken}` |
-| `POST` | `/orders/{id}/pay` | None/`CUSTOMER`| Initiate payment. <br> **Req:** `{cardDetails}` <br> **Res:** `200 OK` or `402 Payment Required` or `409 Conflict` (Expired) |
-| `GET` | `/orders` | `CUSTOMER` | View order history. <br> **Res:** `200 OK [{orderId, status, totalAmount, placedAt}]` |
-| `GET` | `/orders/{id}` | None/`CUSTOMER`| View details (Auth via JWT or `?token=`). <br> **Res:** `200 OK {orderId, items, status, ttn, ...}` |
-| `DELETE`| `/orders/{id}` | None/`CUSTOMER`| Request cancellation. <br> **Res:** `202 Accepted` (Transitions to `CANCELLATION_REQUESTED` and starts Saga) |
-| `GET` | `/orders/fulfillment-queue` | `INVENTORY_WORKER`| Get `PAID` & `PENDING_SHIPPING` orders. (Order Service queries Delivery Service internally for TTN states). <br> **Res:** `200 OK [{orderId, status, deliveryStatus, ttn}]` |
+| `POST` | `/orders/validate` | `CUSTOMER` | Soft check cart for checkout eligibility. <br> **Req:** `{items: [{productId, quantity}]}` (1–100, no duplicates) <br> **Res:** `204 No Content` or `422 {ineligibleItems: [{productId, reason: NOT_ACTIVE \| INSUFFICIENT_STOCK}]}` or `503` |
+| `POST` | `/orders` | `CUSTOMER` | Submit order & reserve stock. <br> **Req:** `{items, deliveryDetails: {name, phone, address, carrier}}` <br> **Res:** `201 Created {orderId, status, totalAmount, currency, reservationExpiresAt}` or `422 {ineligibleItems}` / `422 {insufficientItems}` or `503` |
+| `POST` | `/orders/{id}/pay` | `CUSTOMER` (owner) | Pay for the order. <br> **Req:** `{cardDetails: {number, expiryMonth, expiryYear, cvv}}` <br> **Res:** `200 OK {orderId, status}` or `402 {reason}` or `409` (not awaiting payment / window expired / attempt in progress) or `503` (retry with the same card is safe) |
+| `GET` | `/orders` | `CUSTOMER` | View own order history. <br> **Query:** `?page=&size=` <br> **Res:** `200 OK {content: [{orderId, status, totalAmount, currency, placedAt}], page, size, totalElements}` |
+| `GET` | `/orders/{id}` | `CUSTOMER` (owner) | View own order details. <br> **Res:** `200 OK {orderId, status, items, deliveryDetails, totalAmount, currency, placedAt, paidAt, reservationExpiresAt, ttn, deliveryStatus}` or `404` |
+| `DELETE`| `/orders/{id}` | `CUSTOMER` (owner) | Cancel own order. <br> **Res:** `202 Accepted {orderId, status}` — `CANCELLED`, or `CANCELLATION_REQUESTED` while a saga step is retried later; `409` if not cancellable |
+| `GET` | `/orders/fulfillment-queue` | `INVENTORY_WORKER`| Get `PAID` & `PENDING_SHIPPING` orders. (Order Service queries Delivery Service internally for TTN states). <br> **Res:** `200 OK {deliveryDataAvailable, orders: [{orderId, status, placedAt, paidAt, items, deliveryDetails, deliveryStatus, ttn, failureReason}]}` (oldest payment first; `deliveryDataAvailable: false` when Delivery is down) |
 | `POST` | `/orders/{id}/ship` | `INVENTORY_WORKER`| Dispatch order to courier. <br> **Res:** `200 OK` (Transitions to `SHIPPED`) |
 
 ---

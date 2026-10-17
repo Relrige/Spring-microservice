@@ -1,10 +1,12 @@
 # Order Service — Implementation Spec
 
-Owns the order lifecycle, immutable `OrderItemSnapshot` records (price-at-order-time), and coordinates the two-phase checkout flow. It is the central orchestrator for payment and the cancellation saga — it makes synchronous calls to Catalog, Inventory, and Payment services to execute multi-step workflows.
+Owns the order lifecycle, immutable `OrderItemSnapshot` records (price at order time), and coordinates the two-phase checkout flow. It is the central orchestrator for payment and the cancellation saga — it makes synchronous calls to Catalog, Inventory, Payment and Delivery to execute multi-step workflows.
 
 It also serves the **Inventory Worker's fulfillment queue**, aggregating order data with delivery statuses fetched from Delivery Service.
 
-Guest orders are supported: orders without a registered account are identified by `guestEmail` and secured by an `orderAccessToken` for subsequent access.
+**Only registered customers can order** (decision 2026-10-16). Every customer endpoint requires a logged-in user with role `CUSTOMER`; the customer is always identified by the gateway-supplied `X-User-Id`, never by a value in the path or body. There is no guest checkout: no `guestEmail`, no `orderAccessToken`, no `?token=` access and no emailed cancellation link. An order always has a `customerId`, and a customer can see and change only their own orders.
+
+> **Revision note (2026-10-16, before implementation).** Rewritten after reading the implemented Catalog, Inventory, Payment, Delivery and Customer specs, so that every call and event matches what those services actually do. Differences from the first version are listed under *Changes from the First Spec Version*; the three design questions found on the way are settled under *Decisions*.
 
 ---
 
@@ -12,44 +14,131 @@ Guest orders are supported: orders without a registered account are identified b
 
 | | |
 |---|---|
-| **Owned entities** | `Order` (see order-state-machine.md for full field list and state diagram); `OrderItemSnapshot` (`id`, `productId`, `productName` (TBD), `unitPriceAtOrder`, `quantity`) |
+| **Owned entities** | `Order` (`id`, `customerId`, `customerEmail`, `status`, `totalAmount`, `currency`, `deliveryDetails { name, phone, address, carrier }`, `reservationExpiresAt`, `placedAt`, `paidAt`, `statusBeforeCancellation`, `version`, and for interrupted cancellations `cancellationAttempts`, `cancellationFailure`, `cancellationLastAttemptAt`, `needsManualAttention`); `OrderItemSnapshot` (`id`, `productId`, `productTitle`, `unitPriceAtOrder`, `quantity`) |
 | **Key enums** | `OrderStatus { PENDING_PAYMENT, PAID, PENDING_SHIPPING, SHIPPED, DELIVERED, CANCELLATION_REQUESTED, CANCELLED, EXPIRED }` |
-| **Events emitted** | `OrderPlaced`, `OrderPaid`, `OrderShipped`, `OrderCancelled` |
-| **Events consumed** | `TTNGenerated` (from Delivery Service), `OrderDelivered` (from Delivery Service) |
+| **Events emitted** | `OrderPlaced`, `OrderPaid`, `OrderShipped`, `OrderCancelled` on topic `order.order-events` (see *Order Events*) |
+| **Events consumed** | `TTNGenerated`, `OrderDelivered` (from Delivery Service, topic `delivery.shipment-events`) |
+| **Synchronous dependencies** | Catalog `GET /catalog/products/batch-get` (status, price, `stockStatus`); Inventory `POST /inventory/reservations`, `POST /inventory/reservations/{orderId}/release`; Payment `POST /payments/charge`, `POST /payments/refund`; Delivery `GET /delivery/shipments`, `DELETE /delivery/shipments/{orderId}` |
+| **Callers** | Customers and Inventory Workers via the API Gateway; no internal (service-to-service) routes |
+| **Technical tables** (not part of the domain model) | `outbox_events` (transactional outbox for order events) |
 | **Also see** | [order-state-machine.md](../entities/order-state-machine.md) for the authoritative state diagram and transition table |
+
+---
+
+## Cross-cutting Conventions
+
+### Security and routing
+
+Authentication follows the [Security Model](../services-requirements/security-model.md): the API Gateway validates the JWT and forwards `X-User-Id` / `X-User-Role`; the service trusts these headers. Every route has an explicit rule (method + path); anything else is denied (`denyAll`). The role check runs **before** the request body is parsed or validated.
+
+| Route | Role | Routed by the gateway |
+|---|---|---|
+| `POST /orders/validate` | `CUSTOMER` | yes |
+| `POST /orders` | `CUSTOMER` | yes |
+| `POST /orders/{orderId}/pay` | `CUSTOMER` | yes |
+| `GET /orders` | `CUSTOMER` | yes |
+| `GET /orders/{orderId}` | `CUSTOMER` | yes |
+| `DELETE /orders/{orderId}` | `CUSTOMER` | yes |
+| `GET /orders/fulfillment-queue` | `INVENTORY_WORKER` | yes |
+| `POST /orders/{orderId}/ship` | `INVENTORY_WORKER` | yes |
+
+- Missing or invalid identity headers → `401`; wrong role → `403`. Roles are not hierarchical: `ADMIN` gets `403` on customer and worker routes.
+- **Ownership.** On every route with `{orderId}` used by a customer, the order must belong to the caller (`Order.customerId == X-User-Id`). An order of another customer is answered **`404 Not Found`**, exactly like an order that does not exist, so customers cannot probe for other customers' order IDs.
+- `/actuator/health/**` is open for the probes.
+- **Outgoing calls** to Catalog, Inventory, Payment and Delivery carry `X-Internal-Token` (shared `INTERNAL_TOKEN`) and `X-Correlation-Id`; user headers are never forwarded. A request's `X-Correlation-Id` is kept in the logging context (a new ID is generated when missing).
+
+### Responses and errors
+
+- Errors use the shared RFC 9457 `ProblemDetail` shape: `type`, `title`, `status`, `detail`, `timestamp`, `service`. `type` is `https://voltstore.com/errors/{validation | not-found | conflict | ineligible-items | insufficient-stock | payment-declined | payment-window-expired | service-unavailable | unauthorized | forbidden | internal-error}`.
+- `400` = malformed request (invalid JSON, a field rule broken, a non-UUID path variable) with a field-level `errors` map. `422` = a well-formed request that cannot be done in the current state. Unexpected errors → `500` with a generic message; the stack trace is only logged.
+- A dependency that is down or too slow → `503 Service Unavailable` with a fixed `detail` and `Retry-After`; hosts, upstream statuses and causes are only logged.
+- Card data (EP-ORD-03) is never logged or echoed in an error, exactly as in Payment Service (see its *Card Data* section).
+
+| Error | Status | Extra property |
+|---|---|---|
+| Order not found, or belongs to another customer | `404` | — |
+| Product not active or not found (EP-ORD-01/02) | `422` (type `ineligible-items`) | `ineligibleItems: [ { productId, reason } ]` |
+| Not enough stock to reserve (EP-ORD-02) | `422` (type `insufficient-stock`) | `insufficientItems: [ { productId, requested, available } ]` (passed through from Inventory) |
+| Order not in a state that allows the action | `409` | — |
+| Payment window elapsed (EP-ORD-03) | `409` (type `payment-window-expired`) | — |
+| Previous payment attempt still unresolved (EP-ORD-03) | `409` | — |
+| Card declined (EP-ORD-03) | `402` (type `payment-declined`) | `reason` (passed through from Payment) |
+| TTN not generated yet (EP-ORD-08) | `409` | — |
+| Catalog, Inventory, Payment or Delivery unavailable | `503` | header `Retry-After` |
+
+### Request limits
+
+Item lists (EP-ORD-01/02) have 1–100 entries, each with a UUID `productId` and `quantity ≥ 1`, and a `productId` may appear **only once** (rejected with `400`, not merged). These are the same limits as Catalog's batch-get (at most 100 IDs) and Inventory's reservation (at most 100 items, no duplicates), so a valid order request is always a valid downstream request.
+
+### Concurrency and consistency
+
+- **Optimistic locking** (`version` on `Order`): every status change is a check-and-set from an expected status. Two concurrent changes of one order (pay vs. cancel, pay vs. expiry, `TTNGenerated` vs. cancel) cannot both win; the loser re-reads the order and answers from its new status.
+- **No database transaction is held during a remote call.** Remote calls run first; the status change and its outbox event are written afterwards in one short transaction.
+- **Transactional outbox** for all four order events, as in Catalog and Inventory: the status change and the event are committed atomically, and a relay publishes them (at-least-once). Consumers must be idempotent.
+
+### Order Events
+
+| | |
+|---|---|
+| **Topic** | `order.order-events` (owned and declared by Order; name from `ORDER_EVENTS_TOPIC`), 3 partitions |
+| **Key** | `orderId` — all events of one order are in one partition and keep their order |
+| **Headers** | `eventType` (`OrderPlaced`, `OrderPaid`, `OrderShipped`, `OrderCancelled`) and `eventId`; consumers dispatch on `eventType` and ignore other types |
+| **Payload** | JSON without Java type headers; every payload has `eventId` (UUID) and `timestamp` (ISO-8601 UTC) in addition to the fields below |
+| **Consumers** | Inventory (`OrderShipped`), Delivery (`OrderPaid`, `OrderShipped`), Customer (`OrderPaid`), Notification (all four) |
+
+Payloads (exact field lists also in the [Event Catalogue](../services-requirements/events-catalogue.md)):
+
+- `OrderPlaced { orderId, customerId, customerEmail, totalAmount, currency, reservationExpiresAt }`
+- `OrderPaid { orderId, customerId, customerEmail, deliveryDetails { name, phone, address, carrier }, items [ { productId, quantity } ], totalAmount, currency, paidAt }` — a fat event: Delivery creates the shipment from it without calling Order back. `customerId` is never null.
+- `OrderShipped { orderId, ttn, customerEmail }`
+- `OrderCancelled { orderId, customerId, customerEmail, reason: "CUSTOMER_CANCELLED" | "EXPIRED" }`
+
+### Customer email
+
+Notification Service sends every order email to `customerEmail`, which travels in the order events. Order Service stores the email on the order when it is placed (a snapshot, like the prices), so later events of that order use the same address.
+
+The email comes from the **`X-User-Email`** header (decision D1): Auth Service puts the account's `email` into the JWT, and the API Gateway forwards it like `X-User-Id` and `X-User-Role` (and strips any client-supplied copy). The customer never types it, so it is always the account's address. A `CUSTOMER` request to `POST /orders` without a valid `X-User-Email` is a broken gateway contract → `401`, logged.
+
+### Configuration
+
+| Variable | Meaning |
+|---|---|
+| `SPRING_DATASOURCE_URL`, `_USERNAME`, `_PASSWORD` | Order's own PostgreSQL database (database per service) |
+| `SPRING_KAFKA_BOOTSTRAP_SERVERS` | Kafka broker |
+| `ORDER_EVENTS_TOPIC` | Topic of Order's events (default `order.order-events`) |
+| `DELIVERY_EVENTS_TOPIC` | Delivery's topic with `TTNGenerated` / `OrderDelivered` (default `delivery.shipment-events`) |
+| `INTERNAL_TOKEN` | Shared secret sent as `X-Internal-Token` on outgoing calls |
+| `CATALOG_SERVICE_URL`, `INVENTORY_SERVICE_URL`, `PAYMENT_SERVICE_URL`, `DELIVERY_SERVICE_URL` | Base URLs of the dependencies |
+| `PAYMENT_READ_TIMEOUT` | Read timeout of the Payment call; **at least 6 s** (Payment's worst case with its own timeout and repeat is about 4.5 s) |
+| `ORDER_PAYMENT_WINDOW` | Payment window after placement (default `15m`) |
+| `ORDER_CARRIERS` | Carriers a customer may choose at checkout, comma-separated (default `NOVA_POSHTA`); Delivery must support each |
+| `ORDER_CANCELLATION_RETRY_INTERVAL` | How often EP-ORD-JOB-02 looks for interrupted cancellations (default `1m`) |
+| `ORDER_EXPIRY_INTERVAL`, `ORDER_EXPIRY_GRACE` | How often EP-ORD-JOB-01 runs (default `1m`) and how long after the window it waits (default `30s`; must be longer than `PAYMENT_READ_TIMEOUT`, checked at startup) |
 
 ---
 
 ## EP-ORD-01: Checkout Soft Check (Validate Cart)
 
 **Type:** `HTTP POST /orders/validate`
-**Caller:** Customer (unauthenticated or `ROLE_CUSTOMER`, via API Gateway) — triggered when customer clicks "Proceed to Checkout"
-**Auth:** None (works for both guests and registered customers)
+**Caller:** Customer (via API Gateway) — triggered when the customer clicks "Proceed to Checkout"
+**Auth:** `CUSTOMER`
+
+**Request:** `{ items: [ { productId, quantity } ] }`
 
 **Steps:**
-1. Parse request body: `items: [ { productId, quantity } ]`. Must be non-empty; all quantities ≥ 1.
-2. Call Catalog Service to verify that all products are `ACTIVE`:
-   - `GET /catalog/products/batch-get?ids={productIds}` — check the returned `status` field for each product.
-   - Collect any products that are `NOT_ACTIVE` or not found.
-3. Call Inventory Service to verify stock availability:
-   - For each item, check that `availableQuantity >= requestedQuantity`.
-   - Exact endpoint TBD (could be a batch availability check endpoint — `POST /inventory/stock/availability-check`, to be defined during implementation).
-   - Collect any items with insufficient stock.
-4. If any items are ineligible (inactive or insufficient stock) → return `422 Unprocessable Entity { ineligibleItems: [ { productId, reason: "NOT_ACTIVE" | "INSUFFICIENT_STOCK" } ] }`.
-5. All checks pass → return `200 OK`. No stock is locked.
+1. Validate the request (see *Request limits*) → `400`.
+2. Call Catalog `GET /catalog/products/batch-get?ids=…` (one call). A product that is missing from the answer or not `ACTIVE` is ineligible with reason `NOT_ACTIVE`.
+3. Check stock with the same answer: a product whose `stockStatus` is `OUT_OF_STOCK` is ineligible with reason `INSUFFICIENT_STOCK` (decision D2). `stockStatus` is Catalog's read model of Inventory's stock events, so it says only "some stock" or "none": a request for more units than are left still passes here and is caught by the reservation in EP-ORD-02 (`422`).
+4. Any ineligible items → `422 { ineligibleItems: [ { productId, reason: "NOT_ACTIVE" | "INSUFFICIENT_STOCK" } ] }`, listing all of them.
+5. All checks pass → `204 No Content`. Nothing is stored and no stock is locked.
 
-> This is a **soft check only** — no state changes are made. Between this check and the actual order submission, items may become unavailable again. That is handled by EP-ORD-02.
+> This is a **soft check only**. Items may become unavailable before submission; EP-ORD-02 checks again and reserves.
 
 **Edge cases:**
-- `items` array empty → `400 Bad Request`
-- Any `quantity` < 1 → `400 Bad Request`
-- Catalog Service unavailable → `503 Service Unavailable`
-- Inventory Service unavailable → `503 Service Unavailable`
+- Empty `items`, more than 100 items, a duplicate `productId`, `quantity < 1` → `400`
+- Catalog unavailable → `503`; the check never reports "all fine" when it could not check
 
-**External calls:**
-- Catalog Service: `GET /catalog/products/batch-get` — check product status — **sync**
-- Inventory Service: batch availability check endpoint — **sync**
-
+**External calls:** Catalog `GET /catalog/products/batch-get` (status **and** `stockStatus` in one call) — **sync**
 **Emits:** none
 **Refs:** US-CUST-08, US-CUST-09, SCN-C11, SCN-C12
 
@@ -58,103 +147,86 @@ Guest orders are supported: orders without a registered account are identified b
 ## EP-ORD-02: Submit Order & Hard Stock Reservation
 
 **Type:** `HTTP POST /orders`
-**Caller:** Customer (unauthenticated or `ROLE_CUSTOMER`, via API Gateway) — triggered on checkout form submission ("Submit & Pay")
-**Auth:** None (supports both guests and registered customers)
+**Caller:** Customer (via API Gateway) — checkout form submission ("Submit & Pay")
+**Auth:** `CUSTOMER`
+
+**Request:** `{ items: [ { productId, quantity } ], deliveryDetails: { name, phone, address, carrier } }`
 
 **Steps:**
-1. Parse and validate request body:
-   - `items: [ { productId, quantity } ]` — non-empty, all quantities ≥ 1.
-   - `deliveryDetails: { name, phone, address, carrier }` — all required fields non-empty.
-   - For registered customers: `customerId` extracted from `X-User-Id` header.
-   - For guests: `contactEmail` (non-empty, valid format) in the body; no JWT.
-2. Call Catalog Service to fetch current prices **and** status for all items:
-   - `GET /catalog/products/batch-get?ids={productIds}`.
-   - If any product is `NOT_ACTIVE` or not found → abort; return `422 Unprocessable Entity { ineligibleItems }`.
-   - Client-provided prices are **never trusted** — always use the price returned here for snapshots.
-3. Call Inventory Service to atomically reserve stock:
-   - `POST /inventory/reservations { orderId (pre-generated), items }`.
-   - If any item has insufficient stock → abort; return `422 Unprocessable Entity { insufficientItems }`. No order is created.
-4. Create the `Order` record in a single database transaction:
-   - `status = PENDING_PAYMENT`
-   - `customerId` (or null for guests) and `guestEmail`
-   - `orderAccessToken = secureRandom()` (always generated; for registered customers it allows alternative access if needed)
-   - `reservationExpiresAt = now() + 15 minutes`
-   - `totalAmount = sum(unitPriceAtOrder × quantity)` computed from Catalog-returned prices
-   - `items = [ OrderItemSnapshot(productId, unitPriceAtOrder, quantity) ]` — snapshot is immutable from this point
-   - `deliveryDetails`
-5. Publish event `OrderPlaced { orderId, customerEmail, totalAmount, currency }`.
-6. Return `201 Created { orderId, orderAccessToken }`.
-   - For guests, this `orderAccessToken` is also sent to `contactEmail` via Notification Service as a secret URL.
+1. Validate the request → `400`: *Request limits* for `items`; every `deliveryDetails` field non-blank (`phone` in international format, e.g. `+380…`; `carrier` from the carriers the shop offers, e.g. `NOVA_POSHTA`). `customerId` comes from `X-User-Id`; a `customerId` in the body is ignored.
+2. Generate the `orderId`.
+3. Call Catalog batch-get for current prices **and** status. Any product missing or not `ACTIVE` → `422 { ineligibleItems }`; nothing is reserved. Client-provided prices are **never trusted** — the snapshot uses Catalog's `basePrice` and `title`.
+4. Call Inventory `POST /inventory/reservations { orderId, items }`:
+   - `204` → reserved.
+   - `409` (the order already has active reservations) → treated as reserved: it means an earlier attempt with this `orderId` succeeded and its answer was lost.
+   - `422 { insufficientItems }` → abort with `422 { insufficientItems }`; no order is created.
+   - unavailable / timeout → `503`; no order is created. If the reservation may have been made (timeout), call release for the `orderId` (best-effort; release is idempotent).
+5. In **one database transaction**: create the `Order` (`status = PENDING_PAYMENT`, `customerId`, `customerEmail`, `currency = UAH`, `reservationExpiresAt = now + ORDER_PAYMENT_WINDOW`, `totalAmount = Σ unitPriceAtOrder × quantity`, the item snapshots and `deliveryDetails`) and write `OrderPlaced` to the outbox.
+6. If step 5 fails after the reservation was made → release the reservation (best-effort, logged) and answer `500`. A reservation without an order would otherwise hold stock forever, because only orders are expired.
+7. Return `201 Created { orderId, status, totalAmount, currency, reservationExpiresAt }` with `Location: /orders/{orderId}`.
 
 **Edge cases:**
-- Any `quantity` < 1 → `400 Bad Request`
-- `deliveryDetails` fields missing → `400 Bad Request`
-- Guest order with missing or invalid `contactEmail` → `400 Bad Request`
-- Any product `NOT_ACTIVE` or not found in Catalog → `422 Unprocessable Entity`
-- Any item has insufficient stock (Inventory rejects reservation) → `422 Unprocessable Entity`
-- Catalog Service or Inventory Service unavailable → `503 Service Unavailable`; no order created, no stock locked
+- Invalid items or delivery details → `400`
+- Any product not active or not found → `422 { ineligibleItems }`
+- Insufficient stock → `422 { insufficientItems }`
+- Catalog or Inventory unavailable → `503`; no order created, no stock left locked
+- A price changes in Catalog right after the call → the order keeps the price it was placed with (snapshot)
+- Double submission (double click) creates two orders, each with its own reservation; the unpaid one expires. Accepted for now (an `Idempotency-Key` header would prevent it)
 
-**External calls:**
-- Catalog Service: `GET /catalog/products/batch-get` — fetch prices + status for all items — **sync**
-- Inventory Service: `POST /inventory/reservations` — atomically reserve stock — **sync**
-
-**Emits:** `OrderPlaced { orderId, customerEmail, totalAmount, currency }` → consumed by Notification Service (EP-NOTIF-EVT-01)
-**Refs:** US-CUST-08, US-CUST-09, US-CUST-07, SCN-C14, SCN-C15, SCN-C18, N-06
+**External calls:** Catalog `GET /catalog/products/batch-get`, Inventory `POST /inventory/reservations` (and release on failure) — **sync**
+**Emits:** `OrderPlaced` → Notification (EP-NOTIF-EVT-01)
+**Refs:** US-CUST-08, US-CUST-09, SCN-C14, SCN-C15, N-06
 
 ---
 
-## EP-ORD-03: Initiate Card Payment
+## EP-ORD-03: Pay for an Order
 
 **Type:** `HTTP POST /orders/{orderId}/pay`
-**Caller:** Customer (unauthenticated or `ROLE_CUSTOMER`, via API Gateway)
-**Auth:** None (guest access by `?token=` or JWT for registered)
+**Caller:** Customer (via API Gateway)
+**Auth:** `CUSTOMER` (owner only)
+
+**Request:** `{ cardDetails: { number, expiryMonth, expiryYear, cvv } }` — validated with the same rules as Payment's EP-PAY-01 (`400` before any call); card data is never stored or logged.
 
 **Steps:**
-1. Look up `Order` by `orderId`. If not found → `404 Not Found`.
-2. Verify access: if registered, `Order.customerId` must match `X-User-Id`. If guest, `?token` must match `Order.orderAccessToken`. If neither → `403 Forbidden`.
-3. Validate order state:
-   - If `Order.status != PENDING_PAYMENT` → `409 Conflict` ("Order is not awaiting payment").
-   - If `Order.reservationExpiresAt <= now()` → `409 Conflict` ("Payment window expired — order has expired"). Do **not** attempt the charge.
-4. Call Payment Service to charge: `POST /payments/charge { orderId, amount: Order.totalAmount, currency, cardDetails }`.
-5. **On Payment Service success (`200 OK`):**
-   - Set `Order.status = PAID`.
-   - Publish event `OrderPaid` with the order snapshot (fat event, see **Emits**).
-   - Return `200 OK`.
-6. **On Payment Service failure (`402`):**
-   - `Order.status` remains `PENDING_PAYMENT`. Stock reservation TTL is **not** reset.
-   - Return `402 Payment Required { reason }` to the customer so they can retry with a different card.
-7. **On Payment Service timeout / `5xx`:**
-   - Do not change order status. Return `503 Service Unavailable`. Customer may retry.
+1. Load the order; not found or not the caller's → `404`.
+2. `status != PENDING_PAYMENT` → `409` ("Order is not awaiting payment"). `reservationExpiresAt <= now` → `409` (type `payment-window-expired`); no charge is attempted.
+3. Call Payment `POST /payments/charge { orderId, amount: totalAmount, currency, cardDetails }` (read timeout `PAYMENT_READ_TIMEOUT`, at least 6 s; no retry by Order, Payment already repeats uncertain calls safely):
+   - `200` → paid.
+   - `409` "Order already charged" → paid (an earlier attempt succeeded and its answer was lost).
+   - `402 { reason }` → `402 { reason }` to the customer; the order stays `PENDING_PAYMENT`, the payment window is **not** extended, and the customer may retry with another card.
+   - `409` "Payment attempt in progress" → `409` to the customer ("Your previous payment is still being processed — try again with the same card").
+   - `502` / `504` / timeout → `503`; the order is unchanged. The customer may retry with the **same** card; Payment then returns the real outcome without charging twice.
+4. When paid: in one transaction, `PENDING_PAYMENT → PAID` (check-and-set), `paidAt = now`, and `OrderPaid` written to the outbox. Return `200 { orderId, status: "PAID" }`.
+5. If the check-and-set fails because the order changed meanwhile (cancelled by the customer or expired), the money was taken for an order that is no longer payable: refund it at once (`POST /payments/refund`), log a warning, and answer `409`.
+
+> **Expiry vs. payment.** A charge can take up to about 4.5 s. The expiry job (EP-ORD-JOB-01) expires an order only after `reservationExpiresAt` plus a grace period longer than `PAYMENT_READ_TIMEOUT`, so a payment started inside the window can always finish. Step 5 is the safety net for the remaining races.
 
 **Edge cases:**
-- `orderId` not found → `404 Not Found`
-- Access denied (wrong customer / invalid guest token) → `403 Forbidden`
-- Order not in `PENDING_PAYMENT` state → `409 Conflict`
-- Reservation TTL already elapsed → `409 Conflict` ("Payment window expired")
-- Card declined → `402 Payment Required`
-- Payment gateway timeout → `503 Service Unavailable`
+- Order not found or not the caller's → `404`
+- Not `PENDING_PAYMENT` → `409`; window elapsed → `409`
+- Card declined → `402`
+- Payment unavailable or slow → `503` (retry with the same card is safe)
 
-**External calls:**
-- Payment Service: `POST /payments/charge` — **sync**
-
-**Emits:** `OrderPaid { eventId, orderId, customerId (nullable), customerEmail, deliveryDetails { name, phone, address, carrier }, items [ { productId, quantity } ], totalAmount, currency, paidAt }` → consumed by Customer Service (EP-CUST-EVT-01), Delivery Service (EP-DEL-EVT-01), Notification Service (EP-NOTIF-EVT-02). The order snapshot is included so Delivery can register the shipment without calling Order back (event-carried state transfer, see the [Delivery spec](delivery-service-spec.md)). The status change and the event must be stored atomically (transactional outbox, as in Catalog and Inventory).
+**External calls:** Payment `POST /payments/charge` (and `POST /payments/refund` in step 5) — **sync**
+**Emits:** `OrderPaid` → Customer (EP-CUST-EVT-01), Delivery (EP-DEL-EVT-01), Notification (EP-NOTIF-EVT-02)
 **Refs:** US-CUST-10, US-CUST-11, SCN-C16, SCN-C17
 
 ---
 
-## EP-ORD-04: View Order History (Registered Customer)
+## EP-ORD-04: View Order History
 
-**Type:** `HTTP GET /orders`
-**Caller:** Registered Customer (via API Gateway)
-**Auth:** `ROLE_CUSTOMER`
+**Type:** `HTTP GET /orders?page=&size=`
+**Caller:** Customer (via API Gateway)
+**Auth:** `CUSTOMER`
 
 **Steps:**
-1. Extract `customerId` from `X-User-Id` header.
-2. Query `Order` records by `customerId`, ordered by `placedAt DESC`, paginated.
-3. Return `200 OK { content: [ { orderId, status, totalAmount, currency, placedAt } ], page, totalElements }`.
+1. Take `customerId` from `X-User-Id`.
+2. Query the customer's orders, newest first (`placedAt DESC`), paginated (default size 20, at most 100).
+3. Return `200 OK { content: [ { orderId, status, totalAmount, currency, placedAt } ], page, size, totalElements }`.
 
 **Edge cases:**
-- No orders found for the customer → return `200 OK []`
+- No orders → `200` with an empty `content`
+- Invalid `page` / `size` → `400`
 
 **External calls:** none
 **Emits:** none
@@ -165,67 +237,53 @@ Guest orders are supported: orders without a registered account are identified b
 ## EP-ORD-05: View Order Details
 
 **Type:** `HTTP GET /orders/{orderId}`
-**Caller:** Registered Customer (JWT) or Guest (via `?token=orderAccessToken`)
-**Auth:** `ROLE_CUSTOMER` (JWT) or none with valid `?token`
+**Caller:** Customer (via API Gateway)
+**Auth:** `CUSTOMER` (owner only)
 
 **Steps:**
-1. Look up `Order` by `orderId`. If not found → `404 Not Found`.
-2. Verify access:
-   - If JWT present: `Order.customerId` must match `X-User-Id`. If mismatch → `403 Forbidden`.
-   - If no JWT: `?token` query param must match `Order.orderAccessToken`. If mismatch or missing → `403 Forbidden`.
-3. Fetch delivery status from Delivery Service: `GET /delivery/shipments?orderIds={orderId}` (single item).
-4. Return `200 OK` with full order details: `{ orderId, status, items: [ { productId, unitPriceAtOrder, quantity } ], deliveryDetails, totalAmount, currency, placedAt, ttn (if available), deliveryStatus }`.
+1. Load the order; not found or not the caller's → `404`.
+2. If the order has reached `PAID` or later, fetch its shipment from Delivery: `GET /delivery/shipments?orderIds={orderId}`.
+3. Return `200 OK { orderId, status, items: [ { productId, productTitle, unitPriceAtOrder, quantity } ], deliveryDetails, totalAmount, currency, placedAt, paidAt, reservationExpiresAt, ttn, deliveryStatus }`.
 
 **Edge cases:**
-- `orderId` not found → `404 Not Found`
-- Access denied → `403 Forbidden`
-- Delivery Service unavailable → return order without delivery status (degrade gracefully; `ttn` and `deliveryStatus` as null)
+- Not found or not the caller's → `404`
+- No shipment yet (`OrderPaid` not processed) → `ttn` and `deliveryStatus` are `null`
+- Delivery unavailable → degrade gracefully: return the order with `ttn` and `deliveryStatus` as `null`
 
-**External calls:**
-- Delivery Service: `GET /delivery/shipments?orderIds={orderId}` — fetch TTN and delivery status — **sync**
-
+**External calls:** Delivery `GET /delivery/shipments` — **sync**, optional
 **Emits:** none
-**Refs:** US-CUST-15, US-CUST-16, US-CUST-07, SCN-C21, SCN-C22, SCN-C19
+**Refs:** US-CUST-15, US-CUST-16, SCN-C21, SCN-C22
 
 ---
 
-## EP-ORD-06: Request Order Cancellation
+## EP-ORD-06: Cancel Order
 
 **Type:** `HTTP DELETE /orders/{orderId}`
-**Caller:** Registered Customer (JWT) or Guest (via `?token=orderAccessToken`)
-**Auth:** `ROLE_CUSTOMER` (JWT) or none with valid `?token`
+**Caller:** Customer (via API Gateway)
+**Auth:** `CUSTOMER` (owner only)
 
 **Steps:**
-1. Look up `Order` by `orderId`. If not found → `404 Not Found`.
-2. Verify access (same logic as EP-ORD-05 step 2).
-3. Validate that `Order.status` is in `{ PENDING_PAYMENT, PAID, PENDING_SHIPPING }`. If not (e.g., `SHIPPED`, `DELIVERED`, `CANCELLATION_REQUESTED`, `CANCELLED`, `EXPIRED`) → `409 Conflict` ("Order cannot be cancelled in its current state").
-4. **For registered customers:** set `Order.status = CANCELLATION_REQUESTED` immediately and proceed to execute the cancellation saga (step 6).
-5. **For guests:** dispatch a one-time cancellation verification link/code to `Order.guestEmail`. Return `202 Accepted` ("Verification email sent — confirm cancellation via the link"). Do **not** set status yet. Guest must confirm via the verification link (separate flow — deferred, N-11).
-6. **Cancellation saga execution** (for registered customers, or after guest confirms):
-   - Call Inventory Service: `POST /inventory/reservations/{orderId}/release` — release reserved stock. **sync**
-   - Call Delivery Service: `DELETE /delivery/shipments/{orderId}` — mark the shipment `CANCELLED` and cancel the TTN if one was generated (`204`, idempotent, also when no shipment exists yet). **sync**
-   - If `Order.status` at cancellation time was `PAID` or `PENDING_SHIPPING` — call Payment Service: `POST /payments/refund { orderId, amount: Order.totalAmount, currency }`. **sync**
-   - Set `Order.status = CANCELLED`.
-   - Publish event `OrderCancelled { orderId, customerEmail, reason: "CUSTOMER_CANCELLED" }`.
-7. Return `202 Accepted` (for registered customers, indicates saga has started or completed).
+1. Load the order; not found or not the caller's → `404`.
+2. `CANCELLATION_REQUESTED` → `409` ("Cancellation already in progress"). Any status outside `{ PENDING_PAYMENT, PAID, PENDING_SHIPPING }` → `409` ("Order cannot be cancelled in its current state").
+3. Check-and-set the status to `CANCELLATION_REQUESTED` and record `statusBeforeCancellation` (decides whether a refund is owed).
+4. Run the cancellation saga (orchestrated by Order, every step idempotent):
+   1. Inventory `POST /inventory/reservations/{orderId}/release` (`204`, also when nothing is reserved).
+   2. Delivery `DELETE /delivery/shipments/{orderId}` (`204`, also when no shipment exists yet: Delivery stores a tombstone so a late `OrderPaid` creates nothing). Skipped when cancelled from `PENDING_PAYMENT`.
+   3. If `statusBeforeCancellation` is `PAID` or `PENDING_SHIPPING`: Payment `POST /payments/refund { orderId, amount: totalAmount, currency }` (`200`; `409` "already refunded" counts as done).
+   4. In one transaction: `CANCELLATION_REQUESTED → CANCELLED` and `OrderCancelled { reason: "CUSTOMER_CANCELLED" }` to the outbox.
+5. Return `202 Accepted { orderId, status }` — `CANCELLED` when the saga finished, `CANCELLATION_REQUESTED` when a step is still pending.
 
-> Saga coordination approach (choreography vs. orchestration) is an **open architectural decision** (O3 in review notes). The steps above describe an orchestrated approach where Order Service drives all saga steps synchronously. This may change.
+**When a step fails** (decision D3): a service is down or slow, or Payment answers `502` (refund rejected or provider unreachable). The order **stays `CANCELLATION_REQUESTED`**, the steps already done stay done, and the customer gets `202` with that status. EP-ORD-JOB-02 repeats the remaining steps later; because every step is idempotent, repeating a step that actually succeeded is harmless. Nothing is rolled back: released stock is not reserved again.
 
 **Edge cases:**
-- `orderId` not found → `404 Not Found`
-- Access denied → `403 Forbidden`
-- `Order.status` not in cancellable set → `409 Conflict`
-- `Order.status == CANCELLATION_REQUESTED` → `409 Conflict` ("Cancellation already in progress")
-- Inventory Service fails during saga → saga error handling TBD (retry / compensate / alert)
-- Payment refund fails during saga → saga error handling TBD
+- Not found or not the caller's → `404`
+- Already in progress → `409`; `SHIPPED`, `DELIVERED`, `CANCELLED`, `EXPIRED` → `409`
+- A `TTNGenerated` event arriving during the saga finds the order in `CANCELLATION_REQUESTED` and is ignored (see EP-ORD-EVT-01)
+- A saga step fails → the order stays `CANCELLATION_REQUESTED`; EP-ORD-JOB-02 finishes it
 
-**External calls:**
-- Inventory Service: `POST /inventory/reservations/{orderId}/release` — **sync**
-- Delivery Service: `DELETE /delivery/shipments/{orderId}` — **sync**
-- Payment Service: `POST /payments/refund` — **sync** (only if payment was made)
-
-**Emits:** `OrderCancelled { orderId, customerEmail, reason: "CUSTOMER_CANCELLED" }` → consumed by Notification Service (EP-NOTIF-EVT-05)
-**Refs:** US-CUST-13, SCN-C23, SCN-C24, SCN-S07, N-09, N-11
+**External calls:** Inventory release, Delivery cancel, Payment refund (if paid) — **sync**
+**Emits:** `OrderCancelled` → Notification (EP-NOTIF-EVT-05)
+**Refs:** US-CUST-13, SCN-C23, SCN-S07, N-09
 
 ---
 
@@ -233,24 +291,21 @@ Guest orders are supported: orders without a registered account are identified b
 
 **Type:** `HTTP GET /orders/fulfillment-queue`
 **Caller:** Inventory Worker (via API Gateway)
-**Auth:** `ROLE_INVENTORY_WORKER`
+**Auth:** `INVENTORY_WORKER`
 
 **Steps:**
-1. Query all `Order` records with `status` in `{ PAID, PENDING_SHIPPING }`.
-2. Extract all `orderId` values from the result.
-3. Call Delivery Service in a **single batch request**: `GET /delivery/shipments?orderIds={id1,id2,...}`.
-4. Merge the delivery status data onto each order entry: `{ orderId, status, placedAt, items (from OrderItemSnapshot), deliveryDetails, deliveryStatus, ttn, failureReason }`.
-5. Return `200 OK [ merged order list ]`.
+1. Query all orders with `status` in `{ PAID, PENDING_SHIPPING }`, oldest `paidAt` first.
+2. Call Delivery once for all of them: `GET /delivery/shipments?orderIds=…` (at most 100 per call; larger queues are fetched in chunks of 100).
+3. Merge per order: `{ orderId, status, placedAt, paidAt, items: [ { productId, productTitle, quantity } ], deliveryDetails, deliveryStatus, ttn, failureReason }`.
+4. Return `200 OK { deliveryDataAvailable, orders: [ … ] }` (an envelope rather than a bare list, so the Delivery flag is part of the body; decided in task 14).
 
-> Delivery status (`TTN_PENDING`, `TTN_FAILED`, `TTN_GENERATED`, or `null` while `OrderPaid` is not processed yet) is **not** stored on the `Order` entity — it lives exclusively in Delivery Service. This endpoint fetches it on demand via a single sync batch call to avoid data duplication.
+> Delivery status (`TTN_PENDING`, `TTN_FAILED`, `TTN_GENERATED`, `CANCELLED`, or `null` while `OrderPaid` is not processed yet) is **not** stored on the order; it lives only in Delivery Service.
 
 **Edge cases:**
-- No orders in `PAID` / `PENDING_SHIPPING` state → return `200 OK []`
-- Delivery Service unavailable → return orders without delivery status (degrade gracefully; mark `deliveryStatus` as unavailable)
+- Empty queue → `200 { deliveryDataAvailable: true, orders: [] }`
+- Delivery unavailable → `deliveryDataAvailable: false` and the orders without delivery data (`deliveryStatus`, `ttn`, `failureReason` as `null`)
 
-**External calls:**
-- Delivery Service: `GET /delivery/shipments?orderIds=...` — batch fetch delivery statuses — **sync**
-
+**External calls:** Delivery `GET /delivery/shipments` — **sync**, batch
 **Emits:** none
 **Refs:** US-INV-05, SCN-INV04
 
@@ -260,101 +315,138 @@ Guest orders are supported: orders without a registered account are identified b
 
 **Type:** `HTTP POST /orders/{orderId}/ship`
 **Caller:** Inventory Worker (via API Gateway)
-**Auth:** `ROLE_INVENTORY_WORKER`
+**Auth:** `INVENTORY_WORKER`
 
 **Steps:**
-1. Look up `Order` by `orderId`. If not found → `404 Not Found`.
-2. Validate `Order.status` is in `{ PAID, PENDING_SHIPPING }`. If not → `409 Conflict`.
-3. Verify that a TTN has been generated: call Delivery Service `GET /delivery/shipments?orderIds={orderId}` and check that `deliveryStatus == TTN_GENERATED`. If TTN is not yet generated (`TTN_PENDING` or `TTN_FAILED`) → `409 Conflict` ("TTN must be generated before dispatching").
-4. Set `Order.status = SHIPPED`.
-5. Publish event `OrderShipped { orderId, ttn }`.
-6. Return `200 OK`.
+1. Load the order; not found → `404`.
+2. `status` not in `{ PAID, PENDING_SHIPPING }` → `409`.
+3. Fetch the shipment from Delivery (`GET /delivery/shipments?orderIds={orderId}`). Unless `status == TTN_GENERATED` → `409` ("TTN must be generated before dispatching").
+4. In one transaction: check-and-set to `SHIPPED`, and `OrderShipped { orderId, ttn, customerEmail }` to the outbox.
+5. Return `200 OK { orderId, status: "SHIPPED", ttn }`.
+
+> An order still in `PAID` whose shipment already has a TTN (the `TTNGenerated` event has not been consumed yet) can be shipped: Delivery's answer is the source of truth for the TTN.
 
 **Edge cases:**
-- `orderId` not found → `404 Not Found`
-- `Order.status` not in `{ PAID, PENDING_SHIPPING }` → `409 Conflict`
-- TTN not yet generated → `409 Conflict` (worker must resolve TTN failure first via EP-DEL-03)
-- Delivery Service unavailable when checking TTN → `503 Service Unavailable`
+- Not found → `404`
+- Wrong status → `409`; TTN not generated (`TTN_PENDING`, `TTN_FAILED`, no shipment) → `409`
+- Delivery unavailable → `503`
 
-**External calls:**
-- Delivery Service: `GET /delivery/shipments?orderIds={orderId}` — verify TTN generated — **sync**
-
-**Emits:** `OrderShipped { orderId, ttn }` → consumed by Inventory Service (EP-INV-EVT-02), Delivery Service (EP-DEL-EVT-02, hands the parcel to the carrier) and Notification Service (EP-NOTIF-EVT-03)
-**Refs:** US-INV-07, SCN-INV06, inventory-worker-technical-insights §4, N-09
+**External calls:** Delivery `GET /delivery/shipments` — **sync**
+**Emits:** `OrderShipped` → Inventory (EP-INV-EVT-02), Delivery (EP-DEL-EVT-02), Notification (EP-NOTIF-EVT-03)
+**Refs:** US-INV-07, SCN-INV06, N-09
 
 ---
 
 ## EP-ORD-EVT-01: Consume `TTNGenerated`
 
-**Type:** Event consumer
-**Producer:** Delivery Service
-**Trigger:** Delivery Service successfully registers a TTN with the carrier after payment.
-
-**Payload received:** `{ orderId, ttn }`
+**Type:** Event consumer (consumer group `order-service`)
+**Producer:** Delivery Service, topic `delivery.shipment-events`, header `eventType: TTNGenerated`
+**Payload received:** `{ eventId, orderId, ttn, timestamp }`
 
 **Steps:**
-1. Receive and deserialise the `TTNGenerated` event.
-2. Look up `Order` by `orderId`. If not found → log warning and acknowledge.
-3. If `Order.status != PAID` → log warning and acknowledge (unexpected state — skip transition).
-4. Set `Order.status = PENDING_SHIPPING`.
-5. Acknowledge the message.
+1. Load the order. Not found → log a warning and acknowledge.
+2. `status == PAID` → check-and-set to `PENDING_SHIPPING`. Any other status → log and acknowledge (already `PENDING_SHIPPING` = duplicate; `SHIPPED` = the worker was faster; `CANCELLATION_REQUESTED` / `CANCELLED` = cancelled meanwhile, Delivery cancels the TTN itself).
+3. Acknowledge.
 
-**Edge cases:**
-- `orderId` not found → log and acknowledge (defensive)
-- Order not in `PAID` state → skip and acknowledge (idempotent)
-- Duplicate event delivery → second transition attempt finds order already in `PENDING_SHIPPING`; idempotent acknowledge
-
-**External calls:** none
-**Refs:** order-state-machine.md (PAID → PENDING_SHIPPING transition), SCN-S04
+**Idempotency:** by state; no processed-events table needed.
+**Failures:** one listener for the Delivery topic dispatches on `eventType`; an unreadable payload goes to the dead-letter topic `order.delivery.shipment-events.dlt` (owned by Order) at once, other failures after 4 retries with back-off.
+**Refs:** order-state-machine.md (PAID → PENDING_SHIPPING), SCN-S04
 
 ---
 
 ## EP-ORD-EVT-02: Consume `OrderDelivered`
 
-**Type:** Event consumer
-**Producer:** Delivery Service
-**Trigger:** The carrier reports the delivery to Delivery Service (in-process mock, a configurable delay after `OrderShipped`); Delivery Service publishes this event.
-
-**Payload received:** `{ orderId, ttn }`
+**Type:** Event consumer (same listener as EP-ORD-EVT-01)
+**Producer:** Delivery Service, header `eventType: OrderDelivered`
+**Payload received:** `{ eventId, orderId, ttn, timestamp }`
 
 **Steps:**
-1. Receive and deserialise the `OrderDelivered` event.
-2. Look up `Order` by `orderId`. If not found → log warning and acknowledge.
-3. If `Order.status != SHIPPED` → log warning and acknowledge (unexpected — skip).
-4. Set `Order.status = DELIVERED`.
-5. Acknowledge the message.
+1. Load the order. Not found → log a warning and acknowledge.
+2. `status == SHIPPED` → check-and-set to `DELIVERED`. `DELIVERED` → duplicate, acknowledge. Any other status → log a warning and acknowledge.
+3. Acknowledge.
 
-**Edge cases:**
-- `orderId` not found → log and acknowledge
-- Order not in `SHIPPED` state → log and acknowledge (idempotent)
-
-**External calls:** none
-**Refs:** order-state-machine.md (SHIPPED → DELIVERED transition), SCN-S08 (step 5)
+**Idempotency:** by state.
+**Refs:** order-state-machine.md (SHIPPED → DELIVERED), SCN-S08
 
 ---
 
-## EP-ORD-JOB-01: Reservation TTL Expiry Detection
+## EP-ORD-JOB-01: Payment Window Expiry
 
-**Type:** Background job
-**Trigger:** Scheduled polling (e.g., every 1 minute) **or** delayed broker message scheduled at order creation time — implementation approach TBD (see N-06, SCN-S06 notes).
+**Type:** Scheduled job (every minute)
 
 **Steps:**
-1. Detect all `Order` records where `status = PENDING_PAYMENT` AND `reservationExpiresAt <= now()`.
-2. For each expired order:
-   a. Set `Order.status = EXPIRED`.
-   b. Call Inventory Service to release the reservation: `POST /inventory/reservations/{orderId}/release`. **sync**
-   c. Publish event `OrderCancelled { orderId, customerEmail, reason: "EXPIRED" }`.
-3. Continue to the next expired order.
+1. Find orders with `status = PENDING_PAYMENT` and `reservationExpiresAt + grace <= now`, where `grace` is longer than `PAYMENT_READ_TIMEOUT` (default 30 s; see EP-ORD-03).
+2. For each, oldest first:
+   1. Inventory `POST /inventory/reservations/{orderId}/release`. On failure → log, leave the order `PENDING_PAYMENT`, try again in the next run.
+   2. In one transaction: check-and-set `PENDING_PAYMENT → EXPIRED` and `OrderCancelled { reason: "EXPIRED" }` to the outbox. If the check-and-set fails (the order was paid or cancelled meanwhile), skip it.
+3. Continue with the next order; one failure never stops the run.
 
-> `EXPIRED` is a **system-initiated terminal state**; it does **not** go through `CANCELLATION_REQUESTED`. It indicates no payment was made and no refund is owed.
+> `EXPIRED` is a system-initiated terminal state; it does not go through `CANCELLATION_REQUESTED`. No payment was made, so no refund is owed. With several replicas, rows are claimed with `FOR UPDATE SKIP LOCKED` (or the job runs on one replica) so an order is not processed twice at once; a second processing would be harmless anyway (release is idempotent, the check-and-set fails).
 
-**Edge cases:**
-- Inventory Service call fails for a specific order → log the error; leave that order in `PENDING_PAYMENT` to be picked up in the next job run (retry on next cycle)
-- Order transitions to `PAID` concurrently with TTL check → the expiry job must guard against a race condition: check and set `EXPIRED` atomically using an optimistic lock or a conditional update (`WHERE status = PENDING_PAYMENT AND reservationExpiresAt <= now()`)
-- Job runs multiple times for the same expired order → idempotent: if `Order.status` is already `EXPIRED`, skip
-
-**External calls:**
-- Inventory Service: `POST /inventory/reservations/{orderId}/release` — **sync** (per expired order)
-
-**Emits:** `OrderCancelled { orderId, customerEmail, reason: "EXPIRED" }` → consumed by Notification Service (EP-NOTIF-EVT-05)
+**External calls:** Inventory release — **sync**, per order
+**Emits:** `OrderCancelled` → Notification (EP-NOTIF-EVT-05)
 **Refs:** SCN-S06, N-06, order-state-machine.md
+
+---
+
+## EP-ORD-JOB-02: Finish Interrupted Cancellations
+
+**Type:** Scheduled job (every minute)
+
+**Steps:**
+1. Find orders in `CANCELLATION_REQUESTED` whose last saga attempt is older than the retry delay (back-off 1 min, 5 min, 15 min, then every 30 min).
+2. For each, repeat the saga of EP-ORD-06 step 4 from the beginning (every step is idempotent: release `204`, Delivery cancel `204`, refund `409` = already refunded).
+3. All steps succeed → `CANCELLED` and `OrderCancelled { reason: "CUSTOMER_CANCELLED" }` in one transaction.
+4. A step fails → count the attempt, store the failed step and its error (`cancellationFailure`), log a warning. After **5** failed attempts the order is flagged `needsManualAttention = true` and an `ERROR` is logged (the alert); the job keeps retrying every 30 min, because a refund owed to a customer must not be dropped.
+
+> A rejected refund usually means the provider will keep rejecting it (Payment's refund key is fixed per order and a provider replays a stored rejection). The flag is how such orders reach a person; resolving them (for example a manual refund at the provider) is outside the application.
+
+**External calls:** Inventory release, Delivery cancel, Payment refund — **sync**, per order
+**Emits:** `OrderCancelled` → Notification
+**Refs:** SCN-S07, D3
+
+---
+
+## Decisions
+
+Agreed on 2026-10-16:
+
+| # | Question | Decision | Consequence |
+|---|---|---|---|
+| D1 | How does Order learn the customer's email? The JWT carried only `sub` and `role`; the email lives in Auth. | Auth adds an `email` claim to the JWT; the gateway forwards it as `X-User-Email` (and strips client copies). | Changes in Auth, the gateway and the Security Model. Rejected: a contact email in the request (can differ from the account), a lookup by Notification (couples Notification to Auth). |
+| D2 | Where does the soft check get stock availability? | Catalog's batch-get also returns `stockStatus` (`IN_STOCK` / `OUT_OF_STOCK`), which Catalog already stores. | One Catalog change. It cannot catch "2 left, 5 requested"; the reservation does. Rejected: a new Inventory batch endpoint. |
+| D3 | What happens when a cancellation step fails? | The order stays `CANCELLATION_REQUESTED`, the customer gets `202`, EP-ORD-JOB-02 repeats the idempotent steps with back-off and flags the order for manual handling after 5 failures. | Two technical fields on `Order` (`cancellationAttempts`, `cancellationFailure`, plus `needsManualAttention`). Rejected: answering `503` and rolling back (released stock would have to be re-reserved). |
+
+---
+
+## Changes from the First Spec Version
+
+| Area | First version | Now | Why |
+|---|---|---|---|
+| Who can order | guests and registered customers | registered customers only (`CUSTOMER`) | decision 2026-10-16 |
+| Guest data | `guestEmail`, `orderAccessToken`, `?token=` access, emailed cancellation verification for guests | removed; `customerId` is never null | follows from the above |
+| Access to someone else's order | `403` | `404` (same as not found) | do not reveal which order IDs exist |
+| `POST /orders/validate` | `200 OK` | `204 No Content` | nothing to return; same convention as Inventory |
+| Catalog batch-get fields | assumed `price`, Inventory batch availability check (TBD) | Catalog's contract `{ productId, title, basePrice, status }` plus `stockStatus` (D2) | aligned with the implemented Catalog; no new Inventory endpoint |
+| Item lists | non-empty | 1–100 entries, no duplicate `productId` | same limits as Catalog batch-get and Inventory reservation |
+| Inventory reservation answer | `{ reservationId, expiresAt }` | `204`, `409` = already reserved; Order owns the payment window | aligned with the implemented Inventory |
+| Order snapshot | `productName` TBD | `productTitle` from Catalog; `customerEmail` (from `X-User-Email`, D1), `paidAt`, `statusBeforeCancellation`, `version`, cancellation-retry fields added | needed by events, history and the saga |
+| Submit response | `{ orderId, orderAccessToken }` | `{ orderId, status, totalAmount, currency, reservationExpiresAt }` | no guest token |
+| Payment answers | `402`, timeout → `503` | also `409` already charged = paid, `409` attempt in progress, `502`/`504` → `503` with "retry with the same card"; read timeout ≥ 6 s; refund if paid after the order changed | aligned with Payment's idempotency keys and repeats |
+| Expiry vs. payment race | conditional update only | plus a grace period longer than the payment timeout, and a refund safety net | a charge can take seconds |
+| Saga | Delivery cancel only "if TTN", failure handling TBD | Delivery cancel always after payment (Delivery stores a tombstone), refund `409` counts as done; a failed step leaves the order `CANCELLATION_REQUESTED` and EP-ORD-JOB-02 finishes it (D3) | aligned with Delivery and Payment |
+| Events | payloads without IDs/time, `reason: CUSTOMER_REQUESTED` in the catalogue | topic, key, headers, `eventId` + `timestamp` on every event, `customerId` on all, `reason: CUSTOMER_CANCELLED`, outbox | same conventions as Catalog, Inventory and Delivery events |
+| Fulfillment queue | statuses `TTN_PENDING/FAILED/GENERATED` | also `CANCELLED`; chunks of 100; `deliveryDataAvailable` flag | aligned with Delivery's batch limit |
+
+### Other documents updated with this revision (2026-10-16)
+
+- [entities.md](../entities/entities.md) — `Order` without `guestEmail` / `orderAccessToken`; `customerId` never null; `customerEmail`, `paidAt`, `statusBeforeCancellation`, cancellation-retry fields, `version`, `productTitle`.
+- [events-catalogue.md](../services-requirements/events-catalogue.md) — section *Order Lifecycle* with topic/key/header conventions, `eventId` and `timestamp` on every event, `customerId` always set, `reason: CUSTOMER_CANCELLED`.
+- [api-contracts.md](../services-requirements/api-contracts.md) — Order rows (`CUSTOMER` only, new request/response shapes); Catalog batch-get with `stockStatus`.
+- [API Gateway spec](api-gateway-spec.md) — every `/orders` customer route `Required` + `CUSTOMER`; `X-User-Email` stripped and set (D1).
+- [Security Model](../services-requirements/security-model.md) and [Auth spec](auth-service-spec.md) — `email` JWT claim and the `X-User-Email` header (D1).
+- [Catalog spec](catalog-service-spec.md) — EP-CAT-09 returns `stockStatus` (D2).
+- [Customer spec](customer-service-spec.md) — EP-CUST-EVT-01 step 2 kept only as a defensive guard; [Notification spec](notification-service-spec.md) — `customerId` of `OrderPaid` no longer nullable.
+- Customer scenarios (SCN-C11, C14, C21 updated; SCN-C18, C19, C24 marked out of scope), user stories (US-CUST-07 out of scope), technical insights §4, review notes (N-11 obsolete, new N-13).
+
+The code changes these documents imply in Auth, the gateway and Catalog are tasks of their own (see [`docs/tasks/order-service/`](../../tasks/order-service/)).

@@ -400,7 +400,8 @@ class ProductControllerTest {
         UUID first = UUID.randomUUID();
         UUID second = UUID.randomUUID();
         when(productService.batchGetProducts(List.of(first, second))).thenReturn(List.of(
-                new BatchProductResponse(first, "Phone", new BigDecimal("10.00"), ProductStatus.NOT_ACTIVE)));
+                new BatchProductResponse(first, "Phone", new BigDecimal("10.00"), ProductStatus.NOT_ACTIVE,
+                        StockStatus.OUT_OF_STOCK)));
 
         mockMvc.perform(get(URL + "/batch-get").headers(asInternalService()).param("ids", first + "," + second))
                 .andExpect(status().isOk())
@@ -408,6 +409,7 @@ class ProductControllerTest {
                 .andExpect(jsonPath("$[0].title").value("Phone"))
                 .andExpect(jsonPath("$[0].basePrice").value(10.00))
                 .andExpect(jsonPath("$[0].status").value("NOT_ACTIVE"))
+                .andExpect(jsonPath("$[0].stockStatus").value("OUT_OF_STOCK"))
                 .andExpect(jsonPath("$.length()").value(1));
     }
 

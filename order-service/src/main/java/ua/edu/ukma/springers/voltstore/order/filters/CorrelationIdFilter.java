@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.util.UUID;
 
-import static ua.edu.ukma.springers.voltstore.order.utils.constants.CorrelationIdKeys.*;
+import static ua.edu.ukma.springers.voltstore.order.filters.CorrelationIdKeys.*;
 
 @Component
 public class CorrelationIdFilter implements Filter {

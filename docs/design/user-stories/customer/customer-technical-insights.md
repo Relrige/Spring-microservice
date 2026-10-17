@@ -36,6 +36,8 @@ This document captures architectural discoveries, domain boundaries, and technic
 ---
 
 ## 4. Guest Order Access & Minimal Identification
+
+> **Out of scope (2026-10-16):** only registered customers can order, so guest order access and guest cancellation verification are not built. Guest *carts* (§ below) are unaffected.
 - **User Story Context:** US-CUST-07 & US-CUST-13 (Guest order viewing and cancellation).
 - **Challenge:** Enabling unregistered customers to view their order and perform authorized actions (like cancellation) without a login account.
 - **Insight / Approach:**

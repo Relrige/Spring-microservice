@@ -24,7 +24,7 @@ Services do not validate JWTs. They trust the identity headers set by the gatewa
 1. **Route** requests by method and path to the owning service, using an explicit allowlist.
 2. **Authenticate** the caller from the `Authorization: Bearer <JWT>` header.
 3. **Authorize coarsely**: reject callers whose role is not allowed on the route. Finer rules (for example "this order belongs to this customer") stay in the services.
-4. **Propagate identity** as the trusted headers `X-User-Id` and `X-User-Role`.
+4. **Propagate identity** as the trusted headers `X-User-Id`, `X-User-Role` and `X-User-Email`.
 5. **Protect the trust boundary**: strip client-supplied identity headers and never expose internal endpoints.
 
 It does **not** handle service-to-service calls; those go directly between services and are authenticated with the internal token (see the Security Model).
@@ -35,7 +35,7 @@ It does **not** handle service-to-service calls; those go directly between servi
 
 Filters run in this order for every incoming request.
 
-1. **Strip identity headers.** Remove `X-User-Id`, `X-User-Role` and `X-Internal-Token` from the incoming request, so identity can only come from step 5.
+1. **Strip identity headers.** Remove `X-User-Id`, `X-User-Role`, `X-User-Email` and `X-Internal-Token` from the incoming request, so identity can only come from step 5.
 2. **Match a route.** Match method and path against the [route table](#route-table). No match → `404 Not Found`. Internal endpoints are not in the table, so they are always unmatched.
 3. **Authenticate**, depending on the route's auth mode:
 
@@ -47,7 +47,7 @@ Filters run in this order for every incoming request.
 
    A JWT is valid when: the header algorithm is HS256 and the signature verifies with `AUTH_JWT_SECRET`; `exp` is present and in the future (clock-skew leeway `auth.jwt.leeway`, default `30s`); `sub` is a UUID in canonical form; and `role` is one of the known roles. Any `Authorization` value that is not exactly one `Bearer <token>` (scheme case-insensitive) counts as an invalid token.
 4. **Authorize.** For routes with allowed roles, a caller whose `role` is not listed → `403 Forbidden`. Roles are not hierarchical: `ADMIN` has no implicit access to other services' routes.
-5. **Set identity headers.** For an authenticated caller, add `X-User-Id` (= `sub`) and `X-User-Role` (= `role`). Anonymous requests carry neither header.
+5. **Set identity headers.** For an authenticated caller, add `X-User-Id` (= `sub`), `X-User-Role` (= `role`) and `X-User-Email` (= `email`, added 2026-10-16 for Order Service). Anonymous requests carry none of them. A token without an `email` claim (issued before the change) is still valid; `X-User-Email` is then omitted.
 6. **Remove `Authorization`** from the forwarded request (downstream services do not need the token), then forward to the upstream.
 
 ### Implementation
@@ -87,7 +87,7 @@ The model is safe only if all of these hold:
 
 ## Route Table
 
-Derived from the [API Contracts](../services-requirements/api-contracts.md). Rows marked *(deferred)* are not configured yet: Order and Delivery Service do not expose the contract paths yet and Customer Service does not exist; their routes are added per service. **Auth mode:** `Public` = no token needed; `Optional` = token used if present; `Required` = token needed and role checked. An empty roles column means any authenticated role (or anonymous, for `Public` and `Optional`).
+Derived from the [API Contracts](../services-requirements/api-contracts.md). Rows marked *(deferred)* are not configured yet; their routes are added per service ([task 10](../../tasks/api-getaway/10-remaining-service-routes.md)). Order routes are configured since 2026-10-17. **Auth mode:** `Public` = no token needed; `Optional` = token used if present; `Required` = token needed and role checked. An empty roles column means any authenticated role (or anonymous, for `Public` and `Optional`).
 
 | Method | Path | Upstream | Auth mode | Allowed roles |
 |---|---|---|---|---|
@@ -111,13 +111,13 @@ Derived from the [API Contracts](../services-requirements/api-contracts.md). Row
 | `GET` | `/inventory/stock` | inventory-service | Required | `INVENTORY_WORKER` |
 | `POST` | `/inventory/stock/{id}/adjust` | inventory-service | Required | `INVENTORY_WORKER` |
 | `PUT` | `/inventory/stock/{id}/packaging` | inventory-service | Required | `INVENTORY_WORKER` |
-| `POST` | `/orders/validate` | order-service *(deferred)* | Optional | — |
-| `POST` | `/orders` | order-service *(deferred)* | Optional | — |
-| `POST` | `/orders/{id}/pay` | order-service *(deferred)* | Optional | — |
-| `GET` | `/orders` | order-service *(deferred)* | Required | `CUSTOMER` |
-| `GET`, `DELETE` | `/orders/{id}` | order-service *(deferred)* | Optional | — (guest access by `?token=` is checked in the service) |
-| `GET` | `/orders/fulfillment-queue` | order-service *(deferred)* | Required | `INVENTORY_WORKER` |
-| `POST` | `/orders/{id}/ship` | order-service *(deferred)* | Required | `INVENTORY_WORKER` |
+| `POST` | `/orders/validate` | order-service | Required | `CUSTOMER` |
+| `POST` | `/orders` | order-service | Required | `CUSTOMER` |
+| `POST` | `/orders/{id}/pay` | order-service | Required | `CUSTOMER` |
+| `GET` | `/orders` | order-service | Required | `CUSTOMER` |
+| `GET`, `DELETE` | `/orders/{id}` | order-service | Required | `CUSTOMER` (ownership is checked in the service; no guest access since 2026-10-16) |
+| `GET` | `/orders/fulfillment-queue` | order-service | Required | `INVENTORY_WORKER` |
+| `POST` | `/orders/{id}/ship` | order-service | Required | `INVENTORY_WORKER` |
 | `POST` | `/delivery/orders/{id}/ttn/retry` | delivery-service *(deferred)* | Required | `INVENTORY_WORKER` |
 
 **Not routed (internal endpoints):** `GET /catalog/products/batch-get`; `GET /inventory/stock/{id}/readiness`; `GET /inventory/stock/{id}/packaging`; `POST /inventory/reservations`; `POST /inventory/reservations/{orderId}/release`; `POST /payments/charge`; `POST /payments/refund`; `GET /delivery/shipments`; `DELETE /delivery/shipments/{orderId}`.
@@ -134,7 +134,7 @@ Derived from the [API Contracts](../services-requirements/api-contracts.md). Row
 ## Auth Service Interaction
 
 - Login and registration are routed as `Public`; the gateway passes the request body through unchanged and returns Auth Service's response (including its `401`/`409`).
-- The gateway never calls Auth Service. It verifies tokens locally with `AUTH_JWT_SECRET`, using the algorithm and claims defined in [Auth Service Spec — JWT](auth-service-spec.md#jwt) (HS256; `sub`, `role`, `iat`, `exp`).
+- The gateway never calls Auth Service. It verifies tokens locally with `AUTH_JWT_SECRET`, using the algorithm and claims defined in [Auth Service Spec — JWT](auth-service-spec.md#jwt) (HS256; `sub`, `role`, `email`, `iat`, `exp`).
 - `POST /user/non-customer` requires `ADMIN` at the gateway **and** at Auth Service (defence in depth).
 
 ---
@@ -145,7 +145,7 @@ Derived from the [API Contracts](../services-requirements/api-contracts.md). Row
 |---|---|---|
 | `auth.jwt.secret` | `AUTH_JWT_SECRET` | HS256 verification key, identical to Auth Service's; at least 32 characters, checked at startup |
 | `auth.jwt.leeway` | `AUTH_JWT_LEEWAY` | Tolerated clock difference for `exp`; default `30s` |
-| `gateway.upstreams.auth` / `.catalog` / `.inventory` | `GATEWAY_UPSTREAMS_AUTH` / `_CATALOG` / `_INVENTORY` | Upstream base URLs. Kubernetes (ConfigMap `gateway-config`): Service name and port, e.g. `http://auth-service:8086`. Compose: service name and container port, e.g. `http://auth-service:8080` |
+| `gateway.upstreams.auth` / `.catalog` / `.inventory` / `.order` | `GATEWAY_UPSTREAMS_AUTH` / `_CATALOG` / `_INVENTORY` / `_ORDER` | Upstream base URLs. Kubernetes (ConfigMap `gateway-config`): Service name and port, e.g. `http://auth-service:8086`. Compose: service name and container port, e.g. `http://auth-service:8080` |
 | `spring.http.clients.connect-timeout` / `read-timeout` | `SPRING_HTTP_CLIENTS_CONNECT_TIMEOUT` / `_READ_TIMEOUT` | Upstream timeouts; defaults `2s` / `15s` (room for upstreams that call other services with retries) |
 | `management.server.port` | — | Actuator and health probes; `8090` |
 | Route definitions | — | `spring.cloud.gateway.server.webmvc.routes` in `application.yml`: one entry per configured row of the route table, with `Method` and `Path` predicates, the `TrustBoundary` filter and `metadata.authMode` / `metadata.roles` |

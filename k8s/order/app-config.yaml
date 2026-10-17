@@ -6,6 +6,26 @@ metadata:
 data:
   POSTGRES_DB: "order-service"
   SPRING_DATASOURCE_URL: "jdbc:postgresql://order-service-postgres:5432/order-service"
+  # The services Order calls (Kubernetes Service ports); INTERNAL_TOKEN comes from the order-secrets Secret
+  CATALOG_SERVICE_URL: "http://catalog-service:8081"
+  INVENTORY_SERVICE_URL: "http://inventory-service:8084"
+  PAYMENT_SERVICE_URL: "http://payment-service:8085"
+  DELIVERY_SERVICE_URL: "http://delivery-service:8083"
+  # At least 6s: Payment's own worst case is about 4.5 s
+  PAYMENT_READ_TIMEOUT: "8s"
+  # How long a new order may be paid; its reservation is released after that
+  ORDER_PAYMENT_WINDOW: "15m"
+  # Carriers a customer may choose; Delivery must support each
+  ORDER_CARRIERS: "NOVA_POSHTA"
+  # Interrupted cancellations are retried this often (decision D3)
+  ORDER_CANCELLATION_RETRY_INTERVAL: "1m"
+  # Payment-window expiry job; the grace must be longer than PAYMENT_READ_TIMEOUT (checked at startup)
+  ORDER_EXPIRY_INTERVAL: "1m"
+  ORDER_EXPIRY_GRACE: "30s"
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  # Order publishes to its own topic and consumes Delivery's
+  ORDER_EVENTS_TOPIC: "order.order-events"
+  DELIVERY_EVENTS_TOPIC: "delivery.shipment-events"
   # JVM settings live here only (not in the Dockerfile). Heap up to 70% of the container memory limit;
   # C1-only JIT and Serial GC: faster startup and less memory on a small local cluster
   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:TieredStopAtLevel=1 -XX:+UseSerialGC"

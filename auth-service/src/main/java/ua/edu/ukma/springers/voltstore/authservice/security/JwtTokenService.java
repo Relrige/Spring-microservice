@@ -19,6 +19,7 @@ import java.util.Date;
 @Service
 public class JwtTokenService implements TokenService {
     public static final String ROLE_CLAIM = "role";
+    public static final String EMAIL_CLAIM = "email";
 
     private final JWSSigner signer;
     private final Duration expiration;
@@ -38,6 +39,8 @@ public class JwtTokenService implements TokenService {
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .subject(user.getId().toString())
                 .claim(ROLE_CLAIM, user.getRole().name())
+                // Stored normalized (see EmailNormalizer); the gateway forwards it as X-User-Email
+                .claim(EMAIL_CLAIM, user.getEmail())
                 .issueTime(Date.from(now))
                 .expirationTime(Date.from(now.plus(expiration)))
                 .build();

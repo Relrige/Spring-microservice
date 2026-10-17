@@ -63,6 +63,8 @@
 
 ## 2. Order Lifecycle
 
+> **Conventions for this section** (aligned 2026-10-16 with the [Order spec](../services-specs/order-service-spec.md)): topic `order.order-events`, owned and declared by Order Service (3 partitions, name from `ORDER_EVENTS_TOPIC`), message key = `orderId`. Each record carries the headers `eventType` (`OrderPlaced`, `OrderPaid`, `OrderShipped` or `OrderCancelled`) and `eventId`. Payloads are JSON without Java type headers and carry a mandatory `eventId` and an ISO-8601 UTC `timestamp`. **Delivery:** at-least-once, through Order's transactional outbox; consumers must be idempotent and ignore event types they do not handle. Only registered customers can order, so `customerId` and `customerEmail` are always present.
+
 ### `OrderPlaced`
 - **Producer:** Order Service
 - **Consumers:** Notification Service
@@ -70,18 +72,21 @@
 - **Payload:**
   ```json
   {
+    "eventId": "uuid",
     "orderId": "uuid",
+    "customerId": "uuid",
     "customerEmail": "user@example.com",
     "totalAmount": 1500.00,
-    "currency": "UAH"
+    "currency": "UAH",
+    "reservationExpiresAt": "2026-10-16T12:15:00Z",
+    "timestamp": "2026-10-16T12:00:00Z"
   }
   ```
 
 ### `OrderPaid`
 - **Producer:** Order Service
 - **Consumers:** Customer Service, Delivery Service, Notification Service
-- **Trigger:** Successful payment is confirmed.
-- **Topic / key:** provisionally `order.order-events` (key `orderId`), header `eventType: OrderPaid` (and `eventId`), like `OrderShipped`.
+- **Trigger:** Successful payment is confirmed (`PENDING_PAYMENT → PAID`).
 - **Consumer Actions:**
   - *Customer:* Clears the backend cart.
   - *Delivery:* Creates a `Shipment` (`TTN_PENDING`); its TTN generation job then registers the parcel with the carrier.
@@ -91,22 +96,23 @@
   {
     "eventId": "uuid",
     "orderId": "uuid",
-    "customerId": "uuid (nullable)",
+    "customerId": "uuid",
     "customerEmail": "user@example.com",
     "deliveryDetails": { "name": "Ivan Petrenko", "phone": "+380501234567", "address": "Kyiv, branch 12", "carrier": "NOVA_POSHTA" },
     "items": [ { "productId": "uuid", "quantity": 2 } ],
     "totalAmount": 1500.00,
     "currency": "UAH",
-    "paidAt": "2026-10-15T12:00:00Z"
+    "paidAt": "2026-10-15T12:00:00Z",
+    "timestamp": "2026-10-15T12:00:00Z"
   }
   ```
-  `deliveryDetails` and `items` are copied from the order's snapshot; `totalAmount` becomes the shipment's declared value. The topic therefore contains personal data of the recipient.
+  `deliveryDetails` and `items` are copied from the order's snapshot; `totalAmount` becomes the shipment's declared value. The topic therefore contains personal data of the recipient. (`customerId` was nullable while guest orders existed; it is now always set.)
 
 ### `OrderShipped`
 - **Producer:** Order Service
 - **Consumers:** Inventory Service, Delivery Service, Notification Service
-- **Trigger:** Inventory worker dispatches the parcel.
-- **Topic / key:** owned by Order Service; provisionally `order.order-events` (key `orderId`). Every message must carry the header `eventType: OrderShipped`: the topic holds all order events, and Inventory consumes only records with this header.
+- **Trigger:** Inventory worker dispatches the parcel (`→ SHIPPED`).
+- **Header:** Inventory and Delivery consume only records with `eventType: OrderShipped` from the shared topic.
 - **Consumer Actions:**
   - *Inventory:* Permanently deducts `reservedQuantity` (consumes the reservation).
   - *Delivery:* Marks the shipment `IN_TRANSIT` and hands the parcel to the carrier, which later reports the delivery.
@@ -114,24 +120,30 @@
 - **Payload:**
   ```json
   {
+    "eventId": "uuid",
     "orderId": "uuid",
     "ttn": "CARRIER-123456789",
-    "customerEmail": "user@example.com"
+    "customerEmail": "user@example.com",
+    "timestamp": "2026-10-16T15:00:00Z"
   }
   ```
 
 ### `OrderCancelled`
 - **Producer:** Order Service
 - **Consumers:** Notification Service
-- **Trigger:** Compensation saga completes or TTL expires.
+- **Trigger:** The cancellation saga completes (`→ CANCELLED`) or the payment window expires (`→ EXPIRED`).
 - **Payload:**
   ```json
   {
+    "eventId": "uuid",
     "orderId": "uuid",
+    "customerId": "uuid",
     "customerEmail": "user@example.com",
-    "reason": "CUSTOMER_REQUESTED | EXPIRED"
+    "reason": "CUSTOMER_CANCELLED | EXPIRED",
+    "timestamp": "2026-10-16T12:20:00Z"
   }
   ```
+  (`reason` was `CUSTOMER_REQUESTED` here and `CUSTOMER_CANCELLED` in the Order and Notification specs; aligned to `CUSTOMER_CANCELLED` on 2026-10-16.)
 
 ---
 

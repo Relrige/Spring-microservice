@@ -38,7 +38,7 @@ This document captures the functional requirements from the perspective of custo
   * **I want to** register and authenticate into my personal account,
   * **So that** I can access my saved cart, profile data, and order history.
 
-* **US-CUST-07: Guest Checkout & Secret URL Access**
+* **US-CUST-07: Guest Checkout & Secret URL Access** — *out of scope (decision 2026-10-16): only registered customers can order. Visitors can still browse and fill a cart, and log in to check out.*
   * **As a** guest customer,
   * **I want to** place an order without creating an account and access its status via a secret link sent to my email,
   * **So that** I can complete a purchase quickly while retaining the ability to check order status and track shipping.
@@ -82,7 +82,7 @@ This document captures the functional requirements from the perspective of custo
   * **So that** I can retract my purchase if I change my mind.
   * *Notes:* 
     - Registered customers cancel via their account.
-    - Guest customers must confirm cancellation via a one-time verification link or code sent to their email.
+    - ~~Guest customers must confirm cancellation via a one-time verification link or code sent to their email.~~ No guest orders since 2026-10-16.
     - Cancellation is permitted only before the order has been handed to the carrier (shipped). Once delivered, returns are out of scope.
 
 * **US-CUST-14: Order History Viewing**

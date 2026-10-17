@@ -30,9 +30,11 @@ public class TrustBoundaryFilter {
 
     public static final String USER_ID_HEADER = "X-User-Id";
     public static final String USER_ROLE_HEADER = "X-User-Role";
+    /** Data for the service (order emails), never used for authorization; not logged, it is personal data. */
+    public static final String USER_EMAIL_HEADER = "X-User-Email";
     public static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     /** Never accepted from clients: identity comes only from a verified JWT, the internal token only from services. */
-    static final List<String> STRIPPED_HEADERS = List.of(USER_ID_HEADER, USER_ROLE_HEADER, INTERNAL_TOKEN_HEADER);
+    static final List<String> STRIPPED_HEADERS = List.of(USER_ID_HEADER, USER_ROLE_HEADER, USER_EMAIL_HEADER, INTERNAL_TOKEN_HEADER);
 
     private static final String BEARER_PREFIX = "bearer ";
 
@@ -79,6 +81,7 @@ public class TrustBoundaryFilter {
             identity.ifPresent(id -> {
                 headers.set(USER_ID_HEADER, id.userId().toString());
                 headers.set(USER_ROLE_HEADER, id.role().name());
+                id.email().ifPresent(email -> headers.set(USER_EMAIL_HEADER, email));
             });
         }).build();
     }
