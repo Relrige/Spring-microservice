@@ -1,8 +1,5 @@
 package ua.edu.ukma.springers.voltstore.order.clients;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,47 +7,54 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.support.RestClientAdapter;
 import org.springframework.web.service.invoker.HttpServiceProxyFactory;
+import ua.edu.ukma.springers.voltstore.order.clients.HttpClients.CatalogHttpClient;
+import ua.edu.ukma.springers.voltstore.order.clients.HttpClients.DeliveryHttpClient;
+import ua.edu.ukma.springers.voltstore.order.clients.HttpClients.InventoryHttpClient;
+import ua.edu.ukma.springers.voltstore.order.clients.HttpClients.PaymentHttpClient;
 
 import java.net.http.HttpClient;
-import java.time.Duration;
 
-import static ua.edu.ukma.springers.voltstore.order.utils.constants.CorrelationIdKeys.*;
-
-@Configuration
-@EnableConfigurationProperties(CatalogClientProperties.class)
+/**
+ * One {@link RestClient} per service, each with its own timeouts, the internal token and the correlation ID. User
+ * headers are never forwarded.
+ */
+@Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties({ClientsProperties.class, InternalTokenProperties.class})
 public class ClientsConfiguration {
 
-    private static final Logger log = LoggerFactory.getLogger(ClientsConfiguration.class);
+    @Bean
+    CatalogHttpClient catalogHttpClient(ClientsProperties clients, InternalTokenProperties token) {
+        return create(CatalogHttpClient.class, clients.catalog(), token);
+    }
 
     @Bean
-    public CatalogClient catalogClient(CatalogClientProperties properties) {
+    InventoryHttpClient inventoryHttpClient(ClientsProperties clients, InternalTokenProperties token) {
+        return create(InventoryHttpClient.class, clients.inventory(), token);
+    }
 
+    @Bean
+    PaymentHttpClient paymentHttpClient(ClientsProperties clients, InternalTokenProperties token) {
+        return create(PaymentHttpClient.class, clients.payment(), token);
+    }
+
+    @Bean
+    DeliveryHttpClient deliveryHttpClient(ClientsProperties clients, InternalTokenProperties token) {
+        return create(DeliveryHttpClient.class, clients.delivery(), token);
+    }
+
+    private static <T> T create(Class<T> type, ClientsProperties.Endpoint endpoint, InternalTokenProperties token) {
         HttpClient httpClient = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_2)
-                .connectTimeout(Duration.ofSeconds(2))
+                .connectTimeout(endpoint.connectTimeout())
                 .build();
-
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
-        requestFactory.setReadTimeout(Duration.ofSeconds(3));
+        requestFactory.setReadTimeout(endpoint.readTimeout());
 
         RestClient restClient = RestClient.builder()
-                .baseUrl(properties.getUrl())
+                .baseUrl(endpoint.url())
                 .requestFactory(requestFactory)
-                .requestInterceptor((request, body, execution) -> {
-                    String correlationId = MDC.get(CORRELATION_ID_MDC_KEY);
-                    if (correlationId != null) {
-                        request.getHeaders().add(CORRELATION_ID_HTTP_HEADER, correlationId);
-                    }
-                    log.info(">>> [OUTGOING HTTP] {} {} | Header {}: {}",
-                            request.getMethod(), request.getURI(), CORRELATION_ID_HTTP_HEADER, correlationId);
-                    return execution.execute(request, body);
-                })
+                .requestInterceptor(new InternalTokenInterceptor(token.token()))
+                .requestInterceptor(new CorrelationIdInterceptor())
                 .build();
-
-        HttpServiceProxyFactory proxyFactory = HttpServiceProxyFactory
-                .builderFor(RestClientAdapter.create(restClient))
-                .build();
-
-        return proxyFactory.createClient(CatalogClient.class);
+        return HttpServiceProxyFactory.builderFor(RestClientAdapter.create(restClient)).build().createClient(type);
     }
 }

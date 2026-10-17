@@ -1,4 +1,4 @@
-package ua.edu.ukma.springers.voltstore.order.utils.constants;
+package ua.edu.ukma.springers.voltstore.order.filters;
 
 import lombok.experimental.UtilityClass;
 
