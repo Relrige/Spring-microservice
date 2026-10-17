@@ -2,7 +2,7 @@
 
 Responsible for user authentication and JWT issuance. It is the identity master for all system roles. Owns user credentials and roles only — no profile data, no business objects.
 
-The API Gateway validates the JWTs this service issues and forwards the trusted headers `X-User-Id` and `X-User-Role` to downstream services. Auth Service itself does not validate JWTs either: for its own admin-only endpoint it trusts those gateway headers, like every other service (see [Security Model](../services-requirements/security-model.md)).
+The API Gateway validates the JWTs this service issues and forwards the trusted headers `X-User-Id`, `X-User-Role` and `X-User-Email` to downstream services. Auth Service itself does not validate JWTs either: for its own admin-only endpoint it trusts those gateway headers, like every other service (see [Security Model](../services-requirements/security-model.md)).
 
 ---
 
@@ -169,7 +169,7 @@ Auth Service exposes no internal (service-to-service) endpoints, so `ROLE_SERVIC
 | | |
 |---|---|
 | **Algorithm** | HS256 (symmetric). The API Gateway validates tokens with the same secret. |
-| **Claims** | `sub` = user id (UUID), `role` = role name, `iat`, `exp` |
+| **Claims** | `sub` = user id (UUID), `role` = role name, `email` = the normalized account email (added 2026-10-16, forwarded by the gateway as `X-User-Email`), `iat`, `exp` |
 | **Lifetime** | Configurable, default 1 hour. No refresh tokens. |
 | **Signing key** | At least 32 characters, supplied through the environment, never committed |
 

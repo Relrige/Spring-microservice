@@ -108,7 +108,7 @@
 
 Triggered when customer clicks "Proceed to Checkout".
 
-1. Client sends `POST /orders/validate` with `{items: [{productId, quantity}]}` (JWT or no JWT for guest).
+1. Client sends `POST /orders/validate` with `{items: [{productId, quantity}]}` and the customer's JWT (a visitor logs in before checkout: only registered customers can order).
 2. Order Service calls Catalog Service: are all `productIds` currently `ACTIVE`?
 3. Order Service calls Inventory Service: is `availableQty >= requestedQty` for all items?
 4. Both checks pass → Order Service returns `200 OK`.
@@ -138,20 +138,20 @@ Triggered when customer clicks "Proceed to Checkout".
 
 Customer submits the completed checkout form ("Submit & Pay").
 
-1. Client sends `POST /orders` with `{items: [{productId, quantity}], deliveryDetails: {name, phone, address, carrier}}` and JWT (or no JWT for guest with `contactEmail`).
+1. Client sends `POST /orders` with `{items: [{productId, quantity}], deliveryDetails: {name, phone, address, carrier}}` and the customer's JWT; the gateway forwards `X-User-Id` and `X-User-Email`.
 2. Order Service calls Catalog Service: fetch current prices for all `productIds` (for snapshot — client-provided prices are never trusted).
-3. Order Service calls Inventory Service: `POST /stock/reserve` with `{items}`.
+3. Order Service calls Inventory Service: `POST /inventory/reservations` with `{orderId, items}` (the `orderId` is generated before the call).
    - Inventory Service atomically checks `availableQty >= requestedQty` for all items.
    - Atomically decrements `availableQty`, increments `reservedQty` for all items.
-   - Returns `{reservationId, expiresAt}`.
+   - Returns `204 No Content` (a `409` for the same `orderId` means "already reserved"). There is no `reservationId`: reservations are found by `orderId`.
 4. Order Service creates the Order:
    - `status = PENDING_PAYMENT`
-   - `OrderItemSnapshots`: `[{productId, productName, unitPriceAtOrder, quantity}]`
-   - `deliveryDetails`, `customerId` (or `guestEmail`)
-   - `reservationId`, reservation `expiresAt`
-5. Order Service publishes event: `OrderPlaced(orderId)`.
+   - `OrderItemSnapshots`: `[{productId, productTitle, unitPriceAtOrder, quantity}]`
+   - `deliveryDetails`, `customerId`, `customerEmail`
+   - `reservationExpiresAt = now + 15 min` (Order owns the payment window)
+5. Order Service publishes event: `OrderPlaced(orderId, customerEmail, totalAmount, currency)` through its outbox.
 6. Notification Service consumes `OrderPlaced` → sends "Order Placed" email.
-7. Order Service returns `201 Created` with `{orderId, paymentUrl}`.
+7. Order Service returns `201 Created` with `{orderId, status, totalAmount, currency, reservationExpiresAt}`; the client then pays with `POST /orders/{orderId}/pay` (SCN-C16).
 
 ---
 
@@ -198,6 +198,8 @@ Customer submits the completed checkout form ("Submit & Pay").
 
 ## SCN-C18: Guest Checkout — Place Order Without Account
 
+> **Out of scope (2026-10-16):** only registered customers can order; there is no guest checkout. Kept for the history of the requirements; see the [Order spec](../services-specs/order-service-spec.md).
+
 1. Guest completes soft check (SCN-C11) without a JWT.
 2. Guest fills checkout form including `contactEmail`.
 3. Guest sends `POST /orders` with `{items, deliveryDetails, contactEmail}` (no JWT).
@@ -208,6 +210,8 @@ Customer submits the completed checkout form ("Submit & Pay").
 ---
 
 ## SCN-C19: Guest Order Access via Secret URL
+
+> **Out of scope (2026-10-16):** there are no guest orders, so there is no secret URL or `orderAccessToken`; customers see their orders after login (SCN-C20, SCN-C21).
 
 1. Guest navigates to `/orders/{orderId}?token={orderAccessToken}` (from email link).
 2. Order Service validates the `orderAccessToken` against the stored value for `orderId`.
@@ -225,7 +229,7 @@ Customer submits the completed checkout form ("Submit & Pay").
 
 ## SCN-C21: View Order Details with Price Snapshot
 
-1. Customer sends `GET /orders/{orderId}` with JWT, or guest accesses with `?token=...`.
+1. Customer sends `GET /orders/{orderId}` with JWT; an order of another customer answers `404`.
 2. Order Service returns full order: `OrderItemSnapshots` (productName, unitPriceAtOrder, quantity), delivery details, status, TTN if available.
 
 *Prices in the snapshot are always the prices at the time of ordering, regardless of any subsequent Catalog price changes.*
@@ -250,6 +254,8 @@ Customer submits the completed checkout form ("Submit & Pay").
 ---
 
 ## SCN-C24: Order Cancellation — Guest Customer (Before SHIPPED)
+
+> **Out of scope (2026-10-16):** there are no guest orders; every cancellation is a registered customer's (SCN-C23), so no email verification step exists.
 
 1. Guest sends `DELETE /orders/{orderId}?token={orderAccessToken}`.
 2. Order Service verifies: `orderAccessToken` is valid AND `status` allows cancellation.

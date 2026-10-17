@@ -51,7 +51,7 @@ Error handling strategy for failed email delivery (retry policy, dead-letter que
 **Producer:** Order Service
 **Trigger:** Successful payment confirmed; order status transitions to `PAID`.
 
-**Payload received:** `{ orderId, customerId (nullable), customerEmail }`
+**Payload received:** `{ orderId, customerId, customerEmail }` (the fat `OrderPaid`; other fields are ignored)
 
 **Steps:**
 1. Receive and deserialise the `OrderPaid` event.

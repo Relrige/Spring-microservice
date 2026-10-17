@@ -21,4 +21,4 @@ service: api-gateway
 
 ## Technical Notes / Constraints
 - Add one service at a time, together with (or right after) the service task that implements its contract paths.
-- Guest access to orders (`?token=`) is checked by Order Service; the gateway only forwards the query string unchanged (already covered by task 06).
+- ~~Guest access to orders (`?token=`) is checked by Order Service.~~ Since 2026-10-16 only registered customers can order: every customer `/orders` route is `Required` with role `CUSTOMER` (see the updated route table in the gateway spec); worker routes stay `INVENTORY_WORKER`. The `X-User-Email` header the Order routes need is [task 11](11-forward-user-email-header.md).

@@ -67,8 +67,12 @@ Confirmed in scope. Listens to domain events: `OrderPlaced`, `OrderPaid`, `Order
 
 ### N-11 — Guest cancellation token details deferred
 One-time email verification is required for guest order cancellation. Expiry policy and resend flow to be defined later.
+*Obsolete since 2026-10-16 (see N-13): there are no guest orders.*
 
 ### N-12 — Guest cart merge conflict resolution is a client-side concern; deferred
+
+### N-13 — Only registered customers can order (2026-10-16)
+Guest checkout (US-CUST-07, SCN-C18, SCN-C19, SCN-C24) is dropped: every `/orders` customer route requires `CUSTOMER`, an order always has a `customerId`, and the account email reaches Order Service as the gateway header `X-User-Email` (an `email` claim in the JWT). Visitors can still browse and keep a client-side cart, which is merged on login (N-12). Reasons: one access model instead of two (JWT plus `orderAccessToken`), no secret-URL or email-verification flows to build and secure, and order history always belongs to an account. See the [Order spec](../services-specs/order-service-spec.md).
 
 ---
 

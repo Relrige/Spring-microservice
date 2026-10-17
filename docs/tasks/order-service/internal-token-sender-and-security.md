@@ -1,8 +1,10 @@
 ---
-status: TODO
+status: SUPERSEDED
 service: order-service
 ---
 # Internal Token on Outgoing Calls and Security Setup (Follow-up)
+
+> **Superseded (2026-10-16)** by [task 04](04-trusted-header-security.md) (receiver side: registered customers only, ownership) and [task 05](05-internal-clients.md) (sender side: token and correlation headers on all four clients). Kept for history.
 
 ## Context
 Order Service calls `Internal` endpoints of other services (catalog `batch-get`, inventory reservations, payment charge/refund, delivery shipments). These calls bypass the gateway and carry no user. After the auth-service pilot, each service authenticates callers with trusted headers and a shared internal token. This task covers the sender side and the receiver-side copy for order-service. Catalog and delivery services, which also make internal calls, follow the same steps in their own tasks.

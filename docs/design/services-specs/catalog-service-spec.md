@@ -234,7 +234,7 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 **Steps:**
 1. Parse the `ids` query parameter as a comma-separated list of UUIDs.
 2. Query all `Product` records whose `id` is in the list.
-3. Return `200 OK [ { productId, title, basePrice, status } ]` — a flat array, including the current `status` field so Order Service can also validate `ACTIVE` status in the same call.
+3. Return `200 OK [ { productId, title, basePrice, status, stockStatus } ]` — a flat array, including the current `status` field so Order Service can also validate `ACTIVE` status in the same call, and the `stockStatus` read model (`IN_STOCK` / `OUT_OF_STOCK`, added 2026-10-16) so Order's checkout soft check (EP-ORD-01) needs no Inventory call. `stockStatus` is the stored column, updated from Inventory's stock events; it is eventually consistent and says nothing about quantities.
 4. If some requested `productId` values are not found in the catalog, they are simply absent from the array (do not fail the entire request). The caller detects missing products by comparing IDs.
 
 > **Agreed change:** an earlier version of this card returned a wrapper object with a `products` array and a separate `notFound` list. The team dropped the wrapper and the `notFound` list; the contract is the flat array above (see [api-contracts.md](../services-requirements/api-contracts.md)).

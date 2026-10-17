@@ -4,7 +4,7 @@
 
 ## Decisions
 
-1. **Gateway authenticates, services trust.** The API Gateway validates the JWT and forwards `X-User-Id` and `X-User-Role`. Services never validate tokens.
+1. **Gateway authenticates, services trust.** The API Gateway validates the JWT and forwards `X-User-Id`, `X-User-Role` and `X-User-Email`. Services never validate tokens. `X-User-Email` (added 2026-10-16 for Order Service, which needs the account email for notifications) is identity data, not an authorization input: no rule depends on it, and a service that does not need it ignores it.
 2. **Spring Security on every service, driven only by those headers.** A filter turns the headers into a Spring `Authentication` (principal `AuthenticatedUser(id, role)`, authority `ROLE_<role>`). Role rules are declared per route in the security filter chain (`requestMatchers(...).hasRole(...)`), in one place per service. The filter chain is stateless (no sessions, CSRF, login form or HTTP Basic).
 3. **Internal service-to-service calls use a shared internal token.** Callers add `X-Internal-Token` to outgoing requests (client-side interceptor); receivers authenticate it with a second filter and grant `ROLE_SERVICE`. `Internal` endpoints require `hasRole('SERVICE')`. User headers are not forwarded on internal calls.
 4. **Code is copied per service**, not shared through a library. The `security` package is kept self-contained so copies stay identical.
@@ -24,7 +24,7 @@ Authorization then decides: anonymous on a protected endpoint is `401`, authenti
 ## Preconditions (otherwise the model is unsafe)
 
 - Services must not be reachable by clients except through the gateway (ClusterIP services, `NetworkPolicy`).
-- The gateway must strip client-supplied `X-User-Id`, `X-User-Role` and `X-Internal-Token` headers, and must never route `Internal` endpoints.
+- The gateway must strip client-supplied `X-User-Id`, `X-User-Role`, `X-User-Email` and `X-Internal-Token` headers, and must never route `Internal` endpoints.
 - `INTERNAL_TOKEN` is the same secret in every service, at least 32 characters, supplied from a Kubernetes Secret and never logged.
 
 ## Known trade-offs
