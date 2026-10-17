@@ -18,6 +18,7 @@ data:
   ORDER_CARRIERS: "NOVA_POSHTA"
   SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
   ORDER_EVENTS_TOPIC: "order.order-events"
+  DELIVERY_EVENTS_TOPIC: "delivery.shipment-events"
   # JVM settings live here only (not in the Dockerfile). Heap up to 70% of the container memory limit;
   # C1-only JIT and Serial GC: faster startup and less memory on a small local cluster
   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:TieredStopAtLevel=1 -XX:+UseSerialGC"

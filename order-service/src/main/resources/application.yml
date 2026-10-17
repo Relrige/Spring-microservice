@@ -28,6 +28,20 @@ spring:
         max.block.ms: 5000
         # Consumers read plain JSON and pick the type from the eventType header
         spring.json.add.type.headers: false
+    # Delivery's events (copied from Delivery's consumer settings)
+    consumer:
+      group-id: order-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # Values are read as JSON text; the listener reads the type named in the eventType header
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      # Offsets are committed after every record of a poll has been processed, so only after the listener's database
+      # transaction committed. A crash mid-batch redelivers the uncommitted records; the handlers are idempotent by
+      # state, so that is harmless
+      ack-mode: batch
+      # Delivery's topic may not exist yet: the listener waits for it instead of failing at startup
+      missing-topics-fatal: false
 
 order:
   checkout:
@@ -55,6 +69,8 @@ order:
       # Owned and declared by Order: OrderPlaced, OrderPaid, OrderShipped, OrderCancelled (key = orderId).
       # Inventory, Delivery and Customer already consume it under this name
       order-events: ${ORDER_EVENTS_TOPIC:order.order-events}
+      # Owned by Delivery: TTNGenerated and OrderDelivered; Order only subscribes and never declares it
+      delivery-events: ${DELIVERY_EVENTS_TOPIC:delivery.shipment-events}
   outbox:
     # How often the relay looks for unpublished events (fixed delay between runs)
     relay-interval: 500ms
