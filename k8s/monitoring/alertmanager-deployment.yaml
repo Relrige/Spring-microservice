@@ -1,0 +1,88 @@
+# Alertmanager: receives firing alerts from Prometheus, groups and deduplicates them, and sends notifications to
+# Telegram. Its configuration (routing, receivers, the bot token) is the Secret in alertmanager-secret-template.yaml;
+# the Telegram message layout is the ConfigMap in alertmanager-templates.yaml. UI (current alerts, silences):
+#   kubectl port-forward -n voltstore svc/alertmanager 9093:9093   ->  http://localhost:9093
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: voltstore
+spec:
+  # One replica: several would need clustering (--cluster.peer) to avoid sending every notification twice
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+        app.kubernetes.io/part-of: voltstore
+        app.kubernetes.io/component: monitoring
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      containers:
+        - name: alertmanager
+          image: prom/alertmanager:v0.28.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - --config.file=/etc/alertmanager/alertmanager.yml
+            - --storage.path=/alertmanager
+            # Single instance: no gossip port
+            - --cluster.listen-address=
+          ports:
+            - name: http
+              containerPort: 9093
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alertmanager
+            - name: templates
+              mountPath: /etc/alertmanager/templates
+            - name: data
+              mountPath: /alertmanager
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9093
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9093
+            periodSeconds: 20
+      volumes:
+        - name: config
+          secret:
+            secretName: alertmanager-config
+        - name: templates
+          configMap:
+            name: alertmanager-templates
+        # Silences and the notification log; lost with the pod, acceptable for the study cluster
+        - name: data
+          emptyDir: { }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: voltstore
+spec:
+  type: ClusterIP
+  selector:
+    app: alertmanager
+  ports:
+    - name: http
+      port: 9093
+      targetPort: 9093

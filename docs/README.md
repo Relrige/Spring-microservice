@@ -73,4 +73,4 @@ docs/
   - Includes actor-specific user stories, technical insights, and design review notes (`user-stories-review-notes.md`) that shape the microservice boundaries.
 
 - **[`tasks/`](tasks/)**: Implementation backlog, grouped by service, using the \_template.md\ format.
-- **[`reports/`](reports/)**: Results of experiments and assignments, e.g. the fault-tolerant messaging report (`messaging-fault-tolerance.md`) and the Compose overlay used for it.
+- **[`reports/`](reports/)**: Results of experiments and assignments, e.g. the fault-tolerant messaging report (`messaging-fault-tolerance.md`) and the Compose overlay used for it, and the metrics and alerting report (`monitoring-alerting.md`).

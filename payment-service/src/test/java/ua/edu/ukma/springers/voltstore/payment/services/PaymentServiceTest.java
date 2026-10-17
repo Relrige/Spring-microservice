@@ -1,5 +1,7 @@
 package ua.edu.ukma.springers.voltstore.payment.services;
 
+import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -68,11 +70,15 @@ class PaymentServiceTest {
 
     private PaymentService service;
 
+    private SimpleMeterRegistry meterRegistry;
+
     @BeforeEach
     void setUp() {
+        meterRegistry = new SimpleMeterRegistry();
         // One repeat of an uncertain call, as configured by default
         service = new PaymentService(repository, gateway,
-                new GatewayProperties("mock", Duration.ZERO, 1, Duration.ofMillis(1)));
+                new GatewayProperties("mock", Duration.ZERO, 1, Duration.ofMillis(1)),
+                new PaymentMetrics(meterRegistry));
         // Saving returns the entity with an ID, as the database would
         lenient().when(repository.saveAndFlush(any())).thenAnswer(invocation -> {
             PaymentTransactionEntity entity = invocation.getArgument(0);
@@ -340,5 +346,50 @@ class PaymentServiceTest {
     private static DataIntegrityViolationException violationOf(String constraint) {
         return new DataIntegrityViolationException("could not execute statement",
                 new ConstraintViolationException("duplicate key", new SQLException("duplicate key"), constraint));
+    }
+
+    @Nested
+    class Metrics {
+
+        @Test
+        void approvedCharge_isCountedTimedAndItsAmountRecorded() {
+            when(gateway.charge(any())).thenReturn(new GatewayResult.Approved("gw-1"));
+
+            service.charge(ORDER_ID, AMOUNT, "UAH", CARD);
+
+            assertThat(payments("approved")).isEqualTo(1);
+            assertThat(meterRegistry.get(PaymentMetrics.GATEWAY_CALLS).tag("outcome", "approved").timer().count())
+                    .isEqualTo(1);
+            DistributionSummary amounts = meterRegistry.get(PaymentMetrics.AMOUNT).tag("currency", "UAH").summary();
+            assertThat(amounts.count()).isEqualTo(1);
+            assertThat(amounts.totalAmount()).isEqualTo(AMOUNT.doubleValue());
+        }
+
+        @Test
+        void declinedCharge_isCounted_butNoAmountIsRecorded() {
+            when(gateway.charge(any())).thenReturn(new GatewayResult.Declined(DeclineReason.CARD_DECLINED));
+
+            assertThatThrownBy(() -> service.charge(ORDER_ID, AMOUNT, "UAH", CARD))
+                    .isInstanceOf(PaymentDeclinedException.class);
+
+            assertThat(payments("declined")).isEqualTo(1);
+            assertThat(meterRegistry.find(PaymentMetrics.AMOUNT).summary()).isNull();
+        }
+
+        @Test
+        void timeoutOnEveryAttempt_isCountedOnce_asTimeout() {
+            when(gateway.charge(any())).thenThrow(new PaymentGatewayTimeoutException("no answer"));
+
+            assertThatThrownBy(() -> service.charge(ORDER_ID, AMOUNT, "UAH", CARD))
+                    .isInstanceOf(PaymentGatewayTimeoutException.class);
+
+            // Two gateway calls (one repeat), one interaction
+            assertThat(payments("timeout")).isEqualTo(1);
+        }
+
+        private double payments(String outcome) {
+            return meterRegistry.get(PaymentMetrics.PAYMENTS).tag("type", "charge").tag("outcome", outcome)
+                    .counter().count();
+        }
     }
 }

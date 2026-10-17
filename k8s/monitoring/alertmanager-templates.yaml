@@ -1,0 +1,18 @@
+# Layout of the Telegram message (Go text/template, Telegram HTML parse mode: only <b>, <i>, <code>, <a> and
+# escaped text). One message per alert group, so it lists every alert of the group.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-templates
+  namespace: voltstore
+data:
+  telegram.tmpl: |
+    {{ define "voltstore.telegram.message" -}}
+    {{ if eq .Status "firing" }}🔥 <b>FIRING</b>{{ else }}✅ <b>RESOLVED</b>{{ end }} · <b>{{ .CommonLabels.alertname }}</b>{{ if .CommonLabels.application }} · <code>{{ .CommonLabels.application }}</code>{{ end }}
+    {{ range .Alerts }}
+    {{ if eq .Status "firing" }}{{ if eq .Labels.severity "critical" }}🔴{{ else }}🟠{{ end }}{{ else }}🟢{{ end }} <b>{{ .Annotations.summary }}</b>
+    {{ .Annotations.description }}
+    severity: <code>{{ .Labels.severity }}</code>{{ if .Labels.pod }} · pod: <code>{{ .Labels.pod }}</code>{{ end }}
+    started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}{{ if eq .Status "resolved" }} · resolved: {{ .EndsAt.Format "15:04:05 MST" }}{{ end }}
+    {{ end }}
+    {{- end }}

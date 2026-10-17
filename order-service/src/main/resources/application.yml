@@ -13,6 +13,19 @@ management:
     health:
       probes:
         enabled: true
+  endpoints:
+    web:
+      exposure:
+        # Prometheus scrapes /actuator/prometheus (k8s/monitoring/); nothing else beyond health is exposed
+        include: health,prometheus
+  metrics:
+    tags:
+      # Every series carries the service name, so dashboards and alerts can tell services apart
+      application: ${spring.application.name}
+    distribution:
+      # Histogram buckets for HTTP latency, so p95 can be computed in Prometheus (alert HighHttpLatency)
+      percentiles-histogram:
+        http.server.requests: true
 
 clients:
   catalog:

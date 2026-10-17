@@ -44,7 +44,7 @@ public class SecurityConfig {
                         .authenticationEntryPoint(errorHandlers)
                         .accessDeniedHandler(errorHandlers))
                 .authorizeHttpRequests(requests -> requests
-                        .requestMatchers("/actuator/health/**").permitAll()
+                        .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
                         // Internal (EP-CAT-09). Must come before the public "/catalog/products/*" rule below, which
                         // would otherwise also match "/catalog/products/batch-get" (the first matching rule wins)
                         .requestMatchers(HttpMethod.GET, "/catalog/products/batch-get").hasRole("SERVICE")

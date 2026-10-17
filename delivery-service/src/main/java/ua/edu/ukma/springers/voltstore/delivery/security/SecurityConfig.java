@@ -46,7 +46,7 @@ public class SecurityConfig {
                         .authenticationEntryPoint(errorHandlers)
                         .accessDeniedHandler(errorHandlers))
                 .authorizeHttpRequests(requests -> requests
-                        .requestMatchers("/actuator/health/**").permitAll()
+                        .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
                         // Role rules per route: callers without the role are rejected here, before the controller
                         // is reached and before the request body is parsed or validated
                         // Internal-only (Order); not routed by the API Gateway

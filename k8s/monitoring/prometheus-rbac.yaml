@@ -1,0 +1,31 @@
+# Prometheus finds the pods to scrape through the Kubernetes API (kubernetes_sd_configs, role "pod"), so it needs
+# read access to pods. A Role (not a ClusterRole): it only ever looks inside the voltstore namespace.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: voltstore
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: prometheus-discovery
+  namespace: voltstore
+rules:
+  - apiGroups: [ "" ]
+    resources: [ "pods" ]
+    verbs: [ "get", "list", "watch" ]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: prometheus-discovery
+  namespace: voltstore
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: voltstore
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: prometheus-discovery
