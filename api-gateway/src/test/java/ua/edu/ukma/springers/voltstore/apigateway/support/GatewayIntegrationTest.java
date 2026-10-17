@@ -36,14 +36,18 @@ public abstract class GatewayIntegrationTest {
     protected static final StubUpstream AUTH = new StubUpstream("auth");
     protected static final StubUpstream CATALOG = new StubUpstream("catalog");
     protected static final StubUpstream INVENTORY = new StubUpstream("inventory");
-    private static final Map<String, StubUpstream> STUBS =
-            Map.of("auth", AUTH, "catalog", CATALOG, "inventory", INVENTORY);
+    protected static final StubUpstream CUSTOMER = new StubUpstream("customer");
+    protected static final StubUpstream DELIVERY = new StubUpstream("delivery");
+    private static final Map<String, StubUpstream> STUBS = Map.of("auth", AUTH, "catalog", CATALOG,
+            "inventory", INVENTORY, "customer", CUSTOMER, "delivery", DELIVERY);
 
     @DynamicPropertySource
     static void upstreams(DynamicPropertyRegistry registry) {
         registry.add("gateway.upstreams.auth", AUTH::url);
         registry.add("gateway.upstreams.catalog", CATALOG::url);
         registry.add("gateway.upstreams.inventory", INVENTORY::url);
+        registry.add("gateway.upstreams.customer", CUSTOMER::url);
+        registry.add("gateway.upstreams.delivery", DELIVERY::url);
     }
 
     @LocalServerPort

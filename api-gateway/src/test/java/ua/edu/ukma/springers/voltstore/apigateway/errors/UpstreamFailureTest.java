@@ -34,6 +34,8 @@ class UpstreamFailureTest {
         registry.add("gateway.upstreams.auth", SLOW_AUTH::url);
         registry.add("gateway.upstreams.catalog", () -> "http://catalog-service.invalid:8081");
         registry.add("gateway.upstreams.inventory", () -> "http://127.0.0.1:" + closedPort());
+        registry.add("gateway.upstreams.customer", () -> "http://127.0.0.1:" + closedPort());
+        registry.add("gateway.upstreams.delivery", () -> "http://127.0.0.1:" + closedPort());
     }
 
     @AfterAll
