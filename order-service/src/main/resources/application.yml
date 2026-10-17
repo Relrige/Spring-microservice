@@ -35,6 +35,13 @@ order:
     payment-window: ${ORDER_PAYMENT_WINDOW:15m}
     # Carriers a customer may choose at checkout; Delivery must be able to register parcels with each of them
     carriers: ${ORDER_CARRIERS:NOVA_POSHTA}
+  expiry:
+    # Payment-window expiry job (EP-ORD-JOB-01)
+    interval: ${ORDER_EXPIRY_INTERVAL:1m}
+    # Must be longer than clients.payment.read-timeout (checked at startup): a charge started inside the window
+    # must be able to finish before its reservation is released
+    grace: ${ORDER_EXPIRY_GRACE:30s}
+    batch-size: 100
   cancellation:
     # Interrupted cancellations (decision D3): the job runs this often and looks at this many orders per run
     retry-interval: ${ORDER_CANCELLATION_RETRY_INTERVAL:1m}

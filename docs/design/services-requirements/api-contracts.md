@@ -78,7 +78,7 @@ Cart rules: at most 10 distinct products per cart, quantity 1–10 per product. 
 | `GET` | `/orders` | `CUSTOMER` | View own order history. <br> **Query:** `?page=&size=` <br> **Res:** `200 OK {content: [{orderId, status, totalAmount, currency, placedAt}], page, size, totalElements}` |
 | `GET` | `/orders/{id}` | `CUSTOMER` (owner) | View own order details. <br> **Res:** `200 OK {orderId, status, items, deliveryDetails, totalAmount, currency, placedAt, paidAt, reservationExpiresAt, ttn, deliveryStatus}` or `404` |
 | `DELETE`| `/orders/{id}` | `CUSTOMER` (owner) | Cancel own order. <br> **Res:** `202 Accepted {orderId, status}` — `CANCELLED`, or `CANCELLATION_REQUESTED` while a saga step is retried later; `409` if not cancellable |
-| `GET` | `/orders/fulfillment-queue` | `INVENTORY_WORKER`| Get `PAID` & `PENDING_SHIPPING` orders. (Order Service queries Delivery Service internally for TTN states). <br> **Res:** `200 OK [{orderId, status, deliveryStatus, ttn}]` |
+| `GET` | `/orders/fulfillment-queue` | `INVENTORY_WORKER`| Get `PAID` & `PENDING_SHIPPING` orders. (Order Service queries Delivery Service internally for TTN states). <br> **Res:** `200 OK {deliveryDataAvailable, orders: [{orderId, status, placedAt, paidAt, items, deliveryDetails, deliveryStatus, ttn, failureReason}]}` (oldest payment first; `deliveryDataAvailable: false` when Delivery is down) |
 | `POST` | `/orders/{id}/ship` | `INVENTORY_WORKER`| Dispatch order to courier. <br> **Res:** `200 OK` (Transitions to `SHIPPED`) |
 
 ---

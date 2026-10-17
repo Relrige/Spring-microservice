@@ -16,10 +16,10 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 import ua.edu.ukma.springers.voltstore.order.config.CheckoutConfig;
 import ua.edu.ukma.springers.voltstore.order.services.CheckoutCheckService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderPaymentService;
+import ua.edu.ukma.springers.voltstore.order.services.FulfillmentService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderCancellationService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderQueryService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderPlacementService;
-import ua.edu.ukma.springers.voltstore.order.support.OrderRoutesProbeController;
 import ua.edu.ukma.springers.voltstore.order.support.TrustedHeaders;
 
 import java.util.ArrayList;
@@ -35,11 +35,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * Roles are not hierarchical, so a route is covered if at least one user role gets past the authorization step; a
  * route denied (403) for every role has no rule, because the chain ends with {@code denyAll()}.
  * <p>
- * Until the endpoint tasks add real controllers, the routes come from {@link OrderRoutesProbeController}; real
- * controllers are picked up by this slice automatically.
+ * The slice picks up every real controller automatically, with the services mocked, so a new endpoint without a rule
+ * fails this test.
  */
 @WebMvcTest
-@Import({SecurityConfig.class, CheckoutConfig.class, OrderRoutesProbeController.class})
+@Import({SecurityConfig.class, CheckoutConfig.class})
 class RouteSecurityRulesTest {
 
     @Autowired
@@ -56,6 +56,9 @@ class RouteSecurityRulesTest {
 
     @MockitoBean
     private OrderCancellationService cancellation;
+
+    @MockitoBean
+    private FulfillmentService fulfillment;
 
     @MockitoBean
     private CheckoutCheckService checkoutCheck;

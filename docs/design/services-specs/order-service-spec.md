@@ -113,6 +113,7 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 | `ORDER_PAYMENT_WINDOW` | Payment window after placement (default `15m`) |
 | `ORDER_CARRIERS` | Carriers a customer may choose at checkout, comma-separated (default `NOVA_POSHTA`); Delivery must support each |
 | `ORDER_CANCELLATION_RETRY_INTERVAL` | How often EP-ORD-JOB-02 looks for interrupted cancellations (default `1m`) |
+| `ORDER_EXPIRY_INTERVAL`, `ORDER_EXPIRY_GRACE` | How often EP-ORD-JOB-01 runs (default `1m`) and how long after the window it waits (default `30s`; must be longer than `PAYMENT_READ_TIMEOUT`, checked at startup) |
 
 ---
 
@@ -295,14 +296,14 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 **Steps:**
 1. Query all orders with `status` in `{ PAID, PENDING_SHIPPING }`, oldest `paidAt` first.
 2. Call Delivery once for all of them: `GET /delivery/shipments?orderIds=…` (at most 100 per call; larger queues are fetched in chunks of 100).
-3. Merge per order: `{ orderId, status, placedAt, paidAt, items, deliveryDetails, deliveryStatus, ttn, failureReason }`.
-4. Return `200 OK [ … ]`.
+3. Merge per order: `{ orderId, status, placedAt, paidAt, items: [ { productId, productTitle, quantity } ], deliveryDetails, deliveryStatus, ttn, failureReason }`.
+4. Return `200 OK { deliveryDataAvailable, orders: [ … ] }` (an envelope rather than a bare list, so the Delivery flag is part of the body; decided in task 14).
 
 > Delivery status (`TTN_PENDING`, `TTN_FAILED`, `TTN_GENERATED`, `CANCELLED`, or `null` while `OrderPaid` is not processed yet) is **not** stored on the order; it lives only in Delivery Service.
 
 **Edge cases:**
-- Empty queue → `200 []`
-- Delivery unavailable → orders without delivery data (`deliveryStatus`, `ttn`, `failureReason` as `null`) and a response flag `deliveryDataAvailable: false`
+- Empty queue → `200 { deliveryDataAvailable: true, orders: [] }`
+- Delivery unavailable → `deliveryDataAvailable: false` and the orders without delivery data (`deliveryStatus`, `ttn`, `failureReason` as `null`)
 
 **External calls:** Delivery `GET /delivery/shipments` — **sync**, batch
 **Emits:** none

@@ -14,7 +14,6 @@ import ua.edu.ukma.springers.voltstore.order.entities.DeliveryDetails;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderEntity;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderItemEntity;
 import ua.edu.ukma.springers.voltstore.order.repositories.OrderRepository;
-import ua.edu.ukma.springers.voltstore.order.support.OrderRoutesProbeController;
 import ua.edu.ukma.springers.voltstore.order.support.TrustedHeaders;
 
 import java.math.BigDecimal;
@@ -34,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import({TestcontainersConfiguration.class, KafkaTestContainerConfig.class, OrderRoutesProbeController.class})
+@Import({TestcontainersConfiguration.class, KafkaTestContainerConfig.class})
 class OrderAccessIntegrationTest {
     private static final UUID ALICE = UUID.randomUUID();
     private static final UUID BOB = UUID.randomUUID();

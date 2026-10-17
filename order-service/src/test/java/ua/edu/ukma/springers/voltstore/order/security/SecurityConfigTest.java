@@ -15,15 +15,16 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import ua.edu.ukma.springers.voltstore.order.config.CheckoutConfig;
+import ua.edu.ukma.springers.voltstore.order.controllers.FulfillmentController;
 import ua.edu.ukma.springers.voltstore.order.controllers.OrderController;
 import ua.edu.ukma.springers.voltstore.order.dto.PlacedOrderResponse;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderStatus;
 import ua.edu.ukma.springers.voltstore.order.services.CheckoutCheckService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderPaymentService;
+import ua.edu.ukma.springers.voltstore.order.services.FulfillmentService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderCancellationService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderQueryService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderPlacementService;
-import ua.edu.ukma.springers.voltstore.order.support.OrderRoutesProbeController;
 import ua.edu.ukma.springers.voltstore.order.support.TrustedHeaders;
 
 import java.math.BigDecimal;
@@ -42,12 +43,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Verifies the security chain against the real {@link OrderController} and stand-ins of the routes not written yet
- * ({@link OrderRoutesProbeController}), with the services mocked: only
- * customers may use the customer routes, only workers the worker routes, and nothing else is reachable.
+ * Verifies the security chain against the real {@link OrderController} and {@link FulfillmentController}, with the
+ * services mocked: only customers may use the customer routes, only workers the worker routes, and nothing else is reachable.
  */
-@WebMvcTest(controllers = {OrderRoutesProbeController.class, OrderController.class})
-@Import({SecurityConfig.class, CheckoutConfig.class, OrderRoutesProbeController.class})
+@WebMvcTest(controllers = {OrderController.class, FulfillmentController.class})
+@Import({SecurityConfig.class, CheckoutConfig.class})
 class SecurityConfigTest {
     private static final String ORDER = "/orders/" + UUID.randomUUID();
     // Valid for all three real POST endpoints (each ignores the fields of the others)
@@ -69,6 +69,9 @@ class SecurityConfigTest {
 
     @MockitoBean
     private OrderCancellationService cancellation;
+
+    @MockitoBean
+    private FulfillmentService fulfillment;
 
     @MockitoBean
     private CheckoutCheckService checkoutCheck;
