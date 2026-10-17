@@ -86,7 +86,7 @@ class OrderEntityTest {
     void requestCancellation_isAllowedBeforeShipping_andRemembersWhereItStarted(OrderStatus start) {
         OrderEntity order = orderIn(start);
 
-        order.requestCancellation();
+        order.requestCancellation(NOW);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLATION_REQUESTED);
         assertThat(order.getStatusBeforeCancellation()).isEqualTo(start);
@@ -99,7 +99,7 @@ class OrderEntityTest {
     void requestCancellation_isRejectedOtherwise(OrderStatus start) {
         OrderEntity order = orderIn(start);
 
-        assertThatThrownBy(order::requestCancellation)
+        assertThatThrownBy(() -> order.requestCancellation(NOW))
                 .isInstanceOfSatisfying(InvalidOrderStateException.class,
                         e -> assertThat(e.getStatus()).isEqualTo(start));
     }
@@ -107,7 +107,7 @@ class OrderEntityTest {
     @Test
     void cancellationFailures_areCounted_andFlagTheOrderAfterTheLimit() {
         OrderEntity order = newOrder();
-        order.requestCancellation();
+        order.requestCancellation(NOW);
 
         for (int attempt = 1; attempt <= 4; attempt++) {
             order.recordCancellationFailure("refund: 502", NOW.plusSeconds(attempt), 5);
@@ -159,8 +159,8 @@ class OrderEntityTest {
             case PENDING_SHIPPING -> { order.markPaid(NOW); order.markPendingShipping(); }
             case SHIPPED -> { order.markPaid(NOW); order.markShipped(); }
             case DELIVERED -> { order.markPaid(NOW); order.markShipped(); order.markDelivered(); }
-            case CANCELLATION_REQUESTED -> order.requestCancellation();
-            case CANCELLED -> { order.requestCancellation(); order.markCancelled(); }
+            case CANCELLATION_REQUESTED -> order.requestCancellation(NOW);
+            case CANCELLED -> { order.requestCancellation(NOW); order.markCancelled(); }
             case EXPIRED -> order.expire();
         }
         return order;

@@ -168,7 +168,7 @@ class OrderPaymentServiceTest {
         charging(new Payments.Paid(UUID.randomUUID()));
         // The customer cancelled while the charge ran: the re-read finds the cancellation
         OrderEntity reread = order();
-        reread.requestCancellation();
+        reread.requestCancellation(NOW);
         when(orders.findById(ORDER_ID)).thenReturn(Optional.of(reread));
         when(payments.refund(ORDER_ID, new BigDecimal("200.00"), "UAH")).thenReturn(new Payments.Refunded());
 

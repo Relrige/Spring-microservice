@@ -126,12 +126,13 @@ class OrderRepositoryTest {
     }
 
     @Test
-    void findInterruptedCancellations_putsNeverRetriedFirst() {
+    void findInterruptedCancellations_putsTheLongestWaitingFirst() {
         OrderEntity retried = order(CUSTOMER, NOW);
-        retried.requestCancellation();
+        retried.requestCancellation(NOW.minusSeconds(120));
         retried.recordCancellationFailure("release: 503", NOW, 5);
+        // Requested earlier and never retried since
         OrderEntity fresh = order(CUSTOMER, NOW);
-        fresh.requestCancellation();
+        fresh.requestCancellation(NOW.minusSeconds(60));
         repository.saveAll(List.of(retried, fresh, order(CUSTOMER, NOW)));
         repository.flush();
 
@@ -149,7 +150,7 @@ class OrderRepositoryTest {
         OrderEntity first = tx.execute(status -> repository.findById(id).orElseThrow());
         OrderEntity second = tx.execute(status -> repository.findById(id).orElseThrow());
         first.markPaid(NOW);
-        second.requestCancellation();
+        second.requestCancellation(NOW);
         tx.executeWithoutResult(status -> repository.save(first));
 
         assertThatThrownBy(() -> tx.executeWithoutResult(status -> repository.save(second)))

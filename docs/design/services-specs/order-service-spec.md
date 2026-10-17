@@ -112,6 +112,7 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 | `PAYMENT_READ_TIMEOUT` | Read timeout of the Payment call; **at least 6 s** (Payment's worst case with its own timeout and repeat is about 4.5 s) |
 | `ORDER_PAYMENT_WINDOW` | Payment window after placement (default `15m`) |
 | `ORDER_CARRIERS` | Carriers a customer may choose at checkout, comma-separated (default `NOVA_POSHTA`); Delivery must support each |
+| `ORDER_CANCELLATION_RETRY_INTERVAL` | How often EP-ORD-JOB-02 looks for interrupted cancellations (default `1m`) |
 
 ---
 

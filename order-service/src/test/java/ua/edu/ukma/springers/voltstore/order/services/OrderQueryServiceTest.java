@@ -144,7 +144,7 @@ class OrderQueryServiceTest {
     @Test
     void details_ofAnOrderCancelledAfterPayment_includeTheShipment() {
         OrderEntity order = paidOrder();
-        order.requestCancellation();
+        order.requestCancellation(PLACED);
         when(orderAccess.loadOwned(order.getId(), CUSTOMER)).thenReturn(order);
         when(shipments.find(List.of(order.getId()))).thenReturn(List.of(
                 new Shipments.ShipmentInfo(order.getId(), DeliveryStatus.CANCELLED, null, null)));

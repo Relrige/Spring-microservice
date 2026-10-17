@@ -20,6 +20,7 @@ import ua.edu.ukma.springers.voltstore.order.dto.PlacedOrderResponse;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderStatus;
 import ua.edu.ukma.springers.voltstore.order.services.CheckoutCheckService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderPaymentService;
+import ua.edu.ukma.springers.voltstore.order.services.OrderCancellationService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderQueryService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderPlacementService;
 import ua.edu.ukma.springers.voltstore.order.support.OrderRoutesProbeController;
@@ -65,6 +66,9 @@ class SecurityConfigTest {
 
     @MockitoBean
     private OrderQueryService queries;
+
+    @MockitoBean
+    private OrderCancellationService cancellation;
 
     @MockitoBean
     private CheckoutCheckService checkoutCheck;

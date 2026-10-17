@@ -165,14 +165,25 @@ public class OrderEntity {
 
     /**
      * Starts the cancellation saga (EP-ORD-06) and remembers where it started, which decides whether a refund is
-     * owed. A second request while one is in progress is rejected.
+     * owed. A second request while one is in progress is rejected. The first saga attempt starts now, so the job
+     * that finishes interrupted cancellations (EP-ORD-JOB-02) waits its back-off before touching this order.
      */
-    public void requestCancellation() {
+    public void requestCancellation(Instant now) {
         if (!OrderStatus.CANCELLABLE.contains(status)) {
             throw new InvalidOrderStateException(id, status, "be cancelled");
         }
         this.statusBeforeCancellation = status;
         this.status = OrderStatus.CANCELLATION_REQUESTED;
+        this.cancellationLastAttemptAt = now;
+    }
+
+    /**
+     * The job starts another saga attempt (EP-ORD-JOB-02). Saved before the attempt, it is the job's claim on the
+     * order: a second job instance that read the same version fails on {@link #version} and leaves the order alone.
+     */
+    public void startCancellationAttempt(Instant now) {
+        require(OrderStatus.CANCELLATION_REQUESTED, "retry the cancellation");
+        this.cancellationLastAttemptAt = now;
     }
 
     /** {@code CANCELLATION_REQUESTED → CANCELLED} once every saga step succeeded. */

@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.mockito.ArgumentCaptor;
 import ua.edu.ukma.springers.voltstore.order.config.CheckoutConfig;
+import ua.edu.ukma.springers.voltstore.order.dto.CancellationResponse;
 import ua.edu.ukma.springers.voltstore.order.dto.CardDetailsRequest;
 import ua.edu.ukma.springers.voltstore.order.dto.IneligibleItem;
 import ua.edu.ukma.springers.voltstore.order.dto.InsufficientItem;
@@ -20,6 +21,7 @@ import ua.edu.ukma.springers.voltstore.order.dto.OrderSummaryResponse;
 import ua.edu.ukma.springers.voltstore.order.dto.PaidOrderResponse;
 import ua.edu.ukma.springers.voltstore.order.dto.PlacedOrderResponse;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderStatus;
+import ua.edu.ukma.springers.voltstore.order.exceptions.CancellationInProgressException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.DependencyUnavailableException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.IneligibleItemsException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.InsufficientStockException;
@@ -35,6 +37,7 @@ import ua.edu.ukma.springers.voltstore.order.security.SecurityConfig;
 import ua.edu.ukma.springers.voltstore.order.services.CheckoutCheckService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderPaymentService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderPlacementService;
+import ua.edu.ukma.springers.voltstore.order.services.OrderCancellationService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderQueryService;
 import ua.edu.ukma.springers.voltstore.order.support.TrustedHeaders;
 
@@ -54,13 +57,14 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** EP-ORD-01 to EP-ORD-05 at the HTTP boundary: validation, status codes and bodies, with the services mocked. */
+/** EP-ORD-01 to EP-ORD-06 at the HTTP boundary: validation, status codes and bodies, with the services mocked. */
 @WebMvcTest(OrderController.class)
 @Import({SecurityConfig.class, CheckoutConfig.class})
 class OrderControllerTest {
@@ -85,6 +89,9 @@ class OrderControllerTest {
 
     @MockitoBean
     private OrderQueryService queries;
+
+    @MockitoBean
+    private OrderCancellationService cancellation;
 
     // ---- EP-ORD-01 ----
 
@@ -391,6 +398,42 @@ class OrderControllerTest {
 
         mockMvc.perform(get("/orders/" + orderId).headers(TrustedHeaders.asCustomer(CUSTOMER_ID)))
                 .andExpect(status().isNotFound());
+    }
+
+    // ---- EP-ORD-06 ----
+
+    @Test
+    void cancel_is202_withTheOutcome() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        when(cancellation.cancel(eq(orderId), any()))
+                .thenReturn(new CancellationResponse(orderId, OrderStatus.CANCELLATION_REQUESTED));
+
+        mockMvc.perform(delete("/orders/" + orderId).headers(TrustedHeaders.asCustomer(CUSTOMER_ID)))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.orderId").value(orderId.toString()))
+                .andExpect(jsonPath("$.status").value("CANCELLATION_REQUESTED"));
+    }
+
+    @Test
+    void cancel_inProgress_is409() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        when(cancellation.cancel(eq(orderId), any())).thenThrow(new CancellationInProgressException(orderId));
+
+        mockMvc.perform(delete("/orders/" + orderId).headers(TrustedHeaders.asCustomer(CUSTOMER_ID)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Cancellation of order " + orderId + " is already in progress"))
+                .andExpect(jsonPath("$.orderStatus").value("CANCELLATION_REQUESTED"));
+    }
+
+    @Test
+    void cancel_aShippedOrder_is409() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        when(cancellation.cancel(eq(orderId), any()))
+                .thenThrow(new InvalidOrderStateException(orderId, OrderStatus.SHIPPED, "be cancelled"));
+
+        mockMvc.perform(delete("/orders/" + orderId).headers(TrustedHeaders.asCustomer(CUSTOMER_ID)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.orderStatus").value("SHIPPED"));
     }
 
     private ResultActions pay(UUID orderId, String card) throws Exception {

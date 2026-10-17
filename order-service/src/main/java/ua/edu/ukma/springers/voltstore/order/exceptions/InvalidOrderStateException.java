@@ -12,7 +12,12 @@ public class InvalidOrderStateException extends RuntimeException {
     private final OrderStatus status;
 
     public InvalidOrderStateException(UUID orderId, OrderStatus status, String action) {
-        super("Order " + orderId + " cannot " + action + " in status " + status);
+        this(orderId, status, "Order " + orderId + " cannot " + action + " in status " + status, true);
+    }
+
+    // For subclasses with their own message
+    protected InvalidOrderStateException(UUID orderId, OrderStatus status, String message, boolean ignored) {
+        super(message);
         this.orderId = orderId;
         this.status = status;
     }

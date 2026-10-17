@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Clock;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(CheckoutProperties.class)
+@EnableConfigurationProperties({CheckoutProperties.class, CancellationProperties.class})
 public class CheckoutConfig {
 
     // A bean, so tests can fix "now" (placement time, payment window)

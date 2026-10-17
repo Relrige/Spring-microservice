@@ -16,6 +16,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 import ua.edu.ukma.springers.voltstore.order.config.CheckoutConfig;
 import ua.edu.ukma.springers.voltstore.order.services.CheckoutCheckService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderPaymentService;
+import ua.edu.ukma.springers.voltstore.order.services.OrderCancellationService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderQueryService;
 import ua.edu.ukma.springers.voltstore.order.services.OrderPlacementService;
 import ua.edu.ukma.springers.voltstore.order.support.OrderRoutesProbeController;
@@ -52,6 +53,9 @@ class RouteSecurityRulesTest {
 
     @MockitoBean
     private OrderQueryService queries;
+
+    @MockitoBean
+    private OrderCancellationService cancellation;
 
     @MockitoBean
     private CheckoutCheckService checkoutCheck;

@@ -35,6 +35,14 @@ order:
     payment-window: ${ORDER_PAYMENT_WINDOW:15m}
     # Carriers a customer may choose at checkout; Delivery must be able to register parcels with each of them
     carriers: ${ORDER_CARRIERS:NOVA_POSHTA}
+  cancellation:
+    # Interrupted cancellations (decision D3): the job runs this often and looks at this many orders per run
+    retry-interval: ${ORDER_CANCELLATION_RETRY_INTERVAL:1m}
+    batch-size: 100
+    # Wait after the request, then after the 1st, 2nd, 3rd failure; the last value repeats forever
+    backoff: 1m, 5m, 15m, 30m
+    # Failed attempts after which the order is flagged for a person; the job keeps retrying
+    manual-attention-after: 5
   kafka:
     topics:
       # Owned and declared by Order: OrderPlaced, OrderPaid, OrderShipped, OrderCancelled (key = orderId).
