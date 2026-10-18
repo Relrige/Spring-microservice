@@ -24,6 +24,9 @@ interface OutboxRepository extends JpaRepository<OutboxEvent, UUID> {
             """)
     List<OutboxEvent> claimDue(Instant now, int limit);
 
+    // Backlog size for the gauge in OutboxMetrics; uses the partial index on unpublished events
+    long countByPublishedAtIsNull();
+
     @Modifying
     @Query("delete from OutboxEvent e where e.publishedAt < :cutoff")
     int deletePublishedBefore(Instant cutoff);

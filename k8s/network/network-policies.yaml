@@ -5,7 +5,7 @@
 # objects; start minikube with "--cni=calico" (see k8s.txt).
 #
 # Only ingress is restricted. Pods are selected by the labels app.kubernetes.io/component
-# (gateway | service | database | broker) and app (the individual workload).
+# (gateway | service | database | broker | monitoring) and app (the individual workload).
 # kubectl port-forward enters the pod directly and is not affected (used by the e2e/manual runbooks).
 
 # 1. Nothing in the namespace accepts traffic unless a policy below allows it
@@ -223,3 +223,65 @@ spec:
               app: payment-service
       ports:
         - port: 5432
+---
+# Monitoring (k8s/monitoring/): Prometheus scrapes /actuator/prometheus of the services on their HTTP port. The
+# policies add up, so this widens rule 3 by one more allowed client and nothing else
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: services-from-prometheus
+  namespace: voltstore
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 8080
+---
+# The gateway's metrics are on its management port, which nothing else may reach
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-management-from-prometheus
+  namespace: voltstore
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 8090
+---
+# Alertmanager receives alerts only from Prometheus. Its notifications to Telegram are egress, which is not
+# restricted. The UIs of both are reached with kubectl port-forward, which these policies do not affect
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: alertmanager-from-prometheus
+  namespace: voltstore
+spec:
+  podSelector:
+    matchLabels:
+      app: alertmanager
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 9093

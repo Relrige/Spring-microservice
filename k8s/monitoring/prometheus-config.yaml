@@ -1,0 +1,203 @@
+# Prometheus configuration and alerting rules.
+# After editing: kubectl apply -f k8s/monitoring/prometheus-config.yaml, wait until the kubelet has updated the
+# mounted file (up to about a minute), then reload without a restart:
+#   kubectl exec -n voltstore deploy/prometheus -- wget -qO- --post-data= http://localhost:9090/-/reload
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: voltstore
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    rule_files:
+      - /etc/prometheus/voltstore-alerts.yml
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: [ "alertmanager:9093" ]
+
+    scrape_configs:
+      # Every pod in voltstore with the annotation prometheus.io/scrape: "true" (all Spring Boot services and the
+      # gateway). A new service only needs the three annotations in its Deployment; nothing here changes.
+      - job_name: voltstore-services
+        # The services tag every series with application=<spring.application.name> themselves; the target label
+        # below has the same value. honor_labels keeps the scraped one instead of renaming it to
+        # exported_application
+        honor_labels: true
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [ voltstore ]
+        relabel_configs:
+          - source_labels: [ __meta_kubernetes_pod_annotation_prometheus_io_scrape ]
+            action: keep
+            regex: "true"
+          # Only running pods; a completed or pending pod has no endpoint to scrape
+          - source_labels: [ __meta_kubernetes_pod_phase ]
+            action: keep
+            regex: Running
+          - source_labels: [ __meta_kubernetes_pod_annotation_prometheus_io_path ]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          # Address = pod IP + the port from the annotation (the gateway's metrics are on 8090, not 8080)
+          - source_labels: [ __address__, __meta_kubernetes_pod_annotation_prometheus_io_port ]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          # "application" is also set by the services themselves (management.metrics.tags.application); the pod
+          # label is used so that "up" (which the service cannot report while it is down) carries it too
+          - source_labels: [ __meta_kubernetes_pod_label_app ]
+            target_label: application
+          - source_labels: [ __meta_kubernetes_pod_name ]
+            target_label: pod
+          - source_labels: [ __meta_kubernetes_namespace ]
+            target_label: namespace
+
+      - job_name: prometheus
+        static_configs:
+          - targets: [ "localhost:9090" ]
+
+  # Thresholds are tuned for the local study cluster (little traffic, one replica each), not for production.
+  # Every alert has "severity" (critical: a user-facing function is broken; warning: degraded, look soon) and
+  # "application", which Alertmanager uses for grouping, routing and inhibition (alertmanager-secret-template.yaml).
+  voltstore-alerts.yml: |
+    groups:
+      - name: voltstore-availability
+        rules:
+          - alert: ServiceDown
+            # up is written by Prometheus itself: 0 when the scrape failed (pod gone, not answering, crashing)
+            expr: up{job="voltstore-services"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "{{ $labels.application }} is down"
+              description: "Prometheus has not been able to scrape {{ $labels.pod }} for over 1 minute."
+
+          - alert: ServiceMissing
+            # A Deployment scaled to 0 (or never deployed) has no pod, so there is no "up" series at all and
+            # ServiceDown cannot fire. absent() turns "no series" into an alert
+            expr: |
+              absent(up{job="voltstore-services", application="api-gateway"})
+              or absent(up{job="voltstore-services", application="auth-service"})
+              or absent(up{job="voltstore-services", application="catalog-service"})
+              or absent(up{job="voltstore-services", application="customer-service"})
+              or absent(up{job="voltstore-services", application="delivery-service"})
+              or absent(up{job="voltstore-services", application="inventory-service"})
+              or absent(up{job="voltstore-services", application="order-service"})
+              or absent(up{job="voltstore-services", application="payment-service"})
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "{{ $labels.application }} has no running pod"
+              description: "No pod of {{ $labels.application }} has been discovered for over 1 minute (scaled to 0 or not deployed)."
+
+      - name: voltstore-http
+        rules:
+          - alert: HighHttpErrorRate
+            # Share of 5xx answers over 5 minutes, per service. The traffic condition keeps a single failed request
+            # on an idle service from looking like a 100 % error rate
+            expr: |
+              (
+                sum by (application) (rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+                /
+                sum by (application) (rate(http_server_requests_seconds_count[5m]))
+              ) > 0.05
+              and sum by (application) (rate(http_server_requests_seconds_count[5m])) > 0.05
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.application }} answers with 5xx errors"
+              description: "{{ $value | humanizePercentage }} of requests failed with 5xx over the last 5 minutes (threshold 5 percent)."
+
+          - alert: HighHttpLatency
+            # p95 from the histogram buckets (management.metrics.distribution.percentiles-histogram in every service)
+            expr: |
+              histogram_quantile(0.95,
+                sum by (application, le) (rate(http_server_requests_seconds_bucket{uri!~"/actuator.*"}[5m]))
+              ) > 1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.application }} is slow"
+              description: "95th percentile of HTTP response time is {{ $value | humanizeDuration }} (threshold 1s)."
+
+      - name: voltstore-business
+        rules:
+          - alert: PaymentFailureRateHigh
+            # voltstore_payments_total (Counter, PaymentMetrics): share of gateway interactions that did not end in
+            # an approval. Declines are normal in small numbers; half of all payments failing is not
+            expr: |
+              (
+                sum(rate(voltstore_payments_total{outcome!="approved"}[5m]))
+                /
+                sum(rate(voltstore_payments_total[5m]))
+              ) > 0.5
+              and sum(rate(voltstore_payments_total[5m])) > 0.02
+            for: 1m
+            labels:
+              severity: critical
+              application: payment-service
+            annotations:
+              summary: "Most payments are failing"
+              description: "{{ $value | humanizePercentage }} of payment attempts were declined or failed over the last 5 minutes."
+
+          - alert: PaymentGatewaySlow
+            # voltstore_payment_gateway_seconds (Timer with histogram, PaymentMetrics), retries included
+            expr: |
+              histogram_quantile(0.95, sum by (le) (rate(voltstore_payment_gateway_seconds_bucket[5m]))) > 3
+            for: 5m
+            labels:
+              severity: warning
+              application: payment-service
+            annotations:
+              summary: "Payment gateway is slow"
+              description: "95th percentile of a gateway interaction is {{ $value | humanizeDuration }} (threshold 3s)."
+
+          - alert: OutboxBacklogGrowing
+            # voltstore_outbox_pending_events (Gauge, catalog OutboxMetrics). Both replicas report the same table,
+            # hence max(). Normally 0: the relay publishes every 500 ms
+            expr: max by (application) (voltstore_outbox_pending_events) > 10
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.application }} cannot publish its events"
+              description: "{{ $value }} outbox events have been waiting for over 5 minutes; check Kafka."
+
+          - alert: TtnJobRunningTooLong
+            # voltstore_ttn_job_seconds_max (LongTaskTimer, delivery TtnGenerationJob): how long the run that is in
+            # progress has been going. A plain Timer would only show the run after it ended, i.e. never if it hangs
+            expr: max by (application) (voltstore_ttn_job_seconds_max) > 300
+            for: 1m
+            labels:
+              severity: warning
+            annotations:
+              summary: "TTN generation job is stuck"
+              description: "A run of the TTN generation job has been running for {{ $value | humanizeDuration }}."
+
+      - name: voltstore-jvm
+        rules:
+          - alert: JvmHeapAlmostFull
+            # Pools without a limit report max = -1 and are left out
+            expr: |
+              sum by (application, pod) (jvm_memory_used_bytes{area="heap"})
+              /
+              sum by (application, pod) (jvm_memory_max_bytes{area="heap"} > 0)
+              > 0.9
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.application }} is running out of heap"
+              description: "Heap usage of {{ $labels.pod }} is {{ $value | humanizePercentage }}."

@@ -44,7 +44,7 @@ public class SecurityConfig {
                         .authenticationEntryPoint(errorHandlers)
                         .accessDeniedHandler(errorHandlers))
                 .authorizeHttpRequests(requests -> requests
-                        .requestMatchers("/actuator/health/**").permitAll()
+                        .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
                         // Internal-only (Order Service): EP-PAY-01 and EP-PAY-02
                         .requestMatchers(HttpMethod.POST, "/payments/charge").hasRole("SERVICE")
                         .requestMatchers(HttpMethod.POST, "/payments/refund").hasRole("SERVICE")

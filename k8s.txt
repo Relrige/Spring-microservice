@@ -65,3 +65,13 @@ minikube addons enable ingress
 minikube tunnel
 
 
+
+
+# Monitoring (k8s\monitoring\, report docs\reports\monitoring-alerting.md): Prometheus + Alertmanager in the voltstore
+# namespace, applied by "apply -R" above. Telegram: copy k8s\monitoring\alertmanager-secret-template.yaml to
+# k8s\monitoring\secret.yaml (git-ignored), put the bot token and chat id in, then:
+#   kubectl apply -f k8s\monitoring\
+#   kubectl rollout restart deployment/alertmanager -n voltstore
+# UIs (not behind the Ingress):
+kubectl port-forward -n voltstore svc/prometheus 9090:9090
+kubectl port-forward -n voltstore svc/alertmanager 9093:9093

@@ -1,0 +1,87 @@
+# Prometheus: scrapes /actuator/prometheus of every annotated pod, evaluates the alerting rules and sends firing
+# alerts to Alertmanager. Not exposed through the Ingress; open the UI with
+#   kubectl port-forward -n voltstore svc/prometheus 9090:9090   ->  http://localhost:9090 (Status > Targets, Alerts)
+#
+# Storage is an emptyDir: metrics survive container restarts but not a pod deletion. Enough for the study cluster;
+# a persistent setup would use a PersistentVolumeClaim like the databases.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: voltstore
+spec:
+  replicas: 1
+  # One pod writes to the storage directory at a time
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+        app.kubernetes.io/part-of: voltstore
+        app.kubernetes.io/component: monitoring
+    spec:
+      serviceAccountName: prometheus
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      containers:
+        - name: prometheus
+          # Pinned: v3.5 is a long-term-support release
+          image: prom/prometheus:v3.5.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=2d
+            # Enables POST /-/reload, so a changed ConfigMap can be loaded without a restart
+            - --web.enable-lifecycle
+          ports:
+            - name: http
+              containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: data
+              mountPath: /prometheus
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9090
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9090
+            periodSeconds: 20
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: data
+          emptyDir: { }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: voltstore
+spec:
+  type: ClusterIP
+  selector:
+    app: prometheus
+  ports:
+    - name: http
+      port: 9090
+      targetPort: 9090

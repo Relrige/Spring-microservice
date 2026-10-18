@@ -11,6 +11,12 @@ spec:
       app: api-gateway
   template:
     metadata:
+      annotations:
+        # Scraped by Prometheus (k8s/monitoring/prometheus-config.yaml); the gateway's metrics are on its
+        # management port, which is neither published nor routed
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8090"
       labels:
         app: api-gateway
         app.kubernetes.io/part-of: voltstore
