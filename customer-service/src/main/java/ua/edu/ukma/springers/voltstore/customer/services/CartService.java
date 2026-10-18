@@ -7,6 +7,7 @@ import ua.edu.ukma.springers.voltstore.customer.entities.Cart;
 import ua.edu.ukma.springers.voltstore.customer.entities.CartLine;
 import ua.edu.ukma.springers.voltstore.customer.repositories.CartRepository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -76,7 +77,13 @@ public class CartService {
         return changeCreatingIfMissing(customerId, cart -> cart.mergeFrom(lines));
     }
 
-    /** EP-CUST-09 and the OrderPaid consumer: deletes every line, keeps the cart row; no cart → nothing to do. */
+    /** EP-CUST-EVT-01: deletes the lines of the ordered products, keeps the rest; no cart → nothing to do. */
+    @Transactional
+    public List<CartLine> removeOrderedProducts(UUID customerId, Collection<UUID> productIds) {
+        return changeIfExists(customerId, cart -> cart.removeAll(productIds));
+    }
+
+    /** EP-CUST-09: deletes every line, keeps the cart row; no cart → nothing to do. */
     @Transactional
     public List<CartLine> clearCart(UUID customerId) {
         return changeIfExists(customerId, Cart::clear);

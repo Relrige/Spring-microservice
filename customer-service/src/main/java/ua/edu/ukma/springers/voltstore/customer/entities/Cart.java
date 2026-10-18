@@ -14,10 +14,13 @@ import ua.edu.ukma.springers.voltstore.customer.exceptions.CartRuleViolationExce
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 
@@ -143,7 +146,17 @@ public class Cart {
         apply(target);
     }
 
-    /** EP-CUST-09 and the OrderPaid consumer: removes every line; the cart itself stays. */
+    /**
+     * The OrderPaid consumer (EP-CUST-EVT-01): removes the lines of the ordered products and keeps everything else, so
+     * products added between submitting and paying stay. Idempotent: a product that is not in the cart is skipped.
+     */
+    public void removeAll(Collection<UUID> productIds) {
+        Set<UUID> ordered = new HashSet<>(productIds);
+        items.removeIf(item -> ordered.contains(item.getProductId()));
+        touch();
+    }
+
+    /** EP-CUST-09: removes every line; the cart itself stays. */
     public void clear() {
         items.clear();
         touch();

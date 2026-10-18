@@ -49,6 +49,7 @@ public class OrderPaymentService {
     private final OrderRepository orders;
     private final Payments payments;
     private final Outbox outbox;
+    private final OwedRefunds owedRefunds;
     private final TransactionOperations transactions;
     private final Clock clock;
 
@@ -119,14 +120,8 @@ public class OrderPaymentService {
 
     private void refundAfterLostRace(OrderEntity order, OrderStatus status) {
         log.warn("Order {} became {} while its card was being charged; refunding the charge", order.getId(), status);
-        Payments.RefundResult refund = payments.refund(order.getId(), order.getTotalAmount(), order.getCurrency());
-        switch (refund) {
-            case Payments.Refunded refunded -> log.info("Refunded the charge of order {}", order.getId());
-            case Payments.AlreadyRefunded alreadyRefunded ->
-                    log.info("The charge of order {} was refunded before", order.getId());
-            // Nothing else will refund it: the order is no longer one the cancellation saga refunds
-            case Payments.RefundFailed failed -> log.error("The charge of order {} could not be refunded ({}); "
-                    + "refund it by hand", order.getId(), failed.cause());
-        }
+        // Stored before the attempt: the cancellation saga does not refund an order that was never PAID, so a
+        // failed refund would otherwise be forgotten. PendingRefundJob repeats it until Payment confirms
+        owedRefunds.owe(order);
     }
 }

@@ -28,6 +28,7 @@ import ua.edu.ukma.springers.voltstore.order.exceptions.InsufficientStockExcepti
 import ua.edu.ukma.springers.voltstore.order.exceptions.InvalidOrderStateException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.MissingCustomerEmailException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.OrderNotFoundException;
+import ua.edu.ukma.springers.voltstore.order.exceptions.OrderTotalTooLargeException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.PaymentDeclinedException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.PaymentWindowExpiredException;
 import ua.edu.ukma.springers.voltstore.order.paging.InvalidQueryParameterException;
@@ -108,6 +109,8 @@ class OrderControllerTest {
             "{\"items\":[{\"quantity\":1}]}",
             "{\"items\":[{\"productId\":\"not-a-uuid\",\"quantity\":1}]}",
             "{\"items\":[{\"productId\":\"00000000-0000-0000-0000-000000000001\",\"quantity\":0}]}",
+            // More than the cart allows per product
+            "{\"items\":[{\"productId\":\"00000000-0000-0000-0000-000000000001\",\"quantity\":11}]}",
             "{\"items\":[{\"productId\":\"00000000-0000-0000-0000-000000000001\"}]}",
             "{\"items\":[{\"productId\":\"00000000-0000-0000-0000-000000000001\",\"quantity\":1},"
                     + "{\"productId\":\"00000000-0000-0000-0000-000000000001\",\"quantity\":2}]}"
@@ -242,6 +245,17 @@ class OrderControllerTest {
         place(placeBody(DELIVERY))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.ineligibleItems[0].reason").value("NOT_ACTIVE"));
+    }
+
+    @Test
+    void place_aTotalTooLargeToPay_is422_withTheLimit() throws Exception {
+        when(placement.place(any(), any()))
+                .thenThrow(new OrderTotalTooLargeException(new BigDecimal("9999999999.99")));
+
+        place(placeBody(DELIVERY))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/order-total-too-large"))
+                .andExpect(jsonPath("$.maxTotal").value(9999999999.99));
     }
 
     @Test

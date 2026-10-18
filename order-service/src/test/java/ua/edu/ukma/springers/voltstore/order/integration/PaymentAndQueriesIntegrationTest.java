@@ -33,6 +33,7 @@ import ua.edu.ukma.springers.voltstore.order.TestcontainersConfiguration;
 import ua.edu.ukma.springers.voltstore.order.entities.DeliveryDetails;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderEntity;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderItemEntity;
+import ua.edu.ukma.springers.voltstore.order.jobs.PendingRefundJob;
 import ua.edu.ukma.springers.voltstore.order.repositories.OrderRepository;
 import ua.edu.ukma.springers.voltstore.order.support.TopicProbe;
 import ua.edu.ukma.springers.voltstore.order.support.TrustedHeaders;
@@ -132,6 +133,9 @@ class PaymentAndQueriesIntegrationTest {
     @Autowired
     private CircuitBreakerRegistry circuitBreakers;
 
+    @Autowired
+    private PendingRefundJob pendingRefundJob;
+
     @Value("${order.kafka.topics.order-events}")
     private String topic;
 
@@ -144,6 +148,7 @@ class PaymentAndQueriesIntegrationTest {
         jdbc.update("DELETE FROM order_items");
         jdbc.update("DELETE FROM orders");
         jdbc.update("DELETE FROM outbox_events");
+        jdbc.update("DELETE FROM pending_refunds");
     }
 
     // ---- EP-ORD-03 ----
@@ -206,7 +211,37 @@ class PaymentAndQueriesIntegrationTest {
                 .isEqualTo("EXPIRED");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM outbox_events WHERE event_type = 'OrderPaid'",
                 Integer.class)).isZero();
+        // Confirmed by Payment, so nothing is owed any more
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM pending_refunds", Integer.class)).isZero();
         assertThat(output.getAll()).doesNotContain(CARD_NUMBER);
+    }
+
+    @Test
+    void aRefundThatFailsAfterTheLostRace_staysOwed_andTheJobPaysItBack() throws Exception {
+        UUID orderId = placeOrder(ALICE, Instant.now());
+        duringCharge = () -> jdbc.update("UPDATE orders SET status = 'EXPIRED', version = version + 1 WHERE id = ?",
+                orderId);
+        wireMock.stubFor(post(urlEqualTo(CHARGE)).withServeEventListener("during-charge", Parameters.empty())
+                .willReturn(okJson("{\"transactionId\":\"" + UUID.randomUUID() + "\",\"status\":\"SUCCESS\"}")));
+        // The provider rejects the first refund
+        wireMock.stubFor(post(urlEqualTo(REFUND)).willReturn(com.github.tomakehurst.wiremock.client.WireMock
+                .aResponse().withStatus(502).withHeader("Content-Type", "application/problem+json")
+                .withBody("{\"status\":502,\"title\":\"Refund rejected\",\"reason\":\"refund_rejected\"}")));
+
+        pay(orderId, ALICE).andExpect(status().isConflict());
+
+        assertThat(jdbc.queryForMap("SELECT attempts, last_error FROM pending_refunds WHERE order_id = ?", orderId))
+                .containsEntry("attempts", 1).containsEntry("last_error", "refund: refund_rejected");
+
+        // Later the refund goes through: the job pays it back and forgets it
+        wireMock.stubFor(post(urlEqualTo(REFUND)).willReturn(okJson(
+                "{\"transactionId\":\"" + UUID.randomUUID() + "\",\"status\":\"SUCCESS\"}")));
+        jdbc.update("UPDATE pending_refunds SET last_attempt_at = ?",
+                java.sql.Timestamp.from(Instant.now().minus(Duration.ofHours(1))));
+        pendingRefundJob.retryDueRefunds();
+
+        wireMock.verify(2, postRequestedFor(urlEqualTo(REFUND)));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM pending_refunds", Integer.class)).isZero();
     }
 
     @Test

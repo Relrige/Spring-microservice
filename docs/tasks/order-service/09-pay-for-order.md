@@ -37,4 +37,4 @@ Taken on 2026-10-17 (proposed during implementation):
 - **A late payment is recorded even if the window passed during the charge**, as long as the order is still `PENDING_PAYMENT`: the charge started inside the window, and the expiry job waits for a grace period longer than a charge ([task 13](13-payment-window-expiry-job.md)).
 
 ## Not done here
-- **A failed refund after a lost race is only logged** (as an error asking for a manual refund). The order is `EXPIRED` or `CANCELLATION_REQUESTED` from `PENDING_PAYMENT`, which the cancellation saga does not refund. A durable record (for example a "refund owed" flag picked up by the job of [task 12](12-finish-interrupted-cancellations-job.md)) would make this retryable.
+- ~~**A failed refund after a lost race is only logged.**~~ Fixed on 2026-10-18: the refund is stored as owed and EP-ORD-JOB-04 repeats it ([task 17](17-review-fixes.md)).

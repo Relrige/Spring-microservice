@@ -19,6 +19,7 @@ import ua.edu.ukma.springers.voltstore.order.exceptions.InsufficientStockExcepti
 import ua.edu.ukma.springers.voltstore.order.exceptions.InvalidOrderStateException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.MissingCustomerEmailException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.OrderNotFoundException;
+import ua.edu.ukma.springers.voltstore.order.exceptions.OrderTotalTooLargeException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.PaymentAttemptInProgressException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.PaymentDeclinedException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.PaymentWindowExpiredException;
@@ -65,6 +66,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problem = problem(HttpStatus.UNPROCESSABLE_ENTITY, "insufficient-stock", "Insufficient stock",
                 ex.getMessage());
         problem.setProperty("insufficientItems", ex.getInsufficientItems());
+        return problem;
+    }
+
+    @ExceptionHandler(OrderTotalTooLargeException.class)
+    public ProblemDetail handleOrderTotalTooLarge(OrderTotalTooLargeException ex) {
+        ProblemDetail problem = problem(HttpStatus.UNPROCESSABLE_ENTITY, "order-total-too-large",
+                "Order total too large", ex.getMessage());
+        problem.setProperty("maxTotal", ex.getMaxTotal());
         return problem;
     }
 

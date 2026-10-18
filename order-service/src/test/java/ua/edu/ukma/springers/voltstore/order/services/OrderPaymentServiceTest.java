@@ -37,6 +37,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -70,11 +71,14 @@ class OrderPaymentServiceTest {
     @Mock
     private Outbox outbox;
 
+    @Mock
+    private OwedRefunds owedRefunds;
+
     private OrderPaymentService service;
 
     @BeforeEach
     void setUp() {
-        service = new OrderPaymentService(orderAccess, orders, payments, outbox,
+        service = new OrderPaymentService(orderAccess, orders, payments, outbox, owedRefunds,
                 TransactionOperations.withoutTransaction(), Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -170,12 +174,13 @@ class OrderPaymentServiceTest {
         OrderEntity reread = order();
         reread.requestCancellation(NOW);
         when(orders.findById(ORDER_ID)).thenReturn(Optional.of(reread));
-        when(payments.refund(ORDER_ID, new BigDecimal("200.00"), "UAH")).thenReturn(new Payments.Refunded());
 
         assertThatThrownBy(() -> service.pay(ORDER_ID, CUSTOMER, CARD))
                 .isInstanceOfSatisfying(InvalidOrderStateException.class,
                         e -> assertThat(e.getStatus()).isEqualTo(OrderStatus.CANCELLATION_REQUESTED));
-        verify(payments).refund(ORDER_ID, new BigDecimal("200.00"), "UAH");
+        // Recorded as owed and tried at once (OwedRefunds); the job repeats it if Payment does not confirm
+        verify(owedRefunds).owe(argThat(owed -> owed.getId().equals(ORDER_ID)
+                && owed.getTotalAmount().compareTo(new BigDecimal("200.00")) == 0));
         verify(outbox, never()).append(any());
     }
 
@@ -186,24 +191,10 @@ class OrderPaymentServiceTest {
         OrderEntity reread = order();
         reread.expire();
         when(orders.findById(ORDER_ID)).thenReturn(Optional.of(reread));
-        when(payments.refund(any(), any(), any())).thenReturn(new Payments.AlreadyRefunded());
 
         assertThatThrownBy(() -> service.pay(ORDER_ID, CUSTOMER, CARD))
                 .isInstanceOf(InvalidOrderStateException.class);
-        verify(payments).refund(ORDER_ID, new BigDecimal("200.00"), "UAH");
-    }
-
-    @Test
-    void aFailedRefund_isStill409() {
-        givenLoadedOrder();
-        charging(new Payments.Paid(UUID.randomUUID()));
-        OrderEntity reread = order();
-        reread.expire();
-        when(orders.findById(ORDER_ID)).thenReturn(Optional.of(reread));
-        when(payments.refund(any(), any(), any())).thenReturn(new Payments.RefundFailed("refund_rejected"));
-
-        assertThatThrownBy(() -> service.pay(ORDER_ID, CUSTOMER, CARD))
-                .isInstanceOf(InvalidOrderStateException.class);
+        verify(owedRefunds).owe(argThat(owed -> owed.getId().equals(ORDER_ID)));
     }
 
     @Test
@@ -215,7 +206,7 @@ class OrderPaymentServiceTest {
         when(orders.findById(ORDER_ID)).thenReturn(Optional.of(reread));
 
         assertThat(service.pay(ORDER_ID, CUSTOMER, CARD).status()).isEqualTo(OrderStatus.PAID);
-        verify(payments, never()).refund(any(), any(), any());
+        verifyNoInteractions(owedRefunds);
         verifyNoInteractions(outbox);
     }
 

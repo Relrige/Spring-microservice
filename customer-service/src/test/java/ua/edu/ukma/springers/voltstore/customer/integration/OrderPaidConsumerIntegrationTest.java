@@ -66,12 +66,12 @@ class OrderPaidConsumerIntegrationTest {
     }
 
     @Test
-    void orderPaid_clearsTheCustomersCart_andKeepsTheCartRow() throws Exception {
+    void orderPaid_removesTheOrderedProducts_andKeepsTheCartRow() throws Exception {
         UUID customerId = cartWithItems();
         UUID otherCustomer = cartWithItems();
         UUID orderId = UUID.randomUUID();
 
-        orderEvents.send(orderId, "OrderPaid", OrderEvents.orderPaid(orderId, customerId));
+        orderEvents.send(orderId, "OrderPaid", OrderEvents.orderPaid(orderId, customerId, productsOf(customerId)));
 
         await().atMost(WAIT).until(() -> cartService.getCart(customerId).isEmpty());
         assertThat(cartRowExists(customerId)).isTrue();
@@ -79,16 +79,35 @@ class OrderPaidConsumerIntegrationTest {
     }
 
     @Test
-    void sameEventTwice_isHarmless() throws Exception {
+    void productsAddedAfterSubmittingTheOrder_stayInTheCart() throws Exception {
+        // The customer submitted an order for both products, then added a charger before paying
         UUID customerId = cartWithItems();
+        List<UUID> ordered = productsOf(customerId);
+        UUID charger = UUID.randomUUID();
+        cartService.addItem(customerId, charger, 1);
         UUID orderId = UUID.randomUUID();
-        String event = OrderEvents.orderPaid(orderId, customerId);
+
+        orderEvents.send(orderId, "OrderPaid", OrderEvents.orderPaid(orderId, customerId, ordered));
+        awaitMarkerAfter(orderId);
+
+        assertThat(cartService.getCart(customerId)).singleElement()
+                .isEqualTo(new CartLine(charger, 1));
+    }
+
+    @Test
+    void sameEventTwice_isHarmless_alsoForAProductAddedInBetween() throws Exception {
+        UUID customerId = cartWithItems();
+        List<UUID> ordered = productsOf(customerId);
+        UUID orderId = UUID.randomUUID();
+        String event = OrderEvents.orderPaid(orderId, customerId, ordered.subList(0, 1));
 
         orderEvents.send(orderId, "OrderPaid", event);
+        awaitMarkerAfter(orderId);
         orderEvents.send(orderId, "OrderPaid", event);
         awaitMarkerAfter(orderId);
 
-        assertThat(cartService.getCart(customerId)).isEmpty();
+        // Only the ordered product is gone; the other line was never touched by either delivery
+        assertThat(cartService.getCart(customerId)).extracting(CartLine::productId).containsExactly(ordered.get(1));
         assertThat(orderEvents.deadLetters(orderId)).isEmpty();
     }
 
@@ -136,9 +155,12 @@ class OrderPaidConsumerIntegrationTest {
         String notAUuid = OrderEvents.orderPaid(key, customerId).replace("\"customerId\":\"" + customerId + "\"",
                 "\"customerId\":\"not-a-uuid\"");
 
+        String withoutItems = OrderEvents.orderPaid(key, customerId).replaceFirst("\"items\":\\[[^]]*],", "");
+
         orderEvents.send(key, "OrderPaid", "this is not JSON");
         orderEvents.send(key, "OrderPaid", withoutOrderId);
         orderEvents.send(key, "OrderPaid", notAUuid);
+        orderEvents.send(key, "OrderPaid", withoutItems);
         long start = System.nanoTime();
         awaitMarkerAfter(key);
 
@@ -146,7 +168,7 @@ class OrderPaidConsumerIntegrationTest {
         assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(10));
         assertThat(cartService.getCart(customerId)).hasSize(2);
         await().atMost(WAIT).untilAsserted(() -> assertThat(orderEvents.deadLetters(key))
-                .containsExactly("this is not JSON", withoutOrderId, notAUuid));
+                .containsExactly("this is not JSON", withoutOrderId, notAUuid, withoutItems));
     }
 
     @Test
@@ -158,7 +180,7 @@ class OrderPaidConsumerIntegrationTest {
         doThrow(new TransientDataAccessResourceException("database restarting")).doAnswer(real)
                 .when(cartRepository).findByIdForUpdate(any());
 
-        orderEvents.send(orderId, "OrderPaid", OrderEvents.orderPaid(orderId, customerId));
+        orderEvents.send(orderId, "OrderPaid", OrderEvents.orderPaid(orderId, customerId, productsOf(customerId)));
 
         await().atMost(WAIT).until(() -> cartService.getCart(customerId).isEmpty());
         assertThat(orderEvents.deadLetters(orderId)).isEmpty();
@@ -171,10 +193,14 @@ class OrderPaidConsumerIntegrationTest {
         return customerId;
     }
 
-    // Sends an OrderPaid for a fresh cart with the same key and waits until that cart is cleared
+    private List<UUID> productsOf(UUID customerId) {
+        return cartService.getCart(customerId).stream().map(CartLine::productId).toList();
+    }
+
+    // Sends an OrderPaid for a fresh cart's products with the same key and waits until that cart is empty
     private void awaitMarkerAfter(UUID key) throws Exception {
         UUID marker = cartWithItems();
-        orderEvents.send(key, "OrderPaid", OrderEvents.orderPaid(UUID.randomUUID(), marker));
+        orderEvents.send(key, "OrderPaid", OrderEvents.orderPaid(UUID.randomUUID(), marker, productsOf(marker)));
         await().atMost(WAIT).until(() -> cartService.getCart(marker).isEmpty());
     }
 

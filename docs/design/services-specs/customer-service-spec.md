@@ -357,25 +357,25 @@ If either cart is empty, the client does not ask: an empty guest cart means keep
 
 **Topic:** `ORDER_EVENTS_TOPIC` (default `order.order-events`, owned and declared by Order), consumer group `customer-service`. Order's events share the topic and are told apart by the `eventType` header; one listener handles `OrderPaid` and acknowledges and skips every other type (or a missing header).
 
-**Payload received:** the fat `OrderPaid` from the [Event Catalogue](../services-requirements/events-catalogue.md). Customer reads only `{ eventId, orderId, customerId (nullable) }` and ignores the other fields (tolerant reader). `orderId` is required.
+**Payload received:** the fat `OrderPaid` from the [Event Catalogue](../services-requirements/events-catalogue.md). Customer reads only `{ eventId, orderId, customerId (nullable), items: [ { productId } ] }` and ignores the other fields (tolerant reader). `orderId` and `items` are required.
 
 **Steps:**
 1. Receive and deserialise the `OrderPaid` event.
 2. If `customerId` is null → skip and acknowledge. Since 2026-10-16 only registered customers can order, so Order always sends a `customerId`; the check stays as a defensive guard (it was the guest-order case before).
-3. If `customerId` is present → clear the cart exactly as EP-CUST-09 does: lock the cart, delete all its `CartItem` records, keep the `carts` row.
+3. If `customerId` is present → lock the cart and delete the `CartItem` records of the **ordered products** only; keep every other line and the `carts` row. Products added to the cart after the order was submitted (the customer has up to the payment window to pay) stay in the cart. Lines are removed, not reduced by the ordered quantity: a reduction applied twice by a redelivered event would take away items added later, a removal does not.
 4. Acknowledge the message: offsets are committed only after the clearing transaction committed (ack mode `batch`).
 
-**Idempotency:** by state — clearing an empty or missing cart changes nothing, so a redelivered event is harmless and no processed-events table is needed.
+**Idempotency:** by state — removing products that are no longer in the cart, or from a missing cart, changes nothing, so a redelivered event is harmless and no processed-events table is needed.
 
 **Failures:**
-- A payload that is not JSON, has no `orderId`, or has a non-UUID ID is a poison message: no retries, sent at once to the dead-letter topic `customer.order.order-events.dlt` (owned and declared by Customer, 1 partition).
+- A payload that is not JSON, has no `orderId` or `items`, or has a non-UUID ID is a poison message: no retries, sent at once to the dead-letter topic `customer.order.order-events.dlt` (owned and declared by Customer, 1 partition).
 - Other failures (e.g. the database briefly unavailable) are retried 4 times with back-off (1 s, 2 s, 4 s, 8 s), then sent to the same dead-letter topic, so one bad record never blocks the partition.
 - Order's topic may not exist yet: the listener waits for it and the service still starts (`missing-topics-fatal: false`).
 
 **Edge cases:**
 - `customerId` present but no cart row or no cart items → no-op; no cart row is created; acknowledge (idempotent)
 - `customerId` present but no `CustomerProfile` record exists → the cart may still exist; proceed with clearing; acknowledge successfully (profile and cart are independent aggregates)
-- Items added after paying but before the event is processed are cleared too. Accepted: the event follows the payment closely.
+- An ordered product the customer added again after paying, before the event is processed, is removed too (only its line, nothing else). Accepted: the event follows the payment closely.
 
 **External calls:** none
 **Refs:** SCN-C16 (step 9), N-05

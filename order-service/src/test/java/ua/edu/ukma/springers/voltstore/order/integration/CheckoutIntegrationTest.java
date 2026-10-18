@@ -24,6 +24,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import ua.edu.ukma.springers.voltstore.order.KafkaTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.order.TestcontainersConfiguration;
+import ua.edu.ukma.springers.voltstore.order.jobs.OrphanReservationJob;
 import ua.edu.ukma.springers.voltstore.order.support.TopicProbe;
 import ua.edu.ukma.springers.voltstore.order.support.TrustedHeaders;
 
@@ -101,6 +102,9 @@ class CheckoutIntegrationTest {
     @Autowired
     private CircuitBreakerRegistry circuitBreakers;
 
+    @Autowired
+    private OrphanReservationJob orphanReservationJob;
+
     @Value("${order.kafka.topics.order-events}")
     private String topic;
 
@@ -112,6 +116,7 @@ class CheckoutIntegrationTest {
         jdbc.update("DELETE FROM order_items");
         jdbc.update("DELETE FROM orders");
         jdbc.update("DELETE FROM outbox_events");
+        jdbc.update("DELETE FROM reservation_attempts");
     }
 
     // ---- EP-ORD-01 ----
@@ -190,6 +195,8 @@ class CheckoutIntegrationTest {
             JsonNode event = JSON.readTree(record.value());
             assertThat(event.get("customerEmail").asString()).isEqualTo(TrustedHeaders.EMAIL);
             assertThat(event.get("totalAmount").decimalValue()).isEqualByComparingTo("40498.00");
+            // The reservation now belongs to a stored order; the attempt was deleted with it
+            assertThat(count("reservation_attempts")).isZero();
         }
     }
 
@@ -232,6 +239,32 @@ class CheckoutIntegrationTest {
         wireMock.verify(postRequestedFor(urlMatching(RELEASE)));
         assertThat(count("orders")).isZero();
         assertThat(count("outbox_events")).isZero();
+        // The attempt stays, in case Inventory reserves after the release
+        assertThat(count("reservation_attempts")).isEqualTo(1);
+    }
+
+    @Test
+    void anOrphanReservation_isReleasedByTheJob_onceItHasSettled() throws Exception {
+        // Inventory reserves, but its answer never reaches Order (the call times out on every attempt), and the
+        // immediate release fails too: before the fix the stock stayed reserved forever
+        catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
+        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(serviceUnavailable()));
+        wireMock.stubFor(post(urlMatching(RELEASE)).willReturn(serviceUnavailable()));
+        place(placeBody()).andExpect(status().isServiceUnavailable());
+        circuitBreakers.getAllCircuitBreakers().forEach(CircuitBreaker::reset);
+        wireMock.resetRequests();
+        wireMock.stubFor(post(urlMatching(RELEASE)).willReturn(noContent()));
+
+        // Too young: a late reservation could still arrive, so the job leaves it alone
+        orphanReservationJob.releaseOrphanReservations();
+        wireMock.verify(0, postRequestedFor(urlMatching(RELEASE)));
+
+        jdbc.update("UPDATE reservation_attempts SET created_at = ?",
+                java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofMinutes(3))));
+        orphanReservationJob.releaseOrphanReservations();
+
+        wireMock.verify(1, postRequestedFor(urlMatching(RELEASE)));
+        assertThat(count("reservation_attempts")).isZero();
     }
 
     private ResultActions validate() throws Exception {

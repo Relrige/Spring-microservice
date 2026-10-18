@@ -57,16 +57,24 @@ public class OrderEvents implements AutoCloseable {
         producer.send(record).get();
     }
 
-    /** The fat OrderPaid of the Event Catalogue; {@code customerId} null is a guest order. */
+    /** The fat OrderPaid of the Event Catalogue for one product nobody has in the cart. */
     public static String orderPaid(UUID orderId, UUID customerId) {
+        return orderPaid(orderId, customerId, List.of(UUID.randomUUID()));
+    }
+
+    /** The fat OrderPaid of the Event Catalogue with these ordered products; {@code customerId} null is a guest order. */
+    public static String orderPaid(UUID orderId, UUID customerId, List<UUID> productIds) {
         String customer = customerId == null ? "null" : "\"" + customerId + "\"";
+        String items = productIds.stream()
+                .map(productId -> "{\"productId\":\"" + productId + "\",\"quantity\":2}")
+                .collect(java.util.stream.Collectors.joining(","));
         return """
                 {"eventId":"%s","orderId":"%s","customerId":%s,"customerEmail":"user@example.com",
                  "deliveryDetails":{"name":"Ivan Petrenko","phone":"+380501234567","address":"Kyiv, branch 12",
                                     "carrier":"NOVA_POSHTA"},
-                 "items":[{"productId":"%s","quantity":2}],"totalAmount":1500.00,"currency":"UAH",
+                 "items":[%s],"totalAmount":1500.00,"currency":"UAH",
                  "paidAt":"2026-10-15T12:00:00Z"}
-                """.formatted(UUID.randomUUID(), orderId, customer, UUID.randomUUID());
+                """.formatted(UUID.randomUUID(), orderId, customer, items);
     }
 
     /** Values on Customer's dead-letter topic with this key. */

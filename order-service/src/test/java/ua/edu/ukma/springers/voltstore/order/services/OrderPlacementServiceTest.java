@@ -30,6 +30,9 @@ import ua.edu.ukma.springers.voltstore.order.ports.ProductCatalog;
 import ua.edu.ukma.springers.voltstore.order.ports.StockReservations;
 import ua.edu.ukma.springers.voltstore.order.ports.StockReservations.ReservationItem;
 import ua.edu.ukma.springers.voltstore.order.repositories.OrderRepository;
+import ua.edu.ukma.springers.voltstore.order.repositories.ReservationAttemptRepository;
+import ua.edu.ukma.springers.voltstore.order.entities.ReservationAttempt;
+import ua.edu.ukma.springers.voltstore.order.exceptions.OrderTotalTooLargeException;
 import ua.edu.ukma.springers.voltstore.order.security.AuthenticatedUser;
 import ua.edu.ukma.springers.voltstore.order.security.UserRole;
 
@@ -46,6 +49,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -77,11 +81,15 @@ class OrderPlacementServiceTest {
     @Mock
     private Outbox outbox;
 
+    @Mock
+    private ReservationAttemptRepository attempts;
+
     private OrderPlacementService service;
 
     @BeforeEach
     void setUp() {
-        service = new OrderPlacementService(catalog, stock, orders, outbox, TransactionOperations.withoutTransaction(),
+        service = new OrderPlacementService(catalog, stock, orders, attempts, outbox,
+                TransactionOperations.withoutTransaction(),
                 new CheckoutProperties(Duration.ofMinutes(15), Set.of("NOVA_POSHTA")),
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
@@ -229,6 +237,82 @@ class OrderPlacementServiceTest {
         doThrow(new DependencyUnavailableException("Inventory", "down", null)).when(stock).release(any());
 
         assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1)))).isSameAs(failure);
+    }
+
+    // ---- the reservation attempt (orphan reservations, decision 2026-10-18) ----
+
+    @Test
+    void theAttemptIsWrittenBeforeTheReservation_andDeletedWithTheOrder() {
+        catalogKnows(active(PHONE, "Phone", "100.00"));
+        when(stock.reserve(any(), anyList())).thenReturn(new StockReservations.Reserved());
+
+        PlacedOrderResponse response = service.place(CUSTOMER, request(item(PHONE, 1)));
+
+        InOrder steps = inOrder(attempts, stock, orders);
+        ArgumentCaptor<ReservationAttempt> attempt = ArgumentCaptor.forClass(ReservationAttempt.class);
+        steps.verify(attempts).save(attempt.capture());
+        steps.verify(stock).reserve(eq(response.orderId()), anyList());
+        steps.verify(orders).save(any());
+        steps.verify(attempts).deleteById(response.orderId());
+        assertThat(attempt.getValue().getOrderId()).isEqualTo(response.orderId());
+        assertThat(attempt.getValue().getCreatedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    void insufficientStock_deletesTheAttempt_becauseNothingWasReserved() {
+        catalogKnows(active(PHONE, "Phone", "100.00"));
+        when(stock.reserve(any(), anyList()))
+                .thenReturn(new StockReservations.Insufficient(List.of(new InsufficientItem(PHONE, 5, 1))));
+
+        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 5))))
+                .isInstanceOf(InsufficientStockException.class);
+        verify(attempts).deleteById(any());
+    }
+
+    @Test
+    void inventoryUnavailable_keepsTheAttempt_forTheJob() {
+        catalogKnows(active(PHONE, "Phone", "100.00"));
+        when(stock.reserve(any(), anyList())).thenThrow(new DependencyUnavailableException("Inventory", "timeout", null));
+
+        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1))))
+                .isInstanceOf(DependencyUnavailableException.class);
+        // Released now, and kept: a late reservation is released again by the job
+        verify(attempts).save(any());
+        verify(attempts, never()).deleteById(any());
+    }
+
+    @Test
+    void aFailedSave_keepsTheAttempt_forTheJob() {
+        catalogKnows(active(PHONE, "Phone", "100.00"));
+        when(stock.reserve(any(), anyList())).thenReturn(new StockReservations.Reserved());
+        doThrow(new DataAccessResourceFailureException("database down")).when(orders).save(any());
+
+        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1))))
+                .isInstanceOf(DataAccessResourceFailureException.class);
+        verify(attempts, never()).deleteById(any());
+    }
+
+    // ---- limits ----
+
+    @Test
+    void aTotalPaymentCannotCharge_isRefused_beforeAnythingIsReserved() {
+        // 10 × 1,000,000,000.00 = 10,000,000,000.00, one cent more than Payment and the column allow
+        catalogKnows(active(PHONE, "Phone", "1000000000.00"));
+
+        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 10))))
+                .isInstanceOfSatisfying(OrderTotalTooLargeException.class,
+                        e -> assertThat(e.getMaxTotal()).isEqualByComparingTo("9999999999.99"));
+        verifyNoInteractions(stock, attempts, orders, outbox);
+    }
+
+    @Test
+    void theLargestPayableTotal_isAccepted() {
+        catalogKnows(active(PHONE, "Phone", "999999999.99"), active(CASE, "Case", "0.09"));
+        when(stock.reserve(any(), anyList())).thenReturn(new StockReservations.Reserved());
+
+        // 10 × 999,999,999.99 + 0.09 = 9,999,999,999.99, exactly the limit
+        assertThat(service.place(CUSTOMER, request(item(PHONE, 10), item(CASE, 1))).totalAmount())
+                .isEqualByComparingTo("9999999999.99");
     }
 
     @Test

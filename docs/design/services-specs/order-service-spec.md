@@ -20,7 +20,7 @@ It also serves the **Inventory Worker's fulfillment queue**, aggregating order d
 | **Events consumed** | `TTNGenerated`, `OrderDelivered` (from Delivery Service, topic `delivery.shipment-events`) |
 | **Synchronous dependencies** | Catalog `GET /catalog/products/batch-get` (status, price, `stockStatus`); Inventory `POST /inventory/reservations`, `POST /inventory/reservations/{orderId}/release`; Payment `POST /payments/charge`, `POST /payments/refund`; Delivery `GET /delivery/shipments`, `DELETE /delivery/shipments/{orderId}` |
 | **Callers** | Customers and Inventory Workers via the API Gateway; no internal (service-to-service) routes |
-| **Technical tables** (not part of the domain model) | `outbox_events` (transactional outbox for order events) |
+| **Technical tables** (not part of the domain model) | `outbox_events` (transactional outbox for order events); `reservation_attempts` and `pending_refunds` (work owed to Inventory and Payment, finished by EP-ORD-JOB-03/04) |
 | **Also see** | [order-state-machine.md](../entities/order-state-machine.md) for the authoritative state diagram and transition table |
 
 ---
@@ -59,6 +59,7 @@ Authentication follows the [Security Model](../services-requirements/security-mo
 | Order not found, or belongs to another customer | `404` | — |
 | Product not active or not found (EP-ORD-01/02) | `422` (type `ineligible-items`) | `ineligibleItems: [ { productId, reason } ]` |
 | Not enough stock to reserve (EP-ORD-02) | `422` (type `insufficient-stock`) | `insufficientItems: [ { productId, requested, available } ]` (passed through from Inventory) |
+| Total above what Payment can charge at once (EP-ORD-02) | `422` (type `order-total-too-large`) | `maxTotal` |
 | Order not in a state that allows the action | `409` | — |
 | Payment window elapsed (EP-ORD-03) | `409` (type `payment-window-expired`) | — |
 | Previous payment attempt still unresolved (EP-ORD-03) | `409` | — |
@@ -68,7 +69,7 @@ Authentication follows the [Security Model](../services-requirements/security-mo
 
 ### Request limits
 
-Item lists (EP-ORD-01/02) have 1–100 entries, each with a UUID `productId` and `quantity ≥ 1`, and a `productId` may appear **only once** (rejected with `400`, not merged). These are the same limits as Catalog's batch-get (at most 100 IDs) and Inventory's reservation (at most 100 items, no duplicates), so a valid order request is always a valid downstream request.
+Item lists (EP-ORD-01/02) have 1–100 entries, each with a UUID `productId` and a `quantity` from 1 to 10 (the cart's own limit per product, INV-CART-02, so the API cannot be used to order more than the cart allows), and a `productId` may appear **only once** (rejected with `400`, not merged). These are the same limits as Catalog's batch-get (at most 100 IDs) and Inventory's reservation (at most 100 items, no duplicates), so a valid order request is always a valid downstream request.
 
 ### Concurrency and consistency
 
@@ -113,6 +114,7 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 | `ORDER_PAYMENT_WINDOW` | Payment window after placement (default `15m`) |
 | `ORDER_CARRIERS` | Carriers a customer may choose at checkout, comma-separated (default `NOVA_POSHTA`); Delivery must support each |
 | `ORDER_CANCELLATION_RETRY_INTERVAL` | How often EP-ORD-JOB-02 looks for interrupted cancellations (default `1m`) |
+| `ORDER_RECOVERY_INTERVAL` | How often EP-ORD-JOB-03 and EP-ORD-JOB-04 run (default `1m`) |
 | `ORDER_EXPIRY_INTERVAL`, `ORDER_EXPIRY_GRACE` | How often EP-ORD-JOB-01 runs (default `1m`) and how long after the window it waits (default `30s`; must be longer than `PAYMENT_READ_TIMEOUT`, checked at startup) |
 
 ---
@@ -155,14 +157,14 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 **Steps:**
 1. Validate the request → `400`: *Request limits* for `items`; every `deliveryDetails` field non-blank (`phone` in international format, e.g. `+380…`; `carrier` from the carriers the shop offers, e.g. `NOVA_POSHTA`). `customerId` comes from `X-User-Id`; a `customerId` in the body is ignored.
 2. Generate the `orderId`.
-3. Call Catalog batch-get for current prices **and** status. Any product missing or not `ACTIVE` → `422 { ineligibleItems }`; nothing is reserved. Client-provided prices are **never trusted** — the snapshot uses Catalog's `basePrice` and `title`.
-4. Call Inventory `POST /inventory/reservations { orderId, items }`:
+3. Call Catalog batch-get for current prices **and** status. Any product missing or not `ACTIVE` → `422 { ineligibleItems }`; nothing is reserved. Client-provided prices are **never trusted** — the snapshot uses Catalog's `basePrice` and `title`. A total above `9,999,999,999.99` (the most Payment charges at once, and the size of `totalAmount`) → `422` type `order-total-too-large` with `maxTotal`; nothing is reserved.
+4. Store a **reservation attempt** for the `orderId` (table `reservation_attempts`), then call Inventory `POST /inventory/reservations { orderId, items }`:
    - `204` → reserved.
    - `409` (the order already has active reservations) → treated as reserved: it means an earlier attempt with this `orderId` succeeded and its answer was lost.
-   - `422 { insufficientItems }` → abort with `422 { insufficientItems }`; no order is created.
-   - unavailable / timeout → `503`; no order is created. If the reservation may have been made (timeout), call release for the `orderId` (best-effort; release is idempotent).
-5. In **one database transaction**: create the `Order` (`status = PENDING_PAYMENT`, `customerId`, `customerEmail`, `currency = UAH`, `reservationExpiresAt = now + ORDER_PAYMENT_WINDOW`, `totalAmount = Σ unitPriceAtOrder × quantity`, the item snapshots and `deliveryDetails`) and write `OrderPlaced` to the outbox.
-6. If step 5 fails after the reservation was made → release the reservation (best-effort, logged) and answer `500`. A reservation without an order would otherwise hold stock forever, because only orders are expired.
+   - `422 { insufficientItems }` → delete the attempt (nothing was reserved) and abort with `422 { insufficientItems }`; no order is created.
+   - unavailable / timeout → `503`; no order is created. The reservation may exist or may still be made (a late answer), so release it at once (best-effort; release is idempotent) and **keep the attempt**.
+5. In **one database transaction**: create the `Order` (`status = PENDING_PAYMENT`, `customerId`, `customerEmail`, `currency = UAH`, `reservationExpiresAt = now + ORDER_PAYMENT_WINDOW`, `totalAmount = Σ unitPriceAtOrder × quantity`, the item snapshots and `deliveryDetails`), write `OrderPlaced` to the outbox, and delete the attempt.
+6. If step 5 fails after the reservation was made → release the reservation (best-effort) and answer `500`; the attempt stays. EP-ORD-JOB-03 releases every attempt older than its settle time that has no order, so a reservation is never left without an order, even if this instance dies between steps 4 and 5 or Inventory reserves after the release.
 7. Return `201 Created { orderId, status, totalAmount, currency, reservationExpiresAt }` with `Location: /orders/{orderId}`.
 
 **Edge cases:**
@@ -197,7 +199,7 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
    - `409` "Payment attempt in progress" → `409` to the customer ("Your previous payment is still being processed — try again with the same card").
    - `502` / `504` / timeout → `503`; the order is unchanged. The customer may retry with the **same** card; Payment then returns the real outcome without charging twice.
 4. When paid: in one transaction, `PENDING_PAYMENT → PAID` (check-and-set), `paidAt = now`, and `OrderPaid` written to the outbox. Return `200 { orderId, status: "PAID" }`.
-5. If the check-and-set fails because the order changed meanwhile (cancelled by the customer or expired), the money was taken for an order that is no longer payable: refund it at once (`POST /payments/refund`), log a warning, and answer `409`.
+5. If the check-and-set fails because the order changed meanwhile (cancelled by the customer or expired), the money was taken for an order that is no longer payable: store the refund as owed (table `pending_refunds`), refund it at once (`POST /payments/refund`), log a warning, and answer `409`. The owed refund is deleted only when Payment confirms it (`200`, or `409` already refunded); otherwise EP-ORD-JOB-04 repeats it. The cancellation saga does not cover it, because the order was never `PAID`.
 
 > **Expiry vs. payment.** A charge can take up to about 4.5 s. The expiry job (EP-ORD-JOB-01) expires an order only after `reservationExpiresAt` plus a grace period longer than `PAYMENT_READ_TIMEOUT`, so a payment started inside the window can always finish. Step 5 is the safety net for the remaining races.
 
@@ -404,6 +406,38 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 **External calls:** Inventory release, Delivery cancel, Payment refund — **sync**, per order
 **Emits:** `OrderCancelled` → Notification
 **Refs:** SCN-S07, D3
+
+---
+
+## EP-ORD-JOB-03: Release Orphan Reservations
+
+**Type:** Scheduled job (every `ORDER_RECOVERY_INTERVAL`, default 1 minute)
+
+**Steps:**
+1. Find reservation attempts (EP-ORD-02 step 4) older than the settle time (2 minutes, far longer than a reservation call with its retries), oldest first.
+2. If an order with that ID exists, the attempt is only stale: delete it.
+3. Otherwise release the reservation (Inventory `POST /inventory/reservations/{orderId}/release`) and delete the attempt. On failure keep it, count the failure and try again in the next run; after 5 failures log an `ERROR`.
+
+> Without this job a reservation whose order was never stored (the save failed, the instance died, or Inventory reserved after Order had given up) would hold stock forever: Inventory reservations do not expire, and EP-ORD-JOB-01 only knows stored orders. Several replicas need no claim: release is idempotent.
+
+**External calls:** Inventory release — **sync**, per attempt
+**Emits:** none
+
+---
+
+## EP-ORD-JOB-04: Repeat Owed Refunds
+
+**Type:** Scheduled job (every `ORDER_RECOVERY_INTERVAL`, default 1 minute)
+
+**Steps:**
+1. Find owed refunds (EP-ORD-03 step 5) whose back-off has passed (the cancellation's: 1, 5, 15, then every 30 minutes).
+2. Payment `POST /payments/refund { orderId, amount, currency }`: `200` or `409` already refunded → delete the owed refund; anything else → count the attempt and store the error.
+3. After 5 failed attempts the refund is flagged `needsManualAttention` with one `ERROR` log line; retries continue.
+
+> Several replicas need no claim: Payment refunds an order at most once (fixed refund key) and answers a repeat with `409`.
+
+**External calls:** Payment refund — **sync**, per refund
+**Emits:** none
 
 ---
 

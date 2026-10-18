@@ -40,5 +40,5 @@ Taken on 2026-10-17 (proposed during implementation):
 
 ## Not done here
 - **All orders get `401` until [Auth task 09](../auth-service/09-email-claim-in-jwt.md) and [Gateway task 11](../api-getaway/11-forward-user-email-header.md) are done**: today nothing sends `X-User-Email`.
-- **A late reservation can still be orphaned:** if Inventory reserves *after* Order's timeout and after the release has arrived, the stock stays reserved, because Inventory reservations do not expire on their own. Rare (it needs a reservation slower than the read timeout plus retries); an expiry of reservations in Inventory, or a periodic check for reservations without an order, would close it.
+- ~~**A late reservation can still be orphaned.**~~ Fixed on 2026-10-18 by the reservation attempt and EP-ORD-JOB-03 ([task 17](17-review-fixes.md)).
 - Two clicks still create two orders (accepted in the spec); an `Idempotency-Key` header would prevent it.

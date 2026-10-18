@@ -20,15 +20,16 @@ import java.util.stream.Collectors;
 
 /**
  * The one consumer of Order's topic (group {@code customer-service}). Order publishes several event types on the
- * topic, told apart by the {@code eventType} header; only {@code OrderPaid} matters here (EP-CUST-EVT-01: clear the
- * customer's cart), every other type is acknowledged and skipped.
+ * topic, told apart by the {@code eventType} header; only {@code OrderPaid} matters here (EP-CUST-EVT-01: take the
+ * ordered products out of the customer's cart), every other type is acknowledged and skipped.
  * <p>
- * <b>Idempotent by state:</b> clearing a cart that is already empty (or does not exist) changes nothing, so a
- * redelivered event is harmless and no processed-events table is needed. <b>Offsets</b> are committed after the
- * listener returned (ack mode {@code batch}), so only after the clearing transaction committed.
+ * <b>Idempotent by state:</b> removing products that are no longer in the cart (or a cart that does not exist)
+ * changes nothing, so a redelivered event is harmless and no processed-events table is needed. Lines are removed, not
+ * reduced by the ordered quantity: a reduction applied twice would take away items added later. <b>Offsets</b> are
+ * committed after the listener returned (ack mode {@code batch}), so only after the transaction committed.
  * <p>
- * <b>Failures:</b> a payload that is not JSON or has no {@code orderId} is a {@link PoisonMessageException}: no
- * retries, straight to {@code customer.order.order-events.dlt}. Other failures (e.g. the database briefly down) are
+ * <b>Failures:</b> a payload that is not JSON or has no {@code orderId} or {@code items} is a
+ * {@link PoisonMessageException}: no retries, straight to {@code customer.order.order-events.dlt}. Other failures (e.g. the database briefly down) are
  * retried with back-off by the error handler in {@code KafkaConfig}, then sent to the same DLT.
  */
 @Slf4j
@@ -54,8 +55,10 @@ public class OrderEventsListener {
             log.debug("Skipping OrderPaid of guest order {}", event.orderId());
             return;
         }
-        cartService.clearCart(event.customerId());
-        log.info("Cleared the cart of customer {} after order {} was paid", event.customerId(), event.orderId());
+        // Only the ordered products: items added to the cart after the order was submitted stay
+        cartService.removeOrderedProducts(event.customerId(), event.productIds());
+        log.info("Removed the {} products of paid order {} from the cart of customer {}", event.items().size(),
+                event.orderId(), event.customerId());
     }
 
     private OrderPaidEvent read(String payload) {

@@ -263,6 +263,19 @@ class CartTest {
     }
 
     @Test
+    void removeAll_removesOnlyTheGivenProducts_andSkipsMissingOnes() {
+        cart.add(A, 1);
+        cart.add(B, 2);
+        cart.add(C, 3);
+
+        cart.removeAll(List.of(A, C, UUID.randomUUID()));
+
+        assertThat(cart.lines()).containsExactly(new CartLine(B, 2));
+        cart.removeAll(List.of(A, C));
+        assertThat(cart.lines()).containsExactly(new CartLine(B, 2));
+    }
+
+    @Test
     void lines_areOrderedByProductId() {
         cart.add(C, 1);
         cart.add(A, 1);
