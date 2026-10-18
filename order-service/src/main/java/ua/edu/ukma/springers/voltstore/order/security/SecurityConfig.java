@@ -43,7 +43,9 @@ public class SecurityConfig {
                         .authenticationEntryPoint(errorHandlers)
                         .accessDeniedHandler(errorHandlers))
                 .authorizeHttpRequests(requests -> requests
-                        .requestMatchers("/actuator/health/**").permitAll()
+                        // Probes, and the metrics Prometheus scrapes without credentials (k8s/monitoring/), as in
+                        // Payment; no other actuator endpoint is exposed
+                        .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
                         // Worker routes. The queue must come before GET /orders/{orderId}, which would otherwise
                         // also match "/orders/fulfillment-queue" (the first matching rule wins)
                         .requestMatchers(HttpMethod.GET, "/orders/fulfillment-queue").hasRole(WORKER)

@@ -198,6 +198,13 @@ class SecurityConfigTest {
         mockMvc.perform(get("/actuator/health")).andExpect(status().isNotFound());
     }
 
+    @Test
+    void prometheusEndpoint_isOpenForTheScraper_otherActuatorEndpointsAreNot() throws Exception {
+        // Prometheus scrapes without credentials; 404 here proves security let the call through
+        mockMvc.perform(get("/actuator/prometheus")).andExpect(status().isNotFound());
+        mockMvc.perform(get("/actuator/env")).andExpect(status().isUnauthorized());
+    }
+
     private static MockHttpServletRequestBuilder send(String method, String url) {
         MockHttpServletRequestBuilder builder = request(HttpMethod.valueOf(method), url);
         return method.equals("POST") ? builder.contentType(MediaType.APPLICATION_JSON).content(BODY) : builder;
