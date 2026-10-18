@@ -90,8 +90,11 @@ public class OutboxRelay {
         return events.size() == properties.batchSize();
     }
 
-    // Published events are only needed for troubleshooting; keep them for the retention period
-    @Scheduled(fixedDelayString = "${catalog.outbox.cleanup-interval}")
+    // Published events are only needed for troubleshooting; keep them for the retention period.
+    // The first run waits one interval too: there is nothing urgent to delete at startup, and an immediate run
+    // would race with tests that backdate published_at and call this method themselves
+    @Scheduled(fixedDelayString = "${catalog.outbox.cleanup-interval}",
+            initialDelayString = "${catalog.outbox.cleanup-interval}")
     @Transactional
     public int deletePublishedEvents() {
         int deleted = repository.deletePublishedBefore(Instant.now().minus(properties.retention()));
