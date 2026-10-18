@@ -3,10 +3,87 @@ spring:
     name: order-service
   jpa:
     hibernate:
-      ddl-auto: update
+      # Flyway owns the schema; Hibernate only checks that the entities match it
+      ddl-auto: validate
   mvc:
     problem-details:
       enabled: true
+  autoconfigure:
+    # Callers are identified by gateway headers; there is no username/password login, so no default in-memory user
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  kafka:
+    # Overridden by SPRING_KAFKA_BOOTSTRAP_SERVERS (kafka:9092 in Compose/Kubernetes); this default is
+    # the broker's host listener from docker-compose.yml, for running the service from the IDE
+    bootstrap-servers: localhost:9094
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      # Same values as the kafka-clients 4.x defaults, stated explicitly because delivery guarantees are a design
+      # decision: wait for all in-sync replicas, and let retries never duplicate or reorder a message
+      acks: all
+      properties:
+        enable.idempotence: true
+        # How long send() may block waiting for broker metadata (default 60 s); keeps a dead broker from tying up
+        # the outbox relay for a minute per attempt
+        max.block.ms: 5000
+        # Consumers read plain JSON and pick the type from the eventType header
+        spring.json.add.type.headers: false
+    # Delivery's events (copied from Delivery's consumer settings)
+    consumer:
+      group-id: order-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # Values are read as JSON text; the listener reads the type named in the eventType header
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      # Offsets are committed after every record of a poll has been processed, so only after the listener's database
+      # transaction committed. A crash mid-batch redelivers the uncommitted records; the handlers are idempotent by
+      # state, so that is harmless
+      ack-mode: batch
+      # Delivery's topic may not exist yet: the listener waits for it instead of failing at startup
+      missing-topics-fatal: false
+
+order:
+  checkout:
+    # How long a new order may be paid; its reservation is released after that
+    payment-window: ${ORDER_PAYMENT_WINDOW:15m}
+    # Carriers a customer may choose at checkout; Delivery must be able to register parcels with each of them
+    carriers: ${ORDER_CARRIERS:NOVA_POSHTA}
+  expiry:
+    # Payment-window expiry job (EP-ORD-JOB-01)
+    interval: ${ORDER_EXPIRY_INTERVAL:1m}
+    # Must be longer than clients.payment.read-timeout (checked at startup): a charge started inside the window
+    # must be able to finish before its reservation is released
+    grace: ${ORDER_EXPIRY_GRACE:30s}
+    batch-size: 100
+  cancellation:
+    # Interrupted cancellations (decision D3): the job runs this often and looks at this many orders per run
+    retry-interval: ${ORDER_CANCELLATION_RETRY_INTERVAL:1m}
+    batch-size: 100
+    # Wait after the request, then after the 1st, 2nd, 3rd failure; the last value repeats forever
+    backoff: 1m, 5m, 15m, 30m
+    # Failed attempts after which the order is flagged for a person; the job keeps retrying
+    manual-attention-after: 5
+  kafka:
+    topics:
+      # Owned and declared by Order: OrderPlaced, OrderPaid, OrderShipped, OrderCancelled (key = orderId).
+      # Inventory, Delivery and Customer already consume it under this name
+      order-events: ${ORDER_EVENTS_TOPIC:order.order-events}
+      # Owned by Delivery: TTNGenerated and OrderDelivered; Order only subscribes and never declares it
+      delivery-events: ${DELIVERY_EVENTS_TOPIC:delivery.shipment-events}
+  outbox:
+    # How often the relay looks for unpublished events (fixed delay between runs)
+    relay-interval: 500ms
+    batch-size: 50
+    # Waiting longer than this for a broker acknowledgment counts as a failed attempt (the event may still
+    # arrive, and is then sent twice: delivery is at-least-once)
+    publish-timeout: 10s
+    # Exponential back-off per failing event (1 s, 2 s, 4 s, ...) is capped here; later events of the same
+    # order wait for it, other orders do not
+    max-retry-delay: 5m
+    # Published events are deleted after this long by a job running every cleanup-interval
+    retention: 7d
+    cleanup-interval: 1h
 
 management:
   endpoint:
@@ -14,28 +91,77 @@ management:
       probes:
         enabled: true
 
+auth:
+  internal:
+    # Shared secret sent as X-Internal-Token on every call to another service; supplied by INTERNAL_TOKEN
+    token: ${INTERNAL_TOKEN}
+
+# The services Order calls. Defaults are their Compose host ports, for running Order from the IDE; in Compose and
+# Kubernetes the *_SERVICE_URL variables point at the service names
 clients:
   catalog:
-    url: http://catalog-service:8081
+    url: ${CATALOG_SERVICE_URL:http://localhost:8081}
+    connect-timeout: ${CATALOG_CONNECT_TIMEOUT:2s}
+    read-timeout: ${CATALOG_READ_TIMEOUT:3s}
+  inventory:
+    url: ${INVENTORY_SERVICE_URL:http://localhost:8084}
+    connect-timeout: ${INVENTORY_CONNECT_TIMEOUT:2s}
+    read-timeout: ${INVENTORY_READ_TIMEOUT:3s}
+  payment:
+    url: ${PAYMENT_SERVICE_URL:http://localhost:8085}
+    connect-timeout: ${PAYMENT_CONNECT_TIMEOUT:2s}
+    # At least 6 s (checked at startup): Payment's own worst case, with its timeout and one repeat, is about 4.5 s
+    read-timeout: ${PAYMENT_READ_TIMEOUT:8s}
+  delivery:
+    url: ${DELIVERY_SERVICE_URL:http://localhost:8083}
+    connect-timeout: ${DELIVERY_CONNECT_TIMEOUT:2s}
+    read-timeout: ${DELIVERY_READ_TIMEOUT:3s}
 
+# Resilience per downstream service (task 05). Only connection errors, timeouts (ResourceAccessException) and 5xx
+# answers count as failures; a 4xx is an answer (or a bug) and is neither retried nor counted by the breaker.
 resilience4j:
   circuitbreaker:
-    instances:
-      catalogClient:
-        failureRateThreshold: 50
-        minimumNumberOfCalls: 4
+    configs:
+      default:
         slidingWindowSize: 10
+        minimumNumberOfCalls: 4
+        failureRateThreshold: 50
         waitDurationInOpenState: 10s
         permittedNumberOfCallsInHalfOpenState: 2
-  retry:
+        recordExceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
     instances:
-      catalogClient:
+      catalog:
+        baseConfig: default
+      inventory:
+        baseConfig: default
+      payment:
+        baseConfig: default
+      delivery:
+        baseConfig: default
+  retry:
+    configs:
+      default:
+        # 1 call + 2 retries after about 300 ms and 600 ms
         maxAttempts: 3
-        waitDuration: 1s
+        waitDuration: 300ms
         enableExponentialBackoff: true
         exponentialBackoffMultiplier: 2
         enableRandomizedWait: true
+        retryExceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+    # No instance for payment: Payment repeats uncertain calls itself (see PaymentClientAdapter)
+    instances:
+      catalog:
+        baseConfig: default
+      inventory:
+        baseConfig: default
+      delivery:
+        baseConfig: default
   bulkhead:
     instances:
-      catalogClient:
+      # At most 10 concurrent Catalog calls; checkout and the soft check both call Catalog
+      catalog:
         maxConcurrentCalls: 10

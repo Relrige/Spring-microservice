@@ -266,7 +266,80 @@ spring:
               metadata:
                 authMode: REQUIRED
                 roles: INVENTORY_WORKER
-            # order routes: task 10 (Order Service does not expose the contract paths yet)
+
+            # --- order-service ---
+            # Every customer route needs a token: only registered customers order (2026-10-16); ownership is
+            # checked in the service. {id} is a UUID, so GET /orders/fulfillment-queue never matches /orders/{id}
+            - id: order-validate
+              uri: ${gateway.upstreams.order}
+              predicates:
+                - Method=POST
+                - Path=/orders/validate
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CUSTOMER
+            - id: order-submit
+              uri: ${gateway.upstreams.order}
+              predicates:
+                - Method=POST
+                - Path=/orders
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CUSTOMER
+            - id: order-history
+              uri: ${gateway.upstreams.order}
+              predicates:
+                - Method=GET
+                - Path=/orders
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CUSTOMER
+            - id: order-details-or-cancel
+              uri: ${gateway.upstreams.order}
+              predicates:
+                - Method=GET,DELETE
+                - Path=/orders/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CUSTOMER
+            - id: order-pay
+              uri: ${gateway.upstreams.order}
+              predicates:
+                - Method=POST
+                - Path=/orders/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}/pay
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CUSTOMER
+            - id: order-fulfillment-queue
+              uri: ${gateway.upstreams.order}
+              predicates:
+                - Method=GET
+                - Path=/orders/fulfillment-queue
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: INVENTORY_WORKER
+            - id: order-ship
+              uri: ${gateway.upstreams.order}
+              predicates:
+                - Method=POST
+                - Path=/orders/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}/ship
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: INVENTORY_WORKER
 
 auth:
   jwt:

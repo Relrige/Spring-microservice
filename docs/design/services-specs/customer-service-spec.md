@@ -361,7 +361,7 @@ If either cart is empty, the client does not ask: an empty guest cart means keep
 
 **Steps:**
 1. Receive and deserialise the `OrderPaid` event.
-2. If `customerId` is null → this is a guest order; no backend cart exists. Skip and acknowledge.
+2. If `customerId` is null → skip and acknowledge. Since 2026-10-16 only registered customers can order, so Order always sends a `customerId`; the check stays as a defensive guard (it was the guest-order case before).
 3. If `customerId` is present → clear the cart exactly as EP-CUST-09 does: lock the cart, delete all its `CartItem` records, keep the `carts` row.
 4. Acknowledge the message: offsets are committed only after the clearing transaction committed (ack mode `batch`).
 

@@ -29,6 +29,8 @@ class TrustBoundaryFilterTest extends GatewayIntegrationTest {
             "X-User-Id", SPOOFED_ID,
             "X-User-Role", "ADMIN",
             "x-user-role", "CATALOG_MANAGER",
+            "X-User-Email", "victim@example.com",
+            "x-USER-email", "second@example.com",
             "X-INTERNAL-TOKEN", "change-me-local-internal-token-at-least-32-chars",
             "x-internal-token", "second-value"
     };
@@ -82,6 +84,38 @@ class TrustBoundaryFilterTest extends GatewayIntegrationTest {
             assertThat(received.header("X-User-Id")).containsExactly(realUser.toString());
             assertThat(received.header("X-User-Role")).containsExactly(role.name());
         }
+        // The token has no email claim, so the forged value must not survive either
+        assertThat(received.header("X-User-Email")).isEmpty();
+    }
+
+    // --- X-User-Email ---
+
+    @Test
+    void tokenWithEmailClaim_forwardsItAsUserEmail_andReplacesForgedValue() throws Exception {
+        String token = token(UUID.randomUUID(), UserRole.INVENTORY_WORKER, "alice@example.com");
+
+        HttpResponse<String> response = send("GET", "/inventory/stock", null, token, SPOOFED_HEADERS);
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(INVENTORY.single().header("X-User-Email")).containsExactly("alice@example.com");
+    }
+
+    @Test
+    void tokenWithoutEmailClaim_isStillForwarded_withoutUserEmail() throws Exception {
+        HttpResponse<String> response = send("GET", "/inventory/stock", null, token(UserRole.INVENTORY_WORKER));
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        Received received = INVENTORY.single();
+        assertThat(received.header("X-User-Id")).hasSize(1);
+        assertThat(received.header("X-User-Email")).isEmpty();
+    }
+
+    @Test
+    void publicRoute_dropsEmailClaim() throws Exception {
+        String token = token(UUID.randomUUID(), UserRole.CUSTOMER, "alice@example.com");
+
+        assertThat(send("POST", "/auth/login", "{}", token).statusCode()).isEqualTo(200);
+        assertAnonymous(AUTH.single());
     }
 
     // --- Public ---
@@ -196,6 +230,7 @@ class TrustBoundaryFilterTest extends GatewayIntegrationTest {
     private static void assertAnonymous(Received received) {
         assertThat(received.header("X-User-Id")).isEmpty();
         assertThat(received.header("X-User-Role")).isEmpty();
+        assertThat(received.header("X-User-Email")).isEmpty();
         assertThat(received.header("X-Internal-Token")).isEmpty();
         assertThat(received.header("Authorization")).isEmpty();
     }

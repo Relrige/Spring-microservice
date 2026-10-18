@@ -97,9 +97,8 @@ Owns the order lifecycle, immutable historical snapshots of purchases, and coord
 
 ### `Order` (Aggregate Root)
 - `id`: UUID (Primary Key)
-- `customerId`: UUID (Nullable for guest checkouts)
-- `guestEmail`: String (Nullable, populated if `customerId` is null)
-- `orderAccessToken`: String (Nullable, secure token for guest order access)
+- `customerId`: UUID (never null: only registered customers can order, decision 2026-10-16; there is no guest checkout)
+- `customerEmail`: String (snapshot of the account email at placement, from `X-User-Email`; used by the order events)
 - `status`: Enum `[PENDING_PAYMENT, PAID, PENDING_SHIPPING, SHIPPED, DELIVERED, CANCELLATION_REQUESTED, CANCELLED, EXPIRED]`
 - `totalAmount`: Decimal
 - `currency`: String (e.g., "UAH")
@@ -109,11 +108,16 @@ Owns the order lifecycle, immutable historical snapshots of purchases, and coord
 - `deliveryCarrier`: String
 - `reservationExpiresAt`: Timestamp
 - `placedAt`: Timestamp
+- `paidAt`: Timestamp (Nullable until paid)
+- `statusBeforeCancellation`: Enum (Nullable; set when cancellation starts, decides whether a refund is owed)
+- `cancellationAttempts`, `cancellationFailure`, `cancellationLastAttemptAt`, `needsManualAttention`: technical fields of an interrupted cancellation saga (the last-attempt time drives the retry back-off)
+- `version`: optimistic-locking version (technical)
 - `items`: List of `OrderItemSnapshot`
 
 **`OrderItemSnapshot`** (Child Entity)
 - `id`: UUID
 - `productId`: UUID
+- `productTitle`: String *(Historical snapshot of the Catalog title)*
 - `unitPriceAtOrder`: Decimal *(Historical snapshot)*
 - `quantity`: Integer
 

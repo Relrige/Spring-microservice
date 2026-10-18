@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Date;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,6 +40,30 @@ class HmacJwtVerifierTest {
         String token = token(SECRET, userId.toString(), role.name(), NOW.plusSeconds(3600));
 
         assertThat(verifier.verify(token)).contains(new VerifiedIdentity(userId, role));
+    }
+
+    @Test
+    void emailClaim_isReturnedWithIdentity() throws Exception {
+        String token = sign(SECRET, new JWTClaimsSet.Builder().subject(userId.toString()).claim("role", "CUSTOMER")
+                .claim("email", "alice@example.com").expirationTime(Date.from(NOW.plusSeconds(3600))).build());
+
+        assertThat(verifier.verify(token))
+                .contains(new VerifiedIdentity(userId, UserRole.CUSTOMER, Optional.of("alice@example.com")));
+    }
+
+    /** Tokens issued before Auth added the claim stay valid; a malformed claim is ignored, not trusted. */
+    @Test
+    void missingBlankOrNonStringEmail_isAcceptedWithoutEmail() throws Exception {
+        Date exp = Date.from(NOW.plusSeconds(3600));
+        JWTClaimsSet blank = new JWTClaimsSet.Builder().subject(userId.toString()).claim("role", "CUSTOMER")
+                .claim("email", " ").expirationTime(exp).build();
+        JWTClaimsSet numeric = new JWTClaimsSet.Builder().subject(userId.toString()).claim("role", "CUSTOMER")
+                .claim("email", 5).expirationTime(exp).build();
+
+        assertThat(verifier.verify(token(SECRET, userId.toString(), "CUSTOMER", NOW.plusSeconds(3600))))
+                .hasValueSatisfying(id -> assertThat(id.email()).isEmpty());
+        assertThat(verifier.verify(sign(SECRET, blank))).hasValueSatisfying(id -> assertThat(id.email()).isEmpty());
+        assertThat(verifier.verify(sign(SECRET, numeric))).hasValueSatisfying(id -> assertThat(id.email()).isEmpty());
     }
 
     @Test

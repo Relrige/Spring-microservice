@@ -19,7 +19,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         "gateway.upstreams.catalog=http://127.0.0.1:1",
         "gateway.upstreams.inventory=http://127.0.0.1:1",
         "gateway.upstreams.customer=http://127.0.0.1:1",
-        "gateway.upstreams.delivery=http://127.0.0.1:1"
+        "gateway.upstreams.delivery=http://127.0.0.1:1",
+        "gateway.upstreams.order=http://127.0.0.1:1"
 })
 class ManagementPortTest {
 

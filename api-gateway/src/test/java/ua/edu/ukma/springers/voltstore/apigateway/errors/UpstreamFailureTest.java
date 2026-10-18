@@ -36,6 +36,7 @@ class UpstreamFailureTest {
         registry.add("gateway.upstreams.inventory", () -> "http://127.0.0.1:" + closedPort());
         registry.add("gateway.upstreams.customer", () -> "http://127.0.0.1:" + closedPort());
         registry.add("gateway.upstreams.delivery", () -> "http://127.0.0.1:" + closedPort());
+        registry.add("gateway.upstreams.order", () -> "http://127.0.0.1:" + closedPort());
     }
 
     @AfterAll

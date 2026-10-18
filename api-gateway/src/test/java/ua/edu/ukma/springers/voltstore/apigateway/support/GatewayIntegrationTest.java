@@ -36,16 +36,18 @@ public abstract class GatewayIntegrationTest {
     protected static final StubUpstream AUTH = new StubUpstream("auth");
     protected static final StubUpstream CATALOG = new StubUpstream("catalog");
     protected static final StubUpstream INVENTORY = new StubUpstream("inventory");
+    protected static final StubUpstream ORDER = new StubUpstream("order");
     protected static final StubUpstream CUSTOMER = new StubUpstream("customer");
     protected static final StubUpstream DELIVERY = new StubUpstream("delivery");
     private static final Map<String, StubUpstream> STUBS = Map.of("auth", AUTH, "catalog", CATALOG,
-            "inventory", INVENTORY, "customer", CUSTOMER, "delivery", DELIVERY);
+            "inventory", INVENTORY, "order", ORDER, "customer", CUSTOMER, "delivery", DELIVERY);
 
     @DynamicPropertySource
     static void upstreams(DynamicPropertyRegistry registry) {
         registry.add("gateway.upstreams.auth", AUTH::url);
         registry.add("gateway.upstreams.catalog", CATALOG::url);
         registry.add("gateway.upstreams.inventory", INVENTORY::url);
+        registry.add("gateway.upstreams.order", ORDER::url);
         registry.add("gateway.upstreams.customer", CUSTOMER::url);
         registry.add("gateway.upstreams.delivery", DELIVERY::url);
     }
@@ -92,6 +94,12 @@ public abstract class GatewayIntegrationTest {
     public static String token(UUID userId, UserRole role) {
         return sign(SECRET, new JWTClaimsSet.Builder()
                 .subject(userId.toString()).claim("role", role.name())
+                .issueTime(new Date()).expirationTime(Date.from(Instant.now().plusSeconds(3600))).build());
+    }
+
+    public static String token(UUID userId, UserRole role, String email) {
+        return sign(SECRET, new JWTClaimsSet.Builder()
+                .subject(userId.toString()).claim("role", role.name()).claim("email", email)
                 .issueTime(new Date()).expirationTime(Date.from(Instant.now().plusSeconds(3600))).build());
     }
 

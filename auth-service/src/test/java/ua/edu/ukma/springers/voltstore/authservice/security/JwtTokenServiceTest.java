@@ -30,6 +30,7 @@ class JwtTokenServiceTest {
         JWTClaimsSet claims = jwt.getJWTClaimsSet();
         assertThat(claims.getSubject()).isEqualTo(user.getId().toString());
         assertThat(claims.getStringClaim("role")).isEqualTo("CATALOG_MANAGER");
+        assertThat(claims.getStringClaim("email")).isEqualTo("u@example.com");
         assertThat(claims.getIssueTime()).isNotNull();
         assertThat(claims.getExpirationTime().getTime() - claims.getIssueTime().getTime())
                 .isEqualTo(Duration.ofHours(1).toMillis());

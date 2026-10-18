@@ -50,7 +50,9 @@ class GatewaySecuritySuiteTest extends GatewayIntegrationTest {
             "GET /customers/me/profile", "PUT /customers/me/profile", "GET /customers/cart", "PUT /customers/cart",
             "DELETE /customers/cart", "POST /customers/cart/merge", "POST /customers/cart/items",
             "PATCH /customers/cart/items/{id}", "DELETE /customers/cart/items/{id}",
-            "POST /delivery/orders/{id}/ttn/retry");
+            "POST /delivery/orders/{id}/ttn/retry",
+            "POST /orders/validate", "POST /orders", "GET /orders", "GET /orders/{id}", "DELETE /orders/{id}",
+            "POST /orders/{id}/pay", "GET /orders/fulfillment-queue", "POST /orders/{id}/ship");
 
     @Autowired
     GatewayMvcProperties gatewayProperties;
@@ -82,12 +84,13 @@ class GatewaySecuritySuiteTest extends GatewayIntegrationTest {
                 resetStubs();
                 var response = send(sample.method(), sample.path(), "{}", token(user, role),
                         "X-User-Id", UUID.randomUUID().toString(), "X-User-Role", "ADMIN",
-                        "X-Internal-Token", "forged");
+                        "X-User-Email", "forged@example.com", "X-Internal-Token", "forged");
 
                 assertThat(response.statusCode()).isEqualTo(200);
                 Received received = stub(sample.upstream()).single();
                 assertThat(received.header("Authorization")).isEmpty();
                 assertThat(received.header("X-Internal-Token")).isEmpty();
+                assertThat(received.header("X-User-Email")).isEmpty();
                 if (sample.access().mode() == AuthMode.PUBLIC) {
                     assertThat(received.header("X-User-Id")).isEmpty();
                     assertThat(received.header("X-User-Role")).isEmpty();

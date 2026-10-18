@@ -23,6 +23,7 @@ import java.util.UUID;
 public class HmacJwtVerifier implements JwtVerifier {
     private static final Logger log = LoggerFactory.getLogger(HmacJwtVerifier.class);
     private static final String ROLE_CLAIM = "role";
+    private static final String EMAIL_CLAIM = "email";
 
     private final JWSVerifier verifier;
     private final Duration leeway;
@@ -73,7 +74,7 @@ public class HmacJwtVerifier implements JwtVerifier {
         if (userId == null || role == null) {
             return reject("invalid sub or role");
         }
-        return Optional.of(new VerifiedIdentity(userId, role));
+        return Optional.of(new VerifiedIdentity(userId, role, parseEmail(claims.getClaim(EMAIL_CLAIM))));
     }
 
     private static Optional<VerifiedIdentity> reject(String reason) {
@@ -92,6 +93,11 @@ public class HmacJwtVerifier implements JwtVerifier {
         } catch (IllegalArgumentException e) {
             return null;
         }
+    }
+
+    /** The claim is optional data, not a credential: a missing or non-string value is ignored, not rejected. */
+    private static Optional<String> parseEmail(Object value) {
+        return value instanceof String email && !email.isBlank() ? Optional.of(email.trim()) : Optional.empty();
     }
 
     private static UserRole parseRole(String value) {
