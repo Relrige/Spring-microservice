@@ -41,6 +41,8 @@ spring:
       # Order's and Delivery's topics may not exist yet: the listeners wait for them instead of failing
       missing-topics-fatal: false
 notification:
+  # Times shown in emails (payment deadline, time of payment)
+  time-zone: ${NOTIFICATION_TIME_ZONE:Europe/Kyiv}
   kafka:
     topics:
       # Owned by Order Service: OrderPlaced, OrderPaid, OrderShipped, OrderCancelled (told apart by the eventType
