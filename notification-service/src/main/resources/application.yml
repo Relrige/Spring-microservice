@@ -72,6 +72,11 @@ notification:
     lease: 2m
     # First attempt at once, then 4 retries after these waits; one more failure after the last is FAILED
     backoff: 30s, 2m, 10m, 30m
+  # Sent/failed notifications and recipients are deleted after this long (personal data; EP-NOTIF-JOB-02)
+  retention: ${NOTIFICATION_RETENTION:30d}
+  cleanup:
+    # Fixed delay between cleanup runs
+    interval: 1h
   # Times shown in emails (payment deadline, time of payment)
   time-zone: ${NOTIFICATION_TIME_ZONE:Europe/Kyiv}
   kafka:
