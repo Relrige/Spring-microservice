@@ -64,6 +64,7 @@ Customer self-service cancellation is only permitted before the order reaches `S
 
 ### N-10 — `Notification Service` implementation details deferred
 Confirmed in scope. Listens to domain events: `OrderPlaced`, `OrderPaid`, `OrderShipped`, `OrderDelivered`, `OrderCancelled`. Error handling strategy to be defined later.
+*Resolved 2026-10-18 in the [Notification spec](../services-specs/notification-service-spec.md): Idempotent Consumer on `eventId`, a notification log sent by a scheduled job with back-off, dead-letter topics for poison events, and a local `orderId → customerEmail` read model for Delivery's `OrderDelivered`.*
 
 ### N-11 — Guest cancellation token details deferred
 One-time email verification is required for guest order cancellation. Expiry policy and resend flow to be defined later.

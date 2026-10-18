@@ -184,4 +184,4 @@
     "timestamp": "2026-10-16T09:30:00Z"
   }
   ```
-  No `customerEmail`: customer contact data is not Delivery's responsibility. Notification Service resolves the recipient itself (from Auth or Customer Service); that is designed with Notification.
+  No `customerEmail`: customer contact data is not Delivery's responsibility. Notification Service resolves the recipient from its own read model `orderId → customerEmail`, built from the order events it consumes (decided 2026-10-18, D1 of the [Notification spec](../services-specs/notification-service-spec.md)).
