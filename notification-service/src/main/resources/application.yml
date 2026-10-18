@@ -14,6 +14,40 @@ spring:
   autoconfigure:
     # Nobody logs in to Notification (it has no callers), so no default in-memory user and no generated password
     exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  kafka:
+    # Overridden by SPRING_KAFKA_BOOTSTRAP_SERVERS (kafka:9092 in Compose/Kubernetes); this default is
+    # the broker's host listener from docker-compose.yml, for running the service from the IDE
+    bootstrap-servers: localhost:9094
+    producer:
+      # The only records Notification produces are consumed records forwarded unchanged (JSON text) to its DLTs
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        # How long send() may block waiting for broker metadata (default 60 s)
+        max.block.ms: 5000
+    consumer:
+      group-id: notification-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # Values are read as JSON text and parsed by EventReader, by the type the eventType header names
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      # Offsets are committed after every record of a poll has been processed (the default, stated explicitly), so
+      # only after the handler's database transaction committed. A crash mid-batch redelivers the uncommitted
+      # records; the handlers deduplicate by eventId, so that is harmless.
+      ack-mode: batch
+      # Order's and Delivery's topics may not exist yet: the listeners wait for them instead of failing
+      missing-topics-fatal: false
+notification:
+  kafka:
+    topics:
+      # Owned by Order Service: OrderPlaced, OrderPaid, OrderShipped, OrderCancelled (told apart by the eventType
+      # header). Notification only subscribes and never declares it
+      order-events: ${ORDER_EVENTS_TOPIC:order.order-events}
+      # Owned by Delivery Service: OrderDelivered (and TTNGenerated, which is skipped)
+      delivery-events: ${DELIVERY_EVENTS_TOPIC:delivery.shipment-events}
 management:
   endpoint:
     health:
