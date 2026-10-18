@@ -99,5 +99,9 @@ management:
   endpoints:
     web:
       exposure:
-        # Only the probes; nothing else is exposed
-        include: health
+        # Prometheus scrapes /actuator/prometheus (k8s/monitoring/); nothing else beyond health is exposed
+        include: health,prometheus
+  metrics:
+    tags:
+      # Every series carries the service name, so dashboards and alerts can tell services apart
+      application: ${spring.application.name}
