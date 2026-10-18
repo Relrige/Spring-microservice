@@ -14,6 +14,7 @@ docker build -t  voltstore/catalog-service:latest .\catalog-service
 docker build -t  voltstore/customer-service:latest .\customer-service
 docker build -t  voltstore/delivery-service:latest .\delivery-service
 docker build -t  voltstore/inventory-service:latest .\inventory-service
+docker build -t  voltstore/notification-service:latest .\notification-service
 docker build -t  voltstore/order-service:latest .\order-service
 docker build -t  voltstore/payment-service:latest .\payment-service
 
@@ -25,6 +26,7 @@ minikube image load voltstore/catalog-service:latest
 minikube image load voltstore/customer-service:latest
 minikube image load voltstore/delivery-service:latest
 minikube image load voltstore/inventory-service:latest
+minikube image load voltstore/notification-service:latest
 minikube image load voltstore/order-service:latest
 minikube image load voltstore/payment-service:latest
 
@@ -75,3 +77,5 @@ minikube tunnel
 # UIs (not behind the Ingress):
 kubectl port-forward -n voltstore svc/prometheus 9090:9090
 kubectl port-forward -n voltstore svc/alertmanager 9093:9093
+# Mailpit (k8s\notification\mailpit.yaml): the emails Notification sent, UI and REST API at http://localhost:8025
+kubectl port-forward -n voltstore svc/mailpit 8025:8025

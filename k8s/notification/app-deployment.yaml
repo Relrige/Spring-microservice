@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: voltstore
+spec:
+  # One replica is enough for the local minikube cluster; scale up temporarily to check that two sender jobs never
+  # send the same email (FOR UPDATE SKIP LOCKED claim) and that the replicas share one consumer group
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      annotations:
+        # Scraped by Prometheus (k8s/monitoring/prometheus-config.yaml)
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8080"
+      labels:
+        app: notification-service
+        app.kubernetes.io/part-of: voltstore
+        app.kubernetes.io/component: service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: notification-service
+          image: voltstore/notification-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: notification-config
+            - secretRef:
+                name: notification-db-credentials
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              cpu: "2"
+              memory: 768Mi
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            failureThreshold: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            periodSeconds: 10
