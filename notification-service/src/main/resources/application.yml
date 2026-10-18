@@ -11,6 +11,9 @@ spring:
   mvc:
     problem-details:
       enabled: true
+  autoconfigure:
+    # Nobody logs in to Notification (it has no callers), so no default in-memory user and no generated password
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
 management:
   endpoint:
     health:
