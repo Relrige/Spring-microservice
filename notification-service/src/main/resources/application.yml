@@ -14,6 +14,12 @@ spring:
   autoconfigure:
     # Nobody logs in to Notification (it has no callers), so no default in-memory user and no generated password
     exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  task:
+    scheduling:
+      pool:
+        # One scheduler runs the sender job and the cleanup job; with the default single thread a slow sender run
+        # (an SMTP timeout per row) would delay the cleanup and the other way round
+        size: 2
   mail:
     # SMTP server: Mailpit in Compose and Kubernetes (SPRING_MAIL_HOST=mailpit). Credentials come from
     # SPRING_MAIL_USERNAME / SPRING_MAIL_PASSWORD; Mailpit needs none, so they stay unset
@@ -55,6 +61,17 @@ notification:
   mail:
     # Sender of every email; parsed at startup
     from: ${NOTIFICATION_MAIL_FROM:VoltStore <no-reply@voltstore.com>}
+  sender:
+    # The sender job (EP-NOTIF-JOB-01); false switches it off (tests that only check the listeners)
+    enabled: true
+    # Fixed delay between runs; each run claims up to batch-size due PENDING notifications
+    interval: 2s
+    batch-size: 20
+    # A claim moves next_attempt_at forward by this much, so another replica does not pick the notification while
+    # it is being sent; far longer than the SMTP timeouts (connect 5 s + read/write 10 s)
+    lease: 2m
+    # First attempt at once, then 4 retries after these waits; one more failure after the last is FAILED
+    backoff: 30s, 2m, 10m, 30m
   # Times shown in emails (payment deadline, time of payment)
   time-zone: ${NOTIFICATION_TIME_ZONE:Europe/Kyiv}
   kafka:

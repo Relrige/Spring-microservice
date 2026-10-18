@@ -76,9 +76,9 @@ public class MailpitContainer extends GenericContainer<MailpitContainer> {
         return messages().stream().filter(message -> message.to().contains(address)).toList();
     }
 
-    /** The plain-text body of one message, as received. */
+    /** The plain-text body of one message, as received, with SMTP's CRLF line ends turned back into LF. */
     public String text(String id) {
-        return get("/api/v1/message/" + id).path("Text").asString();
+        return get("/api/v1/message/" + id).path("Text").asString().replace("\r\n", "\n");
     }
 
     /** The sender as received, including the display name. */
