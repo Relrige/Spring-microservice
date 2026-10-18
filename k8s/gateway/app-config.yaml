@@ -8,6 +8,8 @@ data:
   GATEWAY_UPSTREAMS_AUTH: "http://auth-service:8086"
   GATEWAY_UPSTREAMS_CATALOG: "http://catalog-service:8081"
   GATEWAY_UPSTREAMS_INVENTORY: "http://inventory-service:8084"
+  GATEWAY_UPSTREAMS_CUSTOMER: "http://customer-service:8087"
+  GATEWAY_UPSTREAMS_DELIVERY: "http://delivery-service:8083"
   GATEWAY_UPSTREAMS_ORDER: "http://order-service:8082"
   # JVM settings live here only (not in the Dockerfile). Heap up to 70% of the container memory limit;
   # C1-only JIT and Serial GC: faster startup and less memory on a small local cluster

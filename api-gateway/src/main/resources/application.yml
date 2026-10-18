@@ -161,6 +161,112 @@ spring:
                 authMode: REQUIRED
                 roles: INVENTORY_WORKER
 
+            # --- customer-service ---
+            # {productId} is a catalog product UUID
+            - id: customer-get-profile
+              uri: ${gateway.upstreams.customer}
+              predicates:
+                - Method=GET
+                - Path=/customers/me/profile
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CUSTOMER
+            - id: customer-update-profile
+              uri: ${gateway.upstreams.customer}
+              predicates:
+                - Method=PUT
+                - Path=/customers/me/profile
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CUSTOMER
+            - id: customer-get-cart
+              uri: ${gateway.upstreams.customer}
+              predicates:
+                - Method=GET
+                - Path=/customers/cart
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CUSTOMER
+            - id: customer-replace-cart
+              uri: ${gateway.upstreams.customer}
+              predicates:
+                - Method=PUT
+                - Path=/customers/cart
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CUSTOMER
+            - id: customer-clear-cart
+              uri: ${gateway.upstreams.customer}
+              predicates:
+                - Method=DELETE
+                - Path=/customers/cart
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CUSTOMER
+            - id: customer-merge-cart
+              uri: ${gateway.upstreams.customer}
+              predicates:
+                - Method=POST
+                - Path=/customers/cart/merge
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CUSTOMER
+            - id: customer-add-cart-item
+              uri: ${gateway.upstreams.customer}
+              predicates:
+                - Method=POST
+                - Path=/customers/cart/items
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CUSTOMER
+            - id: customer-update-cart-item
+              uri: ${gateway.upstreams.customer}
+              predicates:
+                - Method=PATCH
+                - Path=/customers/cart/items/{productId:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CUSTOMER
+            - id: customer-remove-cart-item
+              uri: ${gateway.upstreams.customer}
+              predicates:
+                - Method=DELETE
+                - Path=/customers/cart/items/{productId:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: CUSTOMER
+
+            # --- delivery-service ---
+            # Not routed (internal): GET /delivery/shipments, DELETE /delivery/shipments/{orderId}
+            - id: delivery-retry-ttn
+              uri: ${gateway.upstreams.delivery}
+              predicates:
+                - Method=POST
+                - Path=/delivery/orders/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}/ttn/retry
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: INVENTORY_WORKER
+
             # --- order-service ---
             # Every customer route needs a token: only registered customers order (2026-10-16); ownership is
             # checked in the service. {id} is a UUID, so GET /orders/fulfillment-queue never matches /orders/{id}
@@ -234,7 +340,6 @@ spring:
               metadata:
                 authMode: REQUIRED
                 roles: INVENTORY_WORKER
-            # delivery and customer routes: task 10
 
 auth:
   jwt:

@@ -87,19 +87,20 @@ The model is safe only if all of these hold:
 
 ## Route Table
 
-Derived from the [API Contracts](../services-requirements/api-contracts.md). Rows marked *(deferred)* are not configured yet; their routes are added per service ([task 10](../../tasks/api-getaway/10-remaining-service-routes.md)). Order routes are configured since 2026-10-17. **Auth mode:** `Public` = no token needed; `Optional` = token used if present; `Required` = token needed and role checked. An empty roles column means any authenticated role (or anonymous, for `Public` and `Optional`).
+Derived from the [API Contracts](../services-requirements/api-contracts.md). Rows marked *(deferred)* are not configured yet; their routes are added per service ([task 10](../../tasks/api-getaway/10-remaining-service-routes.md)). Every row is configured since 2026-10-17 (Delivery, Customer and Order). **Auth mode:** `Public` = no token needed; `Optional` = token used if present; `Required` = token needed and role checked. An empty roles column means any authenticated role (or anonymous, for `Public` and `Optional`).
 
 | Method | Path | Upstream | Auth mode | Allowed roles |
 |---|---|---|---|---|
 | `POST` | `/user/register` | auth-service | Public | — |
 | `POST` | `/auth/login` | auth-service | Public | — |
 | `POST` | `/user/non-customer` | auth-service | Required | `ADMIN` |
-| `GET` | `/customers/me/profile` | customer-service *(deferred)* | Required | `CUSTOMER` |
-| `PUT` | `/customers/me/profile` | customer-service *(deferred)* | Required | `CUSTOMER` |
-| `GET` | `/customers/cart` | customer-service *(deferred)* | Required | `CUSTOMER` |
-| `POST` | `/customers/cart/items` | customer-service *(deferred)* | Required | `CUSTOMER` |
-| `PATCH`, `DELETE` | `/customers/cart/items/{id}` | customer-service *(deferred)* | Required | `CUSTOMER` |
-| `POST` | `/customers/cart/merge` | customer-service *(deferred)* | Required | `CUSTOMER` |
+| `GET` | `/customers/me/profile` | customer-service | Required | `CUSTOMER` |
+| `PUT` | `/customers/me/profile` | customer-service | Required | `CUSTOMER` |
+| `GET` | `/customers/cart` | customer-service | Required | `CUSTOMER` |
+| `PUT`, `DELETE` | `/customers/cart` | customer-service | Required | `CUSTOMER` |
+| `POST` | `/customers/cart/items` | customer-service | Required | `CUSTOMER` |
+| `PATCH`, `DELETE` | `/customers/cart/items/{productId}` | customer-service | Required | `CUSTOMER` |
+| `POST` | `/customers/cart/merge` | customer-service | Required | `CUSTOMER` |
 | `GET` | `/catalog/products` | catalog-service | Optional | — (managers get extra filters) |
 | `GET` | `/catalog/products/{id}` | catalog-service | Public | — |
 | `POST` | `/catalog/products` | catalog-service | Required | `CATALOG_MANAGER` |
@@ -118,13 +119,13 @@ Derived from the [API Contracts](../services-requirements/api-contracts.md). Row
 | `GET`, `DELETE` | `/orders/{id}` | order-service | Required | `CUSTOMER` (ownership is checked in the service; no guest access since 2026-10-16) |
 | `GET` | `/orders/fulfillment-queue` | order-service | Required | `INVENTORY_WORKER` |
 | `POST` | `/orders/{id}/ship` | order-service | Required | `INVENTORY_WORKER` |
-| `POST` | `/delivery/orders/{id}/ttn/retry` | delivery-service *(deferred)* | Required | `INVENTORY_WORKER` |
+| `POST` | `/delivery/orders/{id}/ttn/retry` | delivery-service | Required | `INVENTORY_WORKER` |
 
 **Not routed (internal endpoints):** `GET /catalog/products/batch-get`; `GET /inventory/stock/{id}/readiness`; `GET /inventory/stock/{id}/packaging`; `POST /inventory/reservations`; `POST /inventory/reservations/{orderId}/release`; `POST /payments/charge`; `POST /payments/refund`; `GET /delivery/shipments`; `DELETE /delivery/shipments/{orderId}`.
 
 **Route-definition rules** (to avoid accidentally exposing or shadowing endpoints):
 - A route is a method + path pair. `GET /inventory/stock/{id}/packaging` is internal and unrouted, while `PUT` on the same path is routed.
-- Path variables named `{id}` or `{orderId}` must be constrained to UUIDs. Otherwise `GET /catalog/products/batch-get` would match `/catalog/products/{id}`, and `/orders/fulfillment-queue` would match `/orders/{id}`. In the configuration this is a regex path variable in the `Path` predicate: `{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}`.
+- Path variables named `{id}`, `{orderId}` or `{productId}` must be constrained to UUIDs. Otherwise `GET /catalog/products/batch-get` would match `/catalog/products/{id}`, and `/orders/fulfillment-queue` would match `/orders/{id}`. In the configuration this is a regex path variable in the `Path` predicate: `{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}`.
 - The path is forwarded unchanged (no prefix stripping), because services already serve under their own prefix.
 - Requests with a method not listed for a path get `404` (no route), not `405`.
 - The gateway test suite compares the configured routes with this table, so a route cannot be added or removed in only one of the two places.
@@ -145,7 +146,7 @@ Derived from the [API Contracts](../services-requirements/api-contracts.md). Row
 |---|---|---|
 | `auth.jwt.secret` | `AUTH_JWT_SECRET` | HS256 verification key, identical to Auth Service's; at least 32 characters, checked at startup |
 | `auth.jwt.leeway` | `AUTH_JWT_LEEWAY` | Tolerated clock difference for `exp`; default `30s` |
-| `gateway.upstreams.auth` / `.catalog` / `.inventory` / `.order` | `GATEWAY_UPSTREAMS_AUTH` / `_CATALOG` / `_INVENTORY` / `_ORDER` | Upstream base URLs. Kubernetes (ConfigMap `gateway-config`): Service name and port, e.g. `http://auth-service:8086`. Compose: service name and container port, e.g. `http://auth-service:8080` |
+| `gateway.upstreams.auth` / `.catalog` / `.inventory` / `.order` / `.customer` / `.delivery` | `GATEWAY_UPSTREAMS_AUTH` / `_CATALOG` / `_INVENTORY` / `_ORDER` / `_CUSTOMER` / `_DELIVERY` | Upstream base URLs. Kubernetes (ConfigMap `gateway-config`): Service name and port, e.g. `http://auth-service:8086`. Compose: service name and container port, e.g. `http://auth-service:8080` |
 | `spring.http.clients.connect-timeout` / `read-timeout` | `SPRING_HTTP_CLIENTS_CONNECT_TIMEOUT` / `_READ_TIMEOUT` | Upstream timeouts; defaults `2s` / `15s` (room for upstreams that call other services with retries) |
 | `management.server.port` | — | Actuator and health probes; `8090` |
 | Route definitions | — | `spring.cloud.gateway.server.webmvc.routes` in `application.yml`: one entry per configured row of the route table, with `Method` and `Path` predicates, the `TrustBoundary` filter and `metadata.authMode` / `metadata.roles` |

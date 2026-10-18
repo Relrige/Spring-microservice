@@ -47,6 +47,10 @@ class GatewaySecuritySuiteTest extends GatewayIntegrationTest {
             "PUT /catalog/products/{id}", "PATCH /catalog/products/{id}/status", "GET /catalog/categories",
             "POST /catalog/categories", "PUT /catalog/categories/{id}", "DELETE /catalog/categories/{id}",
             "GET /inventory/stock", "POST /inventory/stock/{id}/adjust", "PUT /inventory/stock/{id}/packaging",
+            "GET /customers/me/profile", "PUT /customers/me/profile", "GET /customers/cart", "PUT /customers/cart",
+            "DELETE /customers/cart", "POST /customers/cart/merge", "POST /customers/cart/items",
+            "PATCH /customers/cart/items/{id}", "DELETE /customers/cart/items/{id}",
+            "POST /delivery/orders/{id}/ttn/retry",
             "POST /orders/validate", "POST /orders", "GET /orders", "GET /orders/{id}", "DELETE /orders/{id}",
             "POST /orders/{id}/pay", "GET /orders/fulfillment-queue", "POST /orders/{id}/ship");
 

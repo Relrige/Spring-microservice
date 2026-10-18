@@ -37,6 +37,16 @@ class RouteTableTest extends GatewayIntegrationTest {
             "GET,    /inventory/stock,                       inventory",
             "POST,   /inventory/stock/" + ID + "/adjust,     inventory",
             "PUT,    /inventory/stock/" + ID + "/packaging,  inventory",
+            "GET,    /customers/me/profile,                  customer",
+            "PUT,    /customers/me/profile,                  customer",
+            "GET,    /customers/cart,                        customer",
+            "PUT,    /customers/cart,                        customer",
+            "DELETE, /customers/cart,                        customer",
+            "POST,   /customers/cart/merge,                  customer",
+            "POST,   /customers/cart/items,                  customer",
+            "PATCH,  /customers/cart/items/" + ID + ",       customer",
+            "DELETE, /customers/cart/items/" + ID + ",       customer",
+            "POST,   /delivery/orders/" + ID + "/ttn/retry,  delivery",
             "POST,   /orders/validate,                       order",
             "POST,   /orders,                                order",
             "GET,    /orders,                                order",
@@ -70,6 +80,10 @@ class RouteTableTest extends GatewayIntegrationTest {
             "GET,    /catalog/categories/" + ID,
             "POST,   /inventory/stock",
             "GET,    /inventory/stock/" + ID + "/adjust",
+            "POST,   /customers/cart",
+            "DELETE, /customers/me/profile",
+            "GET,    /customers/cart/items/" + ID,
+            "GET,    /delivery/orders/" + ID + "/ttn/retry",
             "GET,    /orders/validate",
             "PUT,    /orders",
             "PATCH,  /orders/" + ID,
@@ -112,6 +126,9 @@ class RouteTableTest extends GatewayIntegrationTest {
             "DELETE, /catalog/categories/batch-get",
             "POST,   /inventory/stock/abc/adjust",
             "PUT,    /inventory/stock/1-1-1-1-1/packaging",
+            "PATCH,  /customers/cart/items/not-a-uuid",
+            "DELETE, /customers/cart/items/123",
+            "POST,   /delivery/orders/abc/ttn/retry",
             "GET,    /orders/not-a-uuid",
             "DELETE, /orders/123",
             "POST,   /orders/abc/pay",
@@ -125,7 +142,8 @@ class RouteTableTest extends GatewayIntegrationTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "/", "/user", "/user/other", "/user/register/", "/user/register/extra", "/auth/login/x", "/auth",
-            "/catalog", "/catalog/products/", "/inventory", "/orders/", "/orders/history", "/customers/cart",
+            "/catalog", "/catalog/products/", "/inventory", "/orders/", "/orders/history", "/customers",
+            "/customers/cart/", "/customers/me", "/delivery", "/delivery/orders",
             "/actuator/env", "/UNKNOWN"
     })
     void unroutedPath_isNotFound(String path) throws Exception {
@@ -136,7 +154,7 @@ class RouteTableTest extends GatewayIntegrationTest {
 
     @Test
     void accessRulesAreParsedFromMetadata() {
-        assertThat(policy.all()).hasSize(21);
+        assertThat(policy.all()).hasSize(31);
         assertThat(policy.forRoute("auth-register")).contains(new RouteAccess(AuthMode.PUBLIC, Set.of()));
         assertThat(policy.forRoute("catalog-browse-products")).contains(new RouteAccess(AuthMode.OPTIONAL, Set.of()));
         assertThat(policy.forRoute("auth-create-non-customer"))
@@ -146,6 +164,10 @@ class RouteTableTest extends GatewayIntegrationTest {
         assertThat(policy.forRoute("order-details-or-cancel"))
                 .contains(new RouteAccess(AuthMode.REQUIRED, Set.of(UserRole.CUSTOMER)));
         assertThat(policy.forRoute("order-ship"))
+                .contains(new RouteAccess(AuthMode.REQUIRED, Set.of(UserRole.INVENTORY_WORKER)));
+        assertThat(policy.forRoute("customer-update-cart-item"))
+                .contains(new RouteAccess(AuthMode.REQUIRED, Set.of(UserRole.CUSTOMER)));
+        assertThat(policy.forRoute("delivery-retry-ttn"))
                 .contains(new RouteAccess(AuthMode.REQUIRED, Set.of(UserRole.INVENTORY_WORKER)));
         assertThat(policy.forRoute("unknown")).isEmpty();
     }
@@ -159,7 +181,10 @@ class RouteTableTest extends GatewayIntegrationTest {
             return token(path.equals("/orders/fulfillment-queue") || path.endsWith("/ship")
                     ? UserRole.INVENTORY_WORKER : UserRole.CUSTOMER);
         }
-        if (path.startsWith("/inventory")) {
+        if (path.startsWith("/customers")) {
+            return token(UserRole.CUSTOMER);
+        }
+        if (path.startsWith("/inventory") || path.startsWith("/delivery")) {
             return token(UserRole.INVENTORY_WORKER);
         }
         if (path.startsWith("/catalog") && !method.equals("GET")) {
