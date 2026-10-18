@@ -337,6 +337,9 @@ Agreed on 2026-10-18:
 
 | Part | Status |
 |---|---|
-| Module | Scaffold only (`notification-service/`: Spring Boot 4.1.1, Java 25, starters for Kafka, Web MVC, Actuator, Validation; Testcontainers Kafka). Not yet added: Data JPA + PostgreSQL driver, Flyway, Spring Security, `spring-boot-starter-mail`, `micrometer-registry-prometheus`, Testcontainers PostgreSQL |
-| Tasks | Backlog written 2026-10-18: [tasks 01–13](../../tasks/notification-service/), none started |
-| Compose / Kubernetes | No entries yet; Mailpit to be added with them |
+| EP-NOTIF-EVT-01…05, EP-NOTIF-JOB-01, EP-NOTIF-JOB-02, security, metrics | Implemented ([tasks 01–11](../../tasks/notification-service/), 2026-10-18); covered by unit and Testcontainers tests (PostgreSQL, Kafka, Mailpit) |
+| Compose | Notification, its PostgreSQL and Mailpit (UI `http://localhost:8025`); smoke-tested ([task 12](../../tasks/notification-service/12-containerization-and-deployment.md)) |
+| Kubernetes | Manifests in `k8s/notification/` (incl. Mailpit) and network policies; not yet deployed to minikube; scaling to 2 replicas not tried |
+| End to end | Journeys A–D and the resilience check passed through the gateway on 2026-10-19 ([task 13](../../tasks/notification-service/13-end-to-end-verification.md), [runbook](../../../e2e/manual/docker-compose-notification.md)); Kubernetes not verified |
+| Deviations recorded in the task notes | Per-type handler beans instead of `if/else` dispatch (task 04); `recipient_invalid` as a second permanent failure, `smtp_rejected` for non-recipient `5xx` (task 08); `deleteOlderThan` per repository (task 02) |
+| Open | Alert rule on `voltstore_notifications_pending` (task 11); a `refunded` flag on `OrderCancelled` if the neutral text (D3) is not enough |

@@ -11,6 +11,7 @@ Testcontainers `ComposeContainer` module).
 | [docker-compose-gateway.md](docker-compose-gateway.md) | Docker Compose | Run successfully on 2026-10-14 |
 | [k8s-gateway.md](k8s-gateway.md) | minikube (Calico CNI) | Run successfully on 2026-10-14 (separate minikube profile) |
 | [docker-compose-order.md](docker-compose-order.md) | Docker Compose (all services) | Run successfully on 2026-10-17 (scripted equivalent with `jq`; the runbook's helpers were checked against the same stack) |
+| [docker-compose-notification.md](docker-compose-notification.md) | Docker Compose (all services + Mailpit) | Run successfully on 2026-10-19 (the runbook's commands executed as a script, fresh volumes) |
 
 The fault-tolerance experiment (broker outage, consumer failure after commit, poison message) is recorded
 separately in [docs/reports/messaging-fault-tolerance.md](../../docs/reports/messaging-fault-tolerance.md).
