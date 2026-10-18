@@ -40,13 +40,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 class GatewaySecuritySuiteTest extends GatewayIntegrationTest {
     private static final String OTHER_SECRET = "another-secret-another-secret-another-1";
 
-    /** The rows of the spec's route table that are implemented (task 03), as "METHOD path" with {id}. */
+    /** The rows of the spec's route table that are implemented (tasks 03 and 10), as "METHOD path" with {id}. */
     private static final Set<String> SPEC_ROUTES = Set.of(
             "POST /user/register", "POST /auth/login", "POST /user/non-customer",
             "GET /catalog/products", "GET /catalog/products/{id}", "POST /catalog/products",
             "PUT /catalog/products/{id}", "PATCH /catalog/products/{id}/status", "GET /catalog/categories",
             "POST /catalog/categories", "PUT /catalog/categories/{id}", "DELETE /catalog/categories/{id}",
-            "GET /inventory/stock", "POST /inventory/stock/{id}/adjust", "PUT /inventory/stock/{id}/packaging");
+            "GET /inventory/stock", "POST /inventory/stock/{id}/adjust", "PUT /inventory/stock/{id}/packaging",
+            "GET /customers/me/profile", "PUT /customers/me/profile", "GET /customers/cart", "PUT /customers/cart",
+            "DELETE /customers/cart", "POST /customers/cart/merge", "POST /customers/cart/items",
+            "PATCH /customers/cart/items/{id}", "DELETE /customers/cart/items/{id}",
+            "POST /delivery/orders/{id}/ttn/retry");
 
     @Autowired
     GatewayMvcProperties gatewayProperties;

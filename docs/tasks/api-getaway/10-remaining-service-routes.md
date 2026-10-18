@@ -14,11 +14,17 @@ service: api-gateway
 
 ## Acceptance Criteria
 - [ ] Order-service routes from the spec table (`/orders/validate`, `/orders`, `/orders/{id}`, `/orders/{id}/pay`, `/orders/fulfillment-queue`, `/orders/{id}/ship`) with upstream `GATEWAY_UPSTREAMS_ORDER` (`http://order-service:8082`). `{id}` is a UUID, so `GET /orders/fulfillment-queue` does not match `GET /orders/{id}`.
-- [ ] Delivery-service routes (`POST /delivery/orders/{id}/ttn/retry`; the carrier webhook was dropped from the contracts on 2026-10-15, see the Delivery spec) with upstream `GATEWAY_UPSTREAMS_DELIVERY` (`http://delivery-service:8083`). `GET /delivery/shipments` and `DELETE /delivery/shipments/{orderId}` stay unrouted.
-- [ ] Customer-service routes (the nine routes listed in the update above, all `CUSTOMER`) with upstream `GATEWAY_UPSTREAMS_CUSTOMER` (`http://customer-service:8087`).
+- [x] Delivery-service routes (`POST /delivery/orders/{id}/ttn/retry`; the carrier webhook was dropped from the contracts on 2026-10-15, see the Delivery spec) with upstream `GATEWAY_UPSTREAMS_DELIVERY` (`http://delivery-service:8083`). `GET /delivery/shipments` and `DELETE /delivery/shipments/{orderId}` stay unrouted.
+- [x] Customer-service routes (the nine routes listed in the update above, all `CUSTOMER`) with upstream `GATEWAY_UPSTREAMS_CUSTOMER` (`http://customer-service:8087`).
 - [ ] The parameterized route, role-matrix and internal-endpoint tests of [task 06](06-gateway-security-tests.md) include the new routes; the ConfigMap, `.env.example` and Compose get the new upstream URLs.
 - [ ] Each service's routes are checked end to end through the gateway (extend the [task 09](09-end-to-end-verification.md) runbooks).
 
 ## Technical Notes / Constraints
 - Add one service at a time, together with (or right after) the service task that implements its contract paths.
 - Guest access to orders (`?token=`) is checked by Order Service; the gateway only forwards the query string unchanged (already covered by task 06).
+
+## Progress Notes (2026-10-17)
+- Delivery (1 route) and Customer (9 routes, one per method + path pair) added; upstreams `gateway.upstreams.delivery` / `gateway.upstreams.customer`. The ConfigMap uses the Kubernetes Service ports (`8083`, `8087`); `.env.example` (read by Compose through `env_file`) uses container port `8080`, like the other upstreams.
+- `{productId}` is constrained to a UUID like `{id}`: a malformed product id is a `404` at the gateway instead of reaching Customer Service. The spec's route table now has the missing `PUT`/`DELETE /customers/cart` row and names the variable `{productId}`.
+- `RouteTableTest` covers the new routes (routing, unlisted methods, non-UUID ids, unrouted prefixes); `GatewaySecuritySuiteTest` lists them in its spec route set and runs its route, role-matrix and header tests on them through `RouteSamples`. The two internal Delivery endpoints were already asserted as `404`.
+- Open: the Order routes and their upstream URL, and the end-to-end runbook checks for Delivery and Customer.
