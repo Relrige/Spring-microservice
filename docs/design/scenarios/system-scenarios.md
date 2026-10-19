@@ -125,12 +125,12 @@ Triggered after SCN-INV06 (the worker confirms courier handover; Order Service p
 
 `Notification Service` is a pure event consumer. It reacts to the following domain events and sends emails:
 
-| Event consumed | Email sent |
-|----------------|-----------|
-| `OrderPlaced` | "Your order has been placed" |
-| `OrderPaid` | "Payment received — your order is being processed" |
-| `OrderShipped` | "Your parcel is on its way (TTN: ...)" |
-| `OrderDelivered` | "Your parcel has been delivered" |
-| `OrderCancelled` | "Your order has been cancelled — refund has been initiated" |
+| Event consumed | Producer | Email sent |
+|----------------|----------|-----------|
+| `OrderPlaced` | Order | "Your order has been placed — pay before the deadline" |
+| `OrderPaid` | Order | "Payment received — your order is being prepared" (receipt) |
+| `OrderShipped` | Order | "Your parcel is on its way (TTN: ...)" |
+| `OrderDelivered` | Delivery | "Your parcel has been delivered" |
+| `OrderCancelled` | Order | `CUSTOMER_CANCELLED`: "Your order has been cancelled — if it was paid, the refund has been initiated"; `EXPIRED`: "Payment deadline missed — nothing was charged" |
 
-*Error handling strategy for failed email delivery is deferred.*
+*Error handling (decided 2026-10-18, see the [Notification spec](../services-specs/notification-service-spec.md)): each event is stored once (deduplicated by `eventId`) and sent by a scheduled job with back-off; a failed email never blocks the order flow. `OrderDelivered` carries no email address; Notification takes it from the order events it consumed earlier.*

@@ -5,7 +5,7 @@
 # objects; start minikube with "--cni=calico" (see k8s.txt).
 #
 # Only ingress is restricted. Pods are selected by the labels app.kubernetes.io/component
-# (gateway | service | database | broker | monitoring) and app (the individual workload).
+# (gateway | service | database | broker | mail | monitoring) and app (the individual workload).
 # kubectl port-forward enters the pod directly and is not affected (used by the e2e/manual runbooks).
 
 # 1. Nothing in the namespace accepts traffic unless a policy below allows it
@@ -223,6 +223,47 @@ spec:
               app: payment-service
       ports:
         - port: 5432
+---
+# Database per service: only its own service may connect
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: notification-db-from-notification-service
+  namespace: voltstore
+spec:
+  podSelector:
+    matchLabels:
+      app: notification-service-postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: notification-service
+      ports:
+        - port: 5432
+---
+# Mailpit's SMTP port: only Notification sends email. The web UI / API (8025) gets no rule, so it is reached only
+# with kubectl port-forward
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mailpit-smtp-from-notification-service
+  namespace: voltstore
+spec:
+  podSelector:
+    matchLabels:
+      app: mailpit
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: notification-service
+      ports:
+        - port: 1025
 ---
 # Monitoring (k8s/monitoring/): Prometheus scrapes /actuator/prometheus of the services on their HTTP port. The
 # policies add up, so this widens rule 3 by one more allowed client and nothing else

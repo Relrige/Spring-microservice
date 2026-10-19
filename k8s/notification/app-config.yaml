@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notification-config
+  namespace: voltstore
+data:
+  POSTGRES_DB: "notification-service"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://notification-service-postgres:5432/notification-service"
+  # Kafka broker Service from k8s/kafka
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  # Consumed topics, owned by Order and Delivery
+  ORDER_EVENTS_TOPIC: "order.order-events"
+  DELIVERY_EVENTS_TOPIC: "delivery.shipment-events"
+  # Mailpit Service from mailpit.yaml. It needs no credentials, so there is no app Secret: SPRING_MAIL_USERNAME and
+  # SPRING_MAIL_PASSWORD would go into one for a real provider
+  SPRING_MAIL_HOST: "mailpit"
+  SPRING_MAIL_PORT: "1025"
+  NOTIFICATION_MAIL_FROM: "VoltStore <no-reply@voltstore.com>"
+  NOTIFICATION_TIME_ZONE: "Europe/Kyiv"
+  NOTIFICATION_RETENTION: "30d"
+  # JVM settings live here only (not in the Dockerfile). Heap up to 70% of the container memory limit;
+  # C1-only JIT and Serial GC: faster startup and less memory on a small local cluster
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:TieredStopAtLevel=1 -XX:+UseSerialGC"

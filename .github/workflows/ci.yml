@@ -26,6 +26,7 @@ jobs:
           - customer-service
           - delivery-service
           - inventory-service
+          - notification-service
           - order-service
           - payment-service
     defaults:

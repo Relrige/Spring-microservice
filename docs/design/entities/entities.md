@@ -177,4 +177,6 @@ An Anti-Corruption Layer (ACL) for the external courier/shipping gateways. Owns 
 ## 8. Notification Service
 
 Purely event-driven.
-Does not own any persistent domain entities (may utilise an internal transient outbox/log for email retries, but no core business entities).
+Does not own any persistent domain entities. Its own database holds two technical tables (see the [Notification spec](../services-specs/notification-service-spec.md)):
+- `notifications`: one row per email to send (`eventId` as dedup key, recipient, rendered subject and body, `status` `PENDING` / `SENT` / `FAILED`, attempts and next attempt time).
+- `order_recipients`: a read model `orderId → customerEmail` filled from the order events, used for Delivery's `OrderDelivered`, which carries no email.
