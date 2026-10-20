@@ -39,8 +39,8 @@
 ## 6. Catalog browsing (spec `catalog-browsing`)
 
 - [x] 6.1 Implement the catalog URL state parse and serialize functions (design D8: 1-based `page`, defaults, invalid values fall back); verify with unit tests including `page=-3`, an unknown sort, and round-tripping
-- [ ] 6.2 Build the product list page as in the mockup (design D16): tokenless requests, search, category select (from categories; failure tolerated), price range validation, sort, paging with total count, empty state, loading and error states; verify with component tests for each *Product list*, *Search and filters*, *Sorting*, *Paging* and *List state in the URL* scenario
-- [ ] 6.3 Build the product details page as in the mockup (design D16): title, description, price, category name (omitted if unknown), stock badge, "not available" page for `404`; verify with component tests for active, inactive and non-UUID ids
+- [x] 6.2 Build the product list page as in the mockup (design D16): tokenless requests, search, category select (from categories; failure tolerated), price range validation, sort, paging with total count, empty state, loading and error states; verify with component tests for each *Product list*, *Search and filters*, *Sorting*, *Paging* and *List state in the URL* scenario
+- [x] 6.3 Build the product details page as in the mockup (design D16): title, description, price, category name (omitted if unknown), stock badge, "not available" page for `404`; verify with component tests for active, inactive and non-UUID ids
 - [x] 6.4 Add the shared `Price` (design D9) and `StockBadge` components; verify `Price` formats `1299` as `UAH 1,299.00` in a unit test
 - [x] 6.5 Add `ProductImage` placeholders (design D15) and use them in the list and details pages; verify with component tests for *Same category, same placeholder* and *Unknown category*
 

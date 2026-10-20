@@ -13,7 +13,7 @@ describe('Protected pages need a login', () => {
     await waitFor(() => expect(currentUrl(router)).toBe('/login?returnTo=%2Faccount%2Forders'));
     await submitLogin(DEMO_CUSTOMER.email, DEMO_CUSTOMER.password);
     await waitFor(() => expect(currentUrl(router)).toBe('/account/orders'));
-    expect(screen.getByRole('heading', { name: 'Your account' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Your account' })).toBeInTheDocument();
   });
 
   it('Return page not allowed for the role: the customer lands on the storefront', async () => {
