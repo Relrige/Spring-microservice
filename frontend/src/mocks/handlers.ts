@@ -11,6 +11,14 @@ const api = (path: string) => `*/api${path}`;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * Catalog's PostgreSQL orders text by code point (`ASUS…` before `Acer…`),
+ * not by locale; the mock does the same (found in the live run, task 8.3).
+ */
+export function compareText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 const KINDS: Record<number, [string, string]> = {
   400: ['validation', 'Bad Request'],
   401: ['unauthorized', 'Unauthorized'],
@@ -198,9 +206,8 @@ export const handlers: HttpHandler[] = [
       .filter((p) => typeof minPrice !== 'number' || p.basePrice >= minPrice)
       .filter((p) => typeof maxPrice !== 'number' || p.basePrice <= maxPrice)
       .sort((a, b) => {
-        const order =
-          field === 'title' ? a.title.localeCompare(b.title) : a.basePrice - b.basePrice;
-        return order * direction || a.productId.localeCompare(b.productId);
+        const order = field === 'title' ? compareText(a.title, b.title) : a.basePrice - b.basePrice;
+        return order * direction || compareText(a.productId, b.productId);
       });
 
     const start = page! * size!;
@@ -245,7 +252,7 @@ export const handlers: HttpHandler[] = [
     const search = params.get('search')?.toLowerCase();
     const matches = db.categories
       .filter((c) => !search || c.name.toLowerCase().includes(search))
-      .sort((a, b) => a.name.localeCompare(b.name) || a.categoryId.localeCompare(b.categoryId));
+      .sort((a, b) => compareText(a.name, b.name) || compareText(a.categoryId, b.categoryId));
     return HttpResponse.json({
       content: matches.slice(page * size, page * size + size),
       page,

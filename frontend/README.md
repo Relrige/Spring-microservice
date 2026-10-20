@@ -70,4 +70,12 @@ Result of the last live run: see *Live verification* below.
 
 ## Live verification
 
-Not yet run against the Compose stack.
+Last run: 2026-10-20, branch `frontend`, Compose stack of the repository root (Docker Desktop, 8 GB).
+
+- Dev proxy: `/api/catalog/categories` on port 5173 returned the gateway's answer unchanged; an unknown `/api/...` path got the gateway's `404` with the `/api` prefix stripped.
+- `npm run seed`, first run: 3 accounts, 4 categories and 45 products created, packaging set for 45, stock adjusted for 38, 42 activated; the storefront showed the expected stock statuses after about 8 s. Second run: `Result: unchanged`, with the same product count and stock list before and after.
+- `npm run test:e2e:live`: 5 of 5 journeys passed (about 20 s). `npm run check:e2e` against the mock: 5 of 5.
+- Contract findings: Catalog serializes `basePrice` as a JSON number (`79999.00`); the API layer still accepts strings. Catalog orders titles by code point (`ASUS…` before `Acer…`), and the mock now does the same.
+- Stack setup needed on that machine (local, gitignored files only): `customer-service/.env` copied from its `.env.example`; keys that were missing from the local `.env` of `api-gateway`, `catalog-service` and `inventory-service` added from their examples; `GATEWAY_UPSTREAMS_AUTH` corrected to `http://auth-service:8080`. `order-service` and `payment-service` did not start because their database volumes hold an older schema; this iteration does not use them.
+
+The live data may contain products besides the fixtures (earlier tests), so the live journeys check the product total as "at least the fixtures".

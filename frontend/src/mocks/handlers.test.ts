@@ -5,6 +5,7 @@ import { ApiError } from '../api/errors';
 import { request } from '../api/http';
 import { DEMO_CATEGORIES, DEMO_CUSTOMER, DEMO_PRODUCTS, DEMO_STAFF } from '../fixtures/demo-data';
 import { db, resetDb } from './db';
+import { compareText } from './handlers';
 import { createMockToken, readMockToken } from './tokens';
 
 async function failure(promise: Promise<unknown>): Promise<ApiError> {
@@ -71,7 +72,7 @@ describe('mock catalog', () => {
     const first = await listProducts({});
     expect(first.content).toHaveLength(20);
     const titles = first.content.map((p) => p.title);
-    expect(titles).toEqual([...titles].sort((a, b) => a.localeCompare(b)));
+    expect(titles).toEqual([...titles].sort(compareText));
   });
 
   it('filters by search, category and price, and sorts by price', async () => {

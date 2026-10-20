@@ -4,11 +4,12 @@ import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { DEMO_PRODUCTS } from '../../fixtures/demo-data';
 import { db } from '../../mocks/db';
+import { compareText } from '../../mocks/handlers';
 import { currentUrl, loginAs, renderApp } from '../../test/render';
 import { server } from '../../test/server';
 
 const ACTIVE = DEMO_PRODUCTS.filter((p) => p.active);
-const byTitle = (a: string, b: string) => a.localeCompare(b);
+const byTitle = compareText;
 
 function recordProductRequests() {
   const requests: Request[] = [];
