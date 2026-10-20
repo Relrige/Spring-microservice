@@ -19,7 +19,8 @@
     "test:watch": "vitest",
     "check": "npm run typecheck && npm run lint && npm run test",
     "check:e2e": "playwright test --project=mock",
-    "test:e2e:live": "playwright test --project=live"
+    "test:e2e:live": "playwright test --project=live",
+    "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
     "@mantine/core": "9.7.3",
