@@ -1,0 +1,46 @@
+/* Global rules of the design system (docs/design/design-system/README.md). */
+
+body {
+  background: var(--vs-surface);
+  color: var(--vs-ink);
+  font-feature-settings: 'tnum';
+}
+
+/* Uppercase `label` style: column headers, filter group names, status chips. */
+.vs-label {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vs-ink-muted);
+}
+
+/* `price` style, tabular figures. */
+.vs-price {
+  font-size: 20px;
+  line-height: 24px;
+  font-weight: 700;
+  font-feature-settings: 'tnum';
+  white-space: nowrap;
+}
+
+.vs-price-lg {
+  font-size: 28px;
+  line-height: 32px;
+}
+
+.vs-mono {
+  font-family: var(--vs-font-mono);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.vs-raised {
+  background: var(--vs-surface-raised);
+  border: 1px solid var(--vs-line);
+}
+
+.vs-sunken {
+  background: var(--vs-surface-sunken);
+}

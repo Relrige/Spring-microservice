@@ -7,7 +7,7 @@
 - [x] 1.3 Add Vitest with jsdom and Testing Library, plus one smoke test rendering the app; verify `npm test` passes
 - [x] 1.4 Add the `check` script (`tsc --noEmit` + lint + Vitest); verify `npm run check` passes and finishes in under a minute
 - [ ] 1.5 Configure the Vite dev proxy `/api` → `VITE_API_TARGET` (default `http://localhost:8080`) with the prefix stripped (design D2); verify with the Compose stack running that `/api/catalog/categories` on the dev server returns the gateway's answer
-- [ ] 1.6 Add Mantine (core, hooks, form, notifications) with a theme generated from `docs/design/design-system/tokens.json` (design D16: colours as CSS variables for light and dark, Inter, radius, spacing), and the TanStack Query client with the retry rules of design D3; verify the smoke test still passes and the colour-scheme toggle switches light/dark
+- [x] 1.6 Add Mantine (core, hooks, form, notifications) with a theme generated from `docs/design/design-system/tokens.json` (design D16: colours as CSS variables for light and dark, Inter, radius, spacing), and the TanStack Query client with the retry rules of design D3; verify the smoke test still passes and the colour-scheme toggle switches light/dark
 
 ## 2. API access layer (spec `api-access`)
 
