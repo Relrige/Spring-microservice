@@ -25,7 +25,7 @@
 
 ## 4. User session (spec `user-session`)
 
-- [ ] 4.1 Implement token decoding and validation (claims, known roles, expiry) as pure functions; verify with unit tests for a valid token, a missing `email` claim, an unknown role, an unreadable payload and an expired token
+- [x] 4.1 Implement token decoding and validation (claims, known roles, expiry) as pure functions; verify with unit tests for a valid token, a missing `email` claim, an unknown role, an unreadable payload and an expired token
 - [ ] 4.2 Implement `SessionProvider`: `localStorage` persistence, expiry timer, cross-tab `storage` sync, logout clearing the query cache, the expired-session redirect with a safe `returnTo`; verify with tests for reload, expiry while idle, logout in another tab and rejection of an external `returnTo`
 - [ ] 4.3 Build the login page (`/login`) as in the mockup (design D16): form, `401` message, expired-session notice, redirect to `returnTo` or the role's landing area; verify with component tests for the *Login* scenarios
 - [ ] 4.4 Build the registration page (`/register`): client-side checks, `409` message with a login link, automatic login after `201`; verify with component tests for the *Customer registration* scenarios
