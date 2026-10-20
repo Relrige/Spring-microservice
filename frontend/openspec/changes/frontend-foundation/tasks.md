@@ -13,7 +13,7 @@
 
 - [x] 2.1 Implement `src/api/http.ts` and `src/api/errors.ts`: `/api` prefix, optional bearer token with per-call opt-out, JSON handling, `ApiError` kinds, problem-details parsing including non-JSON bodies and `Retry-After`; verify with unit tests for each status class, a non-JSON body and a network failure
 - [x] 2.2 Implement the session-expired signal for `401` on token-carrying requests, with the login call excluded; verify with unit tests for both cases
-- [ ] 2.3 Add shared UI pieces `ErrorState` (message plus "Try again"), `Loading`, and a helper that puts `400` `errors` onto Mantine form fields with the rest in a general error area; verify with component tests for the scenarios of *Field validation errors on forms*, *Unavailable backend* and *Unexpected errors*
+- [x] 2.3 Add shared UI pieces `ErrorState` (message plus "Try again"), `Loading`, and a helper that puts `400` `errors` onto Mantine form fields with the rest in a general error area; verify with component tests for the scenarios of *Field validation errors on forms*, *Unavailable backend* and *Unexpected errors*
 - [x] 2.4 Write `src/api/auth.ts` and `src/api/catalog.ts` types and calls mirroring the Auth and Catalog specs (EP-AUTH-01/02, EP-CAT-04/05/10), each type citing its spec section; accept `basePrice` as number or string; verify with `npm run check`
 
 ## 3. Mock backend (design D10)
