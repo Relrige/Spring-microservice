@@ -62,7 +62,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function describeError(error: unknown): string {
   if (error instanceof ApiError) {
-    const detail = error.problem?.detail ? `: ${error.problem.detail}` : '';
+    const detail = error.problem?.detail ? `: ${error.problem.detail.replace(/\.$/, '')}` : '';
     const reason = error.problem?.reason ? ` (reason ${String(error.problem.reason)})` : '';
     return `${error.status ?? 'no answer'} ${error.kind}${detail}${reason}`;
   }

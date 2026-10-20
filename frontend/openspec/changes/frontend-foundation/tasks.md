@@ -46,9 +46,9 @@
 
 ## 7. Demo seed script (design D14)
 
-- [ ] 7.1 Add `scripts/seed.ts` and `npm run seed` (`tsx`; `SEED_API_URL`, `SEED_ADMIN_EMAIL`, required `SEED_ADMIN_PASSWORD` with a clear error when missing): admin login, staff and demo customer accounts (`409` = exists), categories and products found or created as the manager; verify against the Compose stack that the accounts can log in and the manager's list contains every fixture product
-- [ ] 7.2 Add the worker and activation steps: packaging, stock adjusted to target by difference, activation with `503` retries, then polling the storefront until stock statuses match (60 s limit) and printing a summary; verify the storefront shows the expected active products with the expected stock labels
-- [ ] 7.3 Make reruns safe: a second run creates nothing, adjusts nothing and reports "unchanged"; verify by running the script twice and comparing the manager's product count and the stock list
+- [x] 7.1 Add `scripts/seed.ts` and `npm run seed` (`tsx`; `SEED_API_URL`, `SEED_ADMIN_EMAIL`, required `SEED_ADMIN_PASSWORD` with a clear error when missing): admin login, staff and demo customer accounts (`409` = exists), categories and products found or created as the manager; verify against the Compose stack that the accounts can log in and the manager's list contains every fixture product
+- [x] 7.2 Add the worker and activation steps: packaging, stock adjusted to target by difference, activation with `503` retries, then polling the storefront until stock statuses match (60 s limit) and printing a summary; verify the storefront shows the expected active products with the expected stock labels
+- [x] 7.3 Make reruns safe: a second run creates nothing, adjusts nothing and reports "unchanged"; verify by running the script twice and comparing the manager's product count and the stock list
 
 ## 8. Browser tests and agent workflow
 
