@@ -52,8 +52,8 @@
 
 ## 8. Browser tests and agent workflow
 
-- [ ] 8.1 Set up Playwright with a `mock` project (starts `dev:mock`) and a `live` project (`E2E_LIVE=1`, gateway on `:8080`); add `check:e2e`; verify `npm run check:e2e` passes with no Docker running
-- [ ] 8.2 Write browser journeys: browse, filter, page and open a product; register, log out, log in again; staff login lands in its area; expired session returns to the same page; layout at 375 px has no horizontal scroll; verify they pass in the `mock` project
+- [x] 8.1 Set up Playwright with a `mock` project (starts `dev:mock`) and a `live` project (`E2E_LIVE=1`, gateway on `:8080`); add `check:e2e`; verify `npm run check:e2e` passes with no Docker running
+- [x] 8.2 Write browser journeys: browse, filter, page and open a product; register, log out, log in again; staff login lands in its area; expired session returns to the same page; layout at 375 px has no horizontal scroll; verify they pass in the `mock` project
 - [ ] 8.3 Run the same journeys in the `live` project against the Compose stack after `npm run seed`; fix any mock or API-type mismatch found and confirm the `basePrice` format (design, *Open Questions*); verify the `live` run passes and record the result in `frontend/README.md`
 - [ ] 8.4 Add `.claude/launch.json` entries `frontend-dev` (5173) and `frontend-mock` (5174); verify both start from the preview pane
 - [ ] 8.5 Complete the *Checks* section of the existing `frontend/AGENTS.md` with the real commands, and write `frontend/README.md` (scripts, ports, demo accounts, `npm run seed` with its variables, live test setup); verify every command in the README runs as written
