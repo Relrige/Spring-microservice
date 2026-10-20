@@ -1,16 +1,13 @@
-import { Group, Text } from '@mantine/core';
-import { ColorSchemeToggle } from '../components/ColorSchemeToggle';
+import { useState } from 'react';
+import { createBrowserRouter, RouterProvider } from 'react-router';
 import { Providers } from './Providers';
+import { routes } from './routes';
 
 export function App() {
+  const [router] = useState(() => createBrowserRouter(routes));
   return (
     <Providers>
-      <Group p="md" justify="space-between">
-        <Text fw={700} fz={20}>
-          VoltStore
-        </Text>
-        <ColorSchemeToggle />
-      </Group>
+      <RouterProvider router={router} />
     </Providers>
   );
 }

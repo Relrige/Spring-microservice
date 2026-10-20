@@ -26,15 +26,15 @@
 ## 4. User session (spec `user-session`)
 
 - [x] 4.1 Implement token decoding and validation (claims, known roles, expiry) as pure functions; verify with unit tests for a valid token, a missing `email` claim, an unknown role, an unreadable payload and an expired token
-- [ ] 4.2 Implement `SessionProvider`: `localStorage` persistence, expiry timer, cross-tab `storage` sync, logout clearing the query cache, the expired-session redirect with a safe `returnTo`; verify with tests for reload, expiry while idle, logout in another tab and rejection of an external `returnTo`
-- [ ] 4.3 Build the login page (`/login`) as in the mockup (design D16): form, `401` message, expired-session notice, redirect to `returnTo` or the role's landing area; verify with component tests for the *Login* scenarios
-- [ ] 4.4 Build the registration page (`/register`): client-side checks, `409` message with a login link, automatic login after `201`; verify with component tests for the *Customer registration* scenarios
+- [x] 4.2 Implement `SessionProvider`: `localStorage` persistence, expiry timer, cross-tab `storage` sync, logout clearing the query cache, the expired-session redirect with a safe `returnTo`; verify with tests for reload, expiry while idle, logout in another tab and rejection of an external `returnTo`
+- [x] 4.3 Build the login page (`/login`) as in the mockup (design D16): form, `401` message, expired-session notice, redirect to `returnTo` or the role's landing area; verify with component tests for the *Login* scenarios
+- [x] 4.4 Build the registration page (`/register`): client-side checks, `409` message with a login link, automatic login after `201`; verify with component tests for the *Customer registration* scenarios
 
 ## 5. Application shell and navigation (spec `app-navigation`)
 
-- [ ] 5.1 Set up the router with storefront routes, the four role areas behind `RequireRole`, `roleHome()`, and placeholder landing pages for `/manage`, `/warehouse`, `/admin` naming the iteration that adds each area; verify with tests for anonymous redirect, wrong-role access-denied, a return page not allowed for the role, and `ADMIN` denied on `/manage`
-- [ ] 5.2 Build the AppShell header as in the mockups (design D16): role-aware links, user email and role, logout, burger menu below the desktop breakpoint; verify with component tests for the visitor and manager headers
-- [ ] 5.3 Add the not-found and access-denied pages; verify with tests for `/no-such-page` and a customer opening `/admin`
+- [x] 5.1 Set up the router with storefront routes, the four role areas behind `RequireRole`, `roleHome()`, and placeholder landing pages for `/manage`, `/warehouse`, `/admin` naming the iteration that adds each area; verify with tests for anonymous redirect, wrong-role access-denied, a return page not allowed for the role, and `ADMIN` denied on `/manage`
+- [x] 5.2 Build the AppShell header as in the mockups (design D16): role-aware links, user email and role, logout, burger menu below the desktop breakpoint; verify with component tests for the visitor and manager headers
+- [x] 5.3 Add the not-found and access-denied pages; verify with tests for `/no-such-page` and a customer opening `/admin`
 
 ## 6. Catalog browsing (spec `catalog-browsing`)
 
