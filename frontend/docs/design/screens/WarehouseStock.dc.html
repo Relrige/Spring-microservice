@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Warehouse stock</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#f5f7fa}
+a{color:#1f55e0}a:hover{color:#1843b3}
+</style>
+</helmet>
+<div style="min-height: 1000px; background: #f5f7fa; color: #111723; font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 15px; line-height: 22px; font-feature-settings: 'tnum';">
+
+<header style="background: #ffffff; border-bottom: 1px solid #d5dbe4;">
+<div style="max-width: 1200px; margin: 0 auto; padding: 0 24px; min-height: 64px; display: flex; flex-wrap: wrap; align-items: center; gap: 24px;">
+<a href="#" style="text-decoration: none; color: #111723; font-size: 20px; font-weight: 700;"><span style="border-bottom: 4px solid #ffd319; padding-bottom: 1px;">Volt</span>Store</a>
+<span style="font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #566175;">Warehouse</span>
+<nav aria-label="Warehouse" style="flex: 1 1 auto; display: flex; gap: 4px;">
+<a href="#" aria-current="page" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; border-radius: 6px; background: #e4ecff; color: #1f55e0; text-decoration: none; font-weight: 600;">Stock</a>
+<a href="#" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; border-radius: 6px; color: #111723; text-decoration: none; font-weight: 600;">Fulfillment queue <span style="margin-left: 6px; padding: 0 6px; border-radius: 6px; background: #e9edf3; font-size: 12px;">4</span></a>
+</nav>
+<span style="font-size: 13px; color: #566175;">worker@voltstore.com · Inventory worker</span>
+</div>
+</header>
+
+<main style="max-width: 1200px; margin: 0 auto; padding: 32px 24px 48px; display: flex; flex-direction: column; gap: 20px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 style="margin: 0; font-size: 28px; line-height: 34px; font-weight: 650; letter-spacing: -0.01em;">Stock</h1>
+<p style="margin: 0; font-size: 13px; line-height: 18px; color: #566175;">47 stock items · 3 without packaging</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+<div role="group" aria-label="Packaging filter" style="display: inline-flex; border: 1px solid #7b8599; border-radius: 6px; overflow: hidden;">
+<button type="button" style="height: 38px; padding: 0 12px; border: 0; background: #ffffff; color: #111723; font: inherit; font-size: 13px;">All</button>
+<button type="button" style="height: 38px; padding: 0 12px; border: 0; border-left: 1px solid #7b8599; background: #ffffff; color: #111723; font: inherit; font-size: 13px;">Packaging set</button>
+<button type="button" aria-pressed="true" style="height: 38px; padding: 0 12px; border: 0; border-left: 1px solid #7b8599; background: #1f55e0; color: #ffffff; font: inherit; font-size: 13px; font-weight: 600;">Packaging missing</button>
+</div>
+<label for="ws-sort" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Sort</label>
+<select id="ws-sort" style="height: 40px; padding: 0 12px; border: 1px solid #7b8599; border-radius: 6px; background: #ffffff; color: #111723; font: inherit; font-size: 13px;"><option>Available, low to high</option><option>Reserved, high to low</option><option>Product id</option></select>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+<div style="flex: 999 1 640px; min-width: 0; overflow-x: auto; background: #ffffff; border: 1px solid #d5dbe4; border-radius: 6px;">
+<table style="width: 100%; border-collapse: collapse; font-size: 13px; line-height: 18px;">
+<thead>
+<tr style="background: #e9edf3; text-align: left;">
+<th scope="col" style="padding: 10px 16px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #566175;">Product</th>
+<th scope="col" style="padding: 10px 12px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #566175;">Catalog</th>
+<th scope="col" style="padding: 10px 12px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #566175; text-align: right;">Available</th>
+<th scope="col" style="padding: 10px 12px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #566175; text-align: right;">Reserved</th>
+<th scope="col" style="padding: 10px 12px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #566175; text-align: right;">Total</th>
+<th scope="col" style="padding: 10px 12px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #566175;">Packaging</th>
+<th scope="col" style="padding: 10px 16px;"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Actions</span></th>
+</tr>
+</thead>
+<tbody>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="3">
+<tr style="border-top: 1px solid #d5dbe4; background: {{r.rowBg}};">
+<td style="padding: 12px 16px;"><div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 600; font-size: 14px;">{{r.title}}</span><span style="font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace; color: #566175;">{{r.id}}</span></div></td>
+<td style="padding: 12px;"><span style="padding: 2px 8px; border-radius: 6px; font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; background: {{r.statusBg}}; color: {{r.statusInk}};">{{r.status}}</span></td>
+<td style="padding: 12px; text-align: right; font-weight: 600;">{{r.available}}</td>
+<td style="padding: 12px; text-align: right;">{{r.reserved}}</td>
+<td style="padding: 12px; text-align: right; color: #566175;">{{r.total}}</td>
+<td style="padding: 12px;"><span style="padding: 2px 8px; border-radius: 6px; font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; background: #fde9e8; color: #c4302b;">Missing</span></td>
+<td style="padding: 12px 16px; text-align: right; white-space: nowrap;">
+<button type="button" style="height: 32px; padding: 0 10px; border: 1px solid #7b8599; border-radius: 6px; background: #ffffff; color: #111723; font: inherit; font-size: 13px;">Adjust</button>
+<button type="button" style="height: 32px; padding: 0 10px; margin-left: 6px; border: 1px solid #1f55e0; border-radius: 6px; background: #ffffff; color: #1f55e0; font: inherit; font-size: 13px; font-weight: 600;">Set packaging</button>
+</td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+
+<form aria-label="Set packaging" style="flex: 1 1 300px; max-width: 100%; box-sizing: border-box; padding: 20px; background: #ffffff; border: 1px solid #d5dbe4; border-radius: 10px; box-shadow: 0 8px 24px rgba(17, 23, 35, 0.14); display: flex; flex-direction: column; gap: 14px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h2 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600;">Set packaging</h2>
+<span style="font-size: 13px; line-height: 18px; color: #566175;">Sony WH-1000XM5 headphones</span>
+</div>
+<p style="margin: 0; font-size: 13px; line-height: 18px; color: #566175;">Needed before the product can be activated and shipped. All four values are replaced together.</p>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+<div style="display: flex; flex-direction: column; gap: 6px; grid-column: 1 / -1;"><label for="w" style="font-size: 13px; font-weight: 600;">Gross weight, g</label><input id="w" inputmode="numeric" value="420" style="height: 40px; box-sizing: border-box; padding: 0 10px; border: 1px solid #7b8599; border-radius: 6px; font: inherit; background: #ffffff; color: #111723;"></div>
+<div style="display: flex; flex-direction: column; gap: 6px;"><label for="l" style="font-size: 13px; font-weight: 600;">Length, cm</label><input id="l" inputmode="numeric" value="26" style="height: 40px; box-sizing: border-box; padding: 0 10px; border: 1px solid #7b8599; border-radius: 6px; font: inherit; background: #ffffff; color: #111723;"></div>
+<div style="display: flex; flex-direction: column; gap: 6px;"><label for="wd" style="font-size: 13px; font-weight: 600;">Width, cm</label><input id="wd" inputmode="numeric" value="21" style="height: 40px; box-sizing: border-box; padding: 0 10px; border: 1px solid #7b8599; border-radius: 6px; font: inherit; background: #ffffff; color: #111723;"></div>
+<div style="display: flex; flex-direction: column; gap: 6px;"><label for="h" style="font-size: 13px; font-weight: 600;">Height, cm</label><input id="h" inputmode="numeric" value="8" style="height: 40px; box-sizing: border-box; padding: 0 10px; border: 1px solid #7b8599; border-radius: 6px; font: inherit; background: #ffffff; color: #111723;"></div>
+</div>
+<div style="display: flex; gap: 8px; justify-content: flex-end;">
+<button type="button" style="height: 40px; padding: 0 14px; border: 1px solid #7b8599; border-radius: 6px; background: #ffffff; color: #111723; font: inherit;">Cancel</button>
+<button type="submit" style="height: 40px; padding: 0 16px; border: 0; border-radius: 6px; background: #1f55e0; color: #ffffff; font: inherit; font-weight: 600;">Save packaging</button>
+</div>
+</form>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const inactive = { status: 'Inactive', statusBg: '#fff2d9', statusInk: '#9a5b00' };
+    const active = { status: 'Active', statusBg: '#e3f5ec', statusInk: '#18794e' };
+    return {
+      rows: [
+        { title: 'Sony WH-1000XM5 headphones', id: '#c41d08a2', available: '0', reserved: '0', total: '0', rowBg: '#e4ecff', ...inactive },
+        { title: 'Xiaomi Redmi Buds 6 Pro', id: '#5be0f917', available: '24', reserved: '0', total: '24', rowBg: '#ffffff', ...inactive },
+        { title: 'Ugreen USB-C cable 2 m, 100 W', id: '#9a03cc41', available: '3', reserved: '0', total: '3', rowBg: '#ffffff', ...inactive }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

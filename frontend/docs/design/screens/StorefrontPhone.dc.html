@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Storefront on a phone, dark theme</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0e1219}
+a{color:#6f9bff}a:hover{color:#9ab9ff}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; overflow: hidden; box-sizing: border-box; background: #0e1219; color: #e8ecf2; font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 15px; line-height: 22px; font-feature-settings: 'tnum'; display: flex; flex-direction: column;">
+
+<header style="flex: 0 0 auto; background: #161b24; border-bottom: 1px solid #29303c; padding: 0 16px; height: 56px; display: flex; align-items: center; gap: 8px;">
+<button type="button" aria-label="Open menu" style="width: 44px; height: 44px; margin-left: -10px; border: 0; border-radius: 6px; background: transparent; color: #e8ecf2; display: inline-flex; align-items: center; justify-content: center;">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16"></path><path d="M4 12h16"></path><path d="M4 18h16"></path></svg>
+</button>
+<a href="Main.dc.html" style="flex: 1 1 auto; text-decoration: none; color: #e8ecf2; font-size: 18px; font-weight: 700;"><span style="border-bottom: 4px solid #ffd84a; padding-bottom: 1px;">Volt</span>Store</a>
+<a href="Cart.dc.html" aria-label="Cart, 2 items" style="position: relative; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; color: #e8ecf2;">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="2"></circle><circle cx="17" cy="19" r="2"></circle><path d="M17 17H6V3H4"></path><path d="M6 5l14 1l-1 7H6"></path></svg>
+<span style="position: absolute; top: 4px; right: 2px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; background: #ffd84a; color: #111723; font-size: 11px; line-height: 18px; font-weight: 700; text-align: center;">2</span>
+</a>
+</header>
+
+<div style="flex: 1 1 auto; overflow: hidden; padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+<form role="search" style="display: flex; gap: 8px;">
+<label for="pq" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Search products</label>
+<input id="pq" type="search" placeholder="Search products" style="flex: 1 1 auto; min-width: 0; height: 44px; box-sizing: border-box; padding: 0 12px; border: 1px solid #6b7588; border-radius: 6px; background: #161b24; color: #e8ecf2; font: inherit;">
+<button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #6b7588; border-radius: 6px; background: #161b24; color: #e8ecf2; font: inherit; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"></path><path d="M7 12h10"></path><path d="M10 18h4"></path></svg>
+Filters
+</button>
+</form>
+
+<div style="display: flex; align-items: center; justify-content: space-between;">
+<h1 style="margin: 0; font-size: 22px; line-height: 28px; font-weight: 650;">Phones</h1>
+<span style="padding: 4px 10px; border-radius: 6px; background: #162447; color: #6f9bff; font-size: 13px; font-weight: 600;">Price low to high</span>
+</div>
+
+<sc-for list="{{products}}" as="p" hint-placeholder-count="4">
+<a href="Product.dc.html" style="text-decoration: none; color: #e8ecf2; background: #161b24; border: 1px solid #29303c; border-radius: 10px; padding: 12px; display: flex; gap: 12px; align-items: stretch;">
+<div style="flex: 0 0 88px; height: 88px; border-radius: 6px; background: #172446; color: #6f9bff; display: flex; align-items: center; justify-content: center;">
+<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="2"></rect><path d="M11 4h2"></path><path d="M12 17v.01"></path></svg>
+</div>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 15px; line-height: 20px; font-weight: 600;">{{p.title}}</span>
+<span style="font-size: 18px; line-height: 22px; font-weight: 700;">{{p.price}}</span>
+<span style="align-self: flex-start; padding: 2px 8px; border-radius: 6px; font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; background: {{p.chipBg}}; color: {{p.chipInk}};">{{p.stock}}</span>
+</div>
+</a>
+</sc-for>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const inStock = { stock: 'In stock', chipBg: '#10301f', chipInk: '#4fc28a' };
+    const outStock = { stock: 'Out of stock', chipBg: '#3b1615', chipInk: '#ff7a73' };
+    return {
+      products: [
+        { title: 'Xiaomi Redmi Note 14, 128 GB', price: 'UAH 8,999.00', ...inStock },
+        { title: 'Motorola Moto G85 5G, 256 GB', price: 'UAH 11,499.00', ...outStock },
+        { title: 'Samsung Galaxy A56 5G, 256 GB', price: 'UAH 17,499.00', ...inStock },
+        { title: 'Apple iPhone 16, 128 GB, Black', price: 'UAH 37,999.00', ...inStock }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

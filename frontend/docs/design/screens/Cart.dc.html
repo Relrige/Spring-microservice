@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cart</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#f5f7fa}
+a{color:#1f55e0}a:hover{color:#1843b3}
+</style>
+</helmet>
+<div style="min-height: 980px; background: #f5f7fa; color: #111723; font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 15px; line-height: 22px; font-feature-settings: 'tnum';">
+
+<header style="background: #ffffff; border-bottom: 1px solid #d5dbe4;">
+<div style="max-width: 1200px; margin: 0 auto; padding: 0 24px; min-height: 64px; display: flex; flex-wrap: wrap; align-items: center; gap: 24px;">
+<a href="Main.dc.html" style="text-decoration: none; color: #111723; font-size: 20px; font-weight: 700;"><span style="border-bottom: 4px solid #ffd319; padding-bottom: 1px;">Volt</span>Store</a>
+<a href="Main.dc.html" style="flex: 1 1 auto; text-decoration: none; color: #111723; font-weight: 600;">Catalog</a>
+<nav aria-label="Account" style="display: flex; align-items: center; gap: 16px;">
+<a href="#" style="text-decoration: none; color: #111723; font-weight: 600;">Orders</a>
+<a href="Cart.dc.html" aria-current="page" aria-label="Cart, 3 items" style="position: relative; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; background: #e4ecff; color: #1f55e0;">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="2"></circle><circle cx="17" cy="19" r="2"></circle><path d="M17 17H6V3H4"></path><path d="M6 5l14 1l-1 7H6"></path></svg>
+<span style="position: absolute; top: 2px; right: 0; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; background: #ffd319; color: #111723; font-size: 11px; line-height: 18px; font-weight: 700; text-align: center;">3</span>
+</a>
+</nav>
+</div>
+</header>
+
+<main style="max-width: 1200px; margin: 0 auto; padding: 32px 24px 48px; display: flex; flex-direction: column; gap: 24px;">
+<h1 style="margin: 0; font-size: 28px; line-height: 34px; font-weight: 650; letter-spacing: -0.01em;">Cart</h1>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+<section aria-label="Cart items" style="flex: 999 1 560px; min-width: 0; background: #ffffff; border: 1px solid #d5dbe4; border-radius: 10px; display: flex; flex-direction: column;">
+
+<div style="padding: 20px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; border-bottom: 1px solid #d5dbe4;">
+<div style="flex: 0 0 72px; height: 72px; border-radius: 10px; background: #d9f2e6; color: #18794e; display: flex; align-items: center; justify-content: center;">
+<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="13" width="5" height="7" rx="2"></rect><rect x="15" y="13" width="5" height="7" rx="2"></rect><path d="M4 15v-3a8 8 0 0 1 16 0v3"></path></svg>
+</div>
+<div style="flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+<a href="Product.dc.html" style="color: #111723; text-decoration: none; font-weight: 600;">Sony WH-1000XM5 headphones</a>
+<span style="font-size: 13px; line-height: 18px; color: #566175;">UAH 12,999.00 each</span>
+</div>
+<div style="display: flex; align-items: center; border: 1px solid #7b8599; border-radius: 6px; height: 40px;">
+<button type="button" aria-label="Decrease quantity" style="width: 40px; height: 38px; border: 0; background: transparent; color: #111723; font: inherit; font-size: 18px;">−</button>
+<span style="width: 32px; text-align: center; font-weight: 600;">1</span>
+<button type="button" aria-label="Increase quantity" style="width: 40px; height: 38px; border: 0; background: transparent; color: #111723; font: inherit; font-size: 18px;">+</button>
+</div>
+<span style="width: 140px; text-align: right; font-weight: 700;">UAH 12,999.00</span>
+<button type="button" aria-label="Remove Sony WH-1000XM5 headphones" style="width: 40px; height: 40px; border: 0; border-radius: 6px; background: transparent; color: #566175; display: inline-flex; align-items: center; justify-content: center;">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"></path><path d="M9 7V4h6v3"></path></svg>
+</button>
+</div>
+
+<div style="padding: 20px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; border-bottom: 1px solid #d5dbe4;">
+<div style="flex: 0 0 72px; height: 72px; border-radius: 10px; background: #ffe3da; color: #b0402a; display: flex; align-items: center; justify-content: center;">
+<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7V3"></path><path d="M15 7V3"></path><path d="M6 7h12v4a6 6 0 0 1-12 0z"></path><path d="M12 17v4"></path></svg>
+</div>
+<div style="flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+<a href="Product.dc.html" style="color: #111723; text-decoration: none; font-weight: 600;">Anker 737 power bank, 24,000 mAh</a>
+<span style="font-size: 13px; line-height: 18px; color: #566175;">UAH 4,899.00 each</span>
+</div>
+<div style="display: flex; align-items: center; border: 1px solid #7b8599; border-radius: 6px; height: 40px;">
+<button type="button" aria-label="Decrease quantity" style="width: 40px; height: 38px; border: 0; background: transparent; color: #111723; font: inherit; font-size: 18px;">−</button>
+<span style="width: 32px; text-align: center; font-weight: 600;">2</span>
+<button type="button" aria-label="Increase quantity" style="width: 40px; height: 38px; border: 0; background: transparent; color: #111723; font: inherit; font-size: 18px;">+</button>
+</div>
+<span style="width: 140px; text-align: right; font-weight: 700;">UAH 9,798.00</span>
+<button type="button" aria-label="Remove Anker 737 power bank" style="width: 40px; height: 40px; border: 0; border-radius: 6px; background: transparent; color: #566175; display: inline-flex; align-items: center; justify-content: center;">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"></path><path d="M9 7V4h6v3"></path></svg>
+</button>
+</div>
+
+<div style="padding: 20px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; background: #f5f7fa; border-radius: 0 0 10px 10px;">
+<div style="flex: 0 0 72px; height: 72px; border-radius: 10px; background: #e9edf3; color: #566175; display: flex; align-items: center; justify-content: center;">
+<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M12 12l8-4.5"></path><path d="M12 12v9"></path><path d="M12 12L4 7.5"></path></svg>
+</div>
+<div style="flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+<span style="font-weight: 600; color: #566175;">Product no longer available</span>
+<span style="align-self: flex-start; padding: 2px 8px; border-radius: 6px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; background: #fff2d9; color: #9a5b00;">Unavailable</span>
+</div>
+<span style="font-size: 13px; line-height: 18px; color: #566175;">Not counted in the subtotal</span>
+<button type="button" style="height: 40px; padding: 0 14px; border: 1px solid #7b8599; border-radius: 6px; background: #ffffff; color: #111723; font: inherit; font-weight: 600;">Remove</button>
+</div>
+</section>
+
+<aside aria-label="Order summary" style="flex: 1 1 320px; max-width: 100%; box-sizing: border-box; padding: 24px; background: #ffffff; border: 1px solid #d5dbe4; border-radius: 16px; display: flex; flex-direction: column; gap: 16px;">
+<h2 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600;">Summary</h2>
+<div style="display: flex; justify-content: space-between; gap: 12px;"><span style="color: #566175;">Items</span><span>3</span></div>
+<div style="display: flex; justify-content: space-between; gap: 12px; align-items: baseline;"><span style="font-weight: 600;">Estimated subtotal</span><span style="font-size: 20px; line-height: 24px; font-weight: 700;">UAH 22,797.00</span></div>
+<p style="margin: 0; font-size: 13px; line-height: 18px; color: #566175;">Prices and availability are checked again when you check out. Delivery cost is paid to the carrier.</p>
+<a href="Checkout.dc.html" style="height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; background: #1f55e0; color: #ffffff; text-decoration: none; font-weight: 600;">Proceed to checkout</a>
+<p style="margin: 0; font-size: 13px; line-height: 18px; color: #566175;">Up to 10 different products, up to 10 of each.</p>
+</aside>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

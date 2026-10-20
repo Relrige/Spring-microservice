@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Checkout and payment</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#f5f7fa}
+a{color:#1f55e0}a:hover{color:#1843b3}
+</style>
+</helmet>
+<div style="min-height: 1120px; background: #f5f7fa; color: #111723; font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 15px; line-height: 22px; font-feature-settings: 'tnum';">
+
+<header style="background: #ffffff; border-bottom: 1px solid #d5dbe4;">
+<div style="max-width: 1200px; margin: 0 auto; padding: 0 24px; min-height: 64px; display: flex; align-items: center; gap: 24px;">
+<a href="Main.dc.html" style="text-decoration: none; color: #111723; font-size: 20px; font-weight: 700;"><span style="border-bottom: 4px solid #ffd319; padding-bottom: 1px;">Volt</span>Store</a>
+<span style="flex: 1 1 auto;"></span>
+<span style="font-size: 13px; color: #566175;">olena@example.com</span>
+</div>
+</header>
+
+<main style="max-width: 1200px; margin: 0 auto; padding: 32px 24px 48px; display: flex; flex-direction: column; gap: 24px;">
+<div style="display: flex; flex-direction: column; gap: 12px;">
+<h1 style="margin: 0; font-size: 28px; line-height: 34px; font-weight: 650; letter-spacing: -0.01em;">Checkout</h1>
+<ol aria-label="Checkout steps" style="margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; line-height: 18px;">
+<li style="padding: 6px 12px; border-radius: 6px; background: #e3f5ec; color: #18794e; font-weight: 600;">1. Delivery details · done</li>
+<li aria-current="step" style="padding: 6px 12px; border-radius: 6px; background: #1f55e0; color: #ffffff; font-weight: 600;">2. Payment</li>
+</ol>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+<section aria-label="Payment" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 20px;">
+
+<div role="status" style="padding: 14px 16px; border-radius: 10px; background: #fff2d9; color: #9a5b00; display: flex; gap: 10px; align-items: flex-start;">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: 0 0 auto; margin-top: 1px;"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 3"></path></svg>
+<span>Order <span style="font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace; font-size: 13px;">#7f3a91c2</span> is placed and the items are reserved for you. Pay by <strong>14:20</strong> (about 12 minutes left).</span>
+</div>
+
+<div style="padding: 24px; background: #ffffff; border: 1px solid #d5dbe4; border-radius: 10px; display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap;">
+<h2 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600;">Delivery details</h2>
+<span style="font-size: 13px; color: #566175;">Saved with the order</span>
+</div>
+<dl style="margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px;">
+<div><dt style="font-size: 13px; color: #566175;">Recipient</dt><dd style="margin: 0;">Olena Kovalenko</dd></div>
+<div><dt style="font-size: 13px; color: #566175;">Phone</dt><dd style="margin: 0;">+380 50 123 45 67</dd></div>
+<div><dt style="font-size: 13px; color: #566175;">Carrier</dt><dd style="margin: 0;">Nova Poshta</dd></div>
+<div><dt style="font-size: 13px; color: #566175;">Address</dt><dd style="margin: 0;">Kyiv, branch No. 12, Velyka Vasylkivska St 72</dd></div>
+</dl>
+</div>
+
+<form style="padding: 24px; background: #ffffff; border: 1px solid #d5dbe4; border-radius: 10px; display: flex; flex-direction: column; gap: 16px;">
+<h2 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600;">Card payment</h2>
+
+<div role="alert" style="padding: 12px 14px; border-radius: 10px; background: #fde9e8; color: #c4302b; display: flex; gap: 10px; align-items: flex-start;">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: 0 0 auto; margin-top: 1px;"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16v.01"></path></svg>
+<span style="font-size: 14px; line-height: 20px;">This card was declined: insufficient funds. Try another card; your order stays reserved until 14:20.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<label for="card" style="font-weight: 600;">Card number</label>
+<input id="card" inputmode="numeric" autocomplete="cc-number" placeholder="1234 5678 9012 3456" style="height: 44px; box-sizing: border-box; padding: 0 12px; border: 1px solid #7b8599; border-radius: 6px; font: inherit; color: #111723; background: #ffffff;">
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 16px;">
+<div style="flex: 1 1 120px; display: flex; flex-direction: column; gap: 6px;">
+<label for="exp" style="font-weight: 600;">Expiry (MM/YY)</label>
+<input id="exp" inputmode="numeric" autocomplete="cc-exp" placeholder="08/28" style="height: 44px; box-sizing: border-box; padding: 0 12px; border: 1px solid #7b8599; border-radius: 6px; font: inherit; color: #111723; background: #ffffff;">
+</div>
+<div style="flex: 1 1 120px; display: flex; flex-direction: column; gap: 6px;">
+<label for="cvv" style="font-weight: 600;">CVV</label>
+<input id="cvv" inputmode="numeric" autocomplete="cc-csc" placeholder="123" style="height: 44px; box-sizing: border-box; padding: 0 12px; border: 1px solid #7b8599; border-radius: 6px; font: inherit; color: #111723; background: #ffffff;">
+</div>
+</div>
+
+<div style="padding: 14px 16px; border-radius: 10px; background: #e9edf3; display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #566175;">Test cards (demo payment provider)</span>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; font-size: 13px; line-height: 18px;">
+<span style="font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;">… 4242</span><span>Approved</span>
+<span style="font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;">… 0002</span><span>Declined, insufficient funds</span>
+<span style="font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;">… 5000</span><span>Answer lost; pay again with the same card</span>
+<span style="font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;">any other</span><span>Declined</span>
+</div>
+</div>
+
+<button type="submit" style="height: 48px; border: 0; border-radius: 6px; background: #1f55e0; color: #ffffff; font: inherit; font-weight: 600; font-size: 16px;">Pay UAH 22,797.00</button>
+<p style="margin: 0; font-size: 13px; line-height: 18px; color: #566175;">Card details go to the payment provider and are never stored by VoltStore.</p>
+</form>
+</section>
+
+<aside aria-label="Order summary" style="flex: 1 1 320px; max-width: 100%; box-sizing: border-box; padding: 24px; background: #ffffff; border: 1px solid #d5dbe4; border-radius: 16px; display: flex; flex-direction: column; gap: 14px;">
+<h2 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600;">Your order</h2>
+<div style="display: flex; justify-content: space-between; gap: 12px;"><span>Sony WH-1000XM5 headphones × 1</span><span style="white-space: nowrap;">UAH 12,999.00</span></div>
+<div style="display: flex; justify-content: space-between; gap: 12px;"><span>Anker 737 power bank × 2</span><span style="white-space: nowrap;">UAH 9,798.00</span></div>
+<div style="border-top: 1px solid #d5dbe4; padding-top: 14px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px;"><span style="font-weight: 600;">Total</span><span style="font-size: 28px; line-height: 32px; font-weight: 700;">UAH 22,797.00</span></div>
+<p style="margin: 0; font-size: 13px; line-height: 18px; color: #566175;">Prices were fixed when the order was placed.</p>
+<button type="button" style="height: 40px; border: 1px solid #c4302b; border-radius: 6px; background: #ffffff; color: #c4302b; font: inherit; font-weight: 600;">Cancel order</button>
+</aside>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1120}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Log in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#f5f7fa}
+a{color:#1f55e0}a:hover{color:#1843b3}
+</style>
+</helmet>
+<div style="min-height: 820px; background: #f5f7fa; color: #111723; font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 15px; line-height: 22px;">
+
+<header style="background: #ffffff; border-bottom: 1px solid #d5dbe4;">
+<div style="max-width: 1200px; margin: 0 auto; padding: 0 24px; min-height: 64px; display: flex; align-items: center; gap: 24px;">
+<a href="Main.dc.html" style="text-decoration: none; color: #111723; font-size: 20px; font-weight: 700;"><span style="border-bottom: 4px solid #ffd319; padding-bottom: 1px;">Volt</span>Store</a>
+<a href="Main.dc.html" style="text-decoration: none; color: #111723; font-weight: 600;">Catalog</a>
+</div>
+</header>
+
+<main style="padding: 64px 16px 48px; display: flex; justify-content: center;">
+<form style="width: 100%; max-width: 400px; box-sizing: border-box; padding: 32px; background: #ffffff; border: 1px solid #d5dbe4; border-radius: 10px; display: flex; flex-direction: column; gap: 20px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 style="margin: 0; font-size: 28px; line-height: 34px; font-weight: 650; letter-spacing: -0.01em;">Log in</h1>
+<p style="margin: 0; color: #566175;">Customers and staff use the same form.</p>
+</div>
+
+<div role="status" style="padding: 12px 14px; border-radius: 10px; background: #e4ecff; color: #1f55e0; display: flex; gap: 10px; align-items: flex-start;">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: 0 0 auto; margin-top: 1px;"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 3"></path></svg>
+<span style="font-size: 14px; line-height: 20px;">Your session has expired. Log in again to continue where you were.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<label for="email" style="font-weight: 600;">Email</label>
+<input id="email" type="email" value="olena@example.com" autocomplete="email" style="height: 44px; box-sizing: border-box; padding: 0 12px; border: 1px solid #7b8599; border-radius: 6px; font: inherit; color: #111723; background: #ffffff;">
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<label for="password" style="font-weight: 600;">Password</label>
+<input id="password" type="password" autocomplete="current-password" style="height: 44px; box-sizing: border-box; padding: 0 12px; border: 2px solid #1f55e0; border-radius: 6px; font: inherit; color: #111723; background: #ffffff; outline: 2px solid #e4ecff;">
+</div>
+
+<button type="submit" style="height: 44px; border: 0; border-radius: 6px; background: #1f55e0; color: #ffffff; font: inherit; font-weight: 600;">Log in</button>
+<p style="margin: 0; text-align: center; font-size: 14px; color: #566175;">New to VoltStore? <a href="#" style="font-weight: 600;">Create an account</a></p>
+</form>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":820}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
