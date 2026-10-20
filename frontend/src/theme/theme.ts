@@ -155,7 +155,14 @@ export const theme = createTheme({
   defaultRadius: 'md',
   focusRing: 'auto',
   components: {
-    Button: { defaultProps: { radius: 'sm' } },
+    Button: {
+      defaultProps: { radius: 'sm' },
+      // Text on a primary fill is on-primary: white in light theme, near-black in dark theme.
+      vars: (_theme: unknown, props: { variant?: string; color?: string }) =>
+        (props.variant ?? 'filled') === 'filled' && !props.color
+          ? { root: { '--button-color': 'var(--vs-on-primary)' } }
+          : { root: {} },
+    },
     ActionIcon: { defaultProps: { radius: 'sm' } },
     Input: {
       defaultProps: { radius: 'sm' },
