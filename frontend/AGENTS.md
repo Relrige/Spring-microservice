@@ -78,13 +78,19 @@ Each iteration is one OpenSpec change. Backend dependencies refer to backlog IDs
 
 ## 7. Checks
 
-Until the project is scaffolded (iteration 1), there is nothing to run. Afterwards, before reporting any task as done:
+Before reporting any task as done (all commands run in `frontend/`):
 
-- `npm run check` — types, lint, unit and component tests.
-- `npm run check:e2e` — browser tests against the mock backend (no Docker needed).
-- Live browser tests against the Compose stack when a task says so.
+- `npm run check` — `tsc -b`, ESLint and every Vitest test (unit and component tests run against the MSW mock handlers). About 20–30 s. Must pass before every commit (§8).
+- `npm run check:e2e` — Playwright journeys (project `mock`) against `npm run dev:mock` on port 5174, which Playwright starts itself; no Docker. About 20 s. Run it when a change touches pages, routing or the session. First time on a machine: `npx playwright install chromium`.
+- `npm run test:e2e:live` — the same journeys against the Compose stack (`npm run dev` on 5173 → gateway on 8080), when a task says so: start the stack, run `npm run seed` with `SEED_ADMIN_PASSWORD`, then the tests with `E2E_ADMIN_PASSWORD`.
+- To look at the app yourself: `npm run dev:mock` (or the `frontend-mock` entry of `.claude/launch.json` in the preview pane) and the demo accounts in `README.md`.
 
-The exact commands, ports and mock accounts are documented in `README.md` (written by `frontend-foundation`).
+Test conventions:
+- Test names contain the spec scenario names, so a failure points at a requirement.
+- Component and page tests render through `renderApp(url)` / `renderWithProviders()` (`src/test/render.tsx`) and use the mock handlers (`src/mocks/`); override single answers with `server.use(...)`. The mock database is reset after each test.
+- A new backend call gets its handler in `src/mocks/handlers.ts`, following the service spec (status codes, problem details), in the same commit.
+
+The exact commands, ports, demo accounts and seed variables are in [`README.md`](README.md).
 
 ## 8. Commits
 
