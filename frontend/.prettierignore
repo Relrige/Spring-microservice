@@ -1,0 +1,12 @@
+dist
+coverage
+playwright-report
+test-results
+public/mockServiceWorker.js
+openspec
+docs
+.claude
+.agents
+.gemini
+package-lock.json
+*.md
