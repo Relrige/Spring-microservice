@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll } from 'vitest';
+import { resetDb } from '../mocks/db';
 import { server } from './server';
 
 // jsdom lacks these browser APIs, which Mantine uses.
@@ -31,6 +32,7 @@ beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => {
   cleanup();
   server.resetHandlers();
+  resetDb();
   window.localStorage.clear();
 });
 

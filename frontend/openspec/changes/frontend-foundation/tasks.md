@@ -18,10 +18,10 @@
 
 ## 3. Mock backend (design D10)
 
-- [ ] 3.1 Create MSW handlers and an in-memory db for register, login, product list, product details and categories, following the specs' status codes and problem details (inactive → `404`, duplicate email → `409`, `minPrice > maxPrice` → `400`, `400` field errors); verify with Vitest tests that call the handlers through `http.ts`
-- [ ] 3.2 Create the shared demo fixtures `src/fixtures/demo-data.ts` (design D14: one account per role, 4 categories, about 45 products with description, price, packaging, target stock and active flag; some out of stock, some inactive) and start the mock db from them; verify through a handler test (inactive ones hidden, out-of-stock ones listed)
+- [x] 3.1 Create MSW handlers and an in-memory db for register, login, product list, product details and categories, following the specs' status codes and problem details (inactive → `404`, duplicate email → `409`, `minPrice > maxPrice` → `400`, `400` field errors); verify with Vitest tests that call the handlers through `http.ts`
+- [x] 3.2 Create the shared demo fixtures `src/fixtures/demo-data.ts` (design D14: one account per role, 4 categories, about 45 products with description, price, packaging, target stock and active flag; some out of stock, some inactive) and start the mock db from them; verify through a handler test (inactive ones hidden, out-of-stock ones listed)
 - [ ] 3.3 Add `npm run dev:mock` (MSW service worker when `VITE_API_MOCK=true`, port 5174); verify the app loads the mocked product list in the browser with no backend running
-- [ ] 3.4 Wire MSW into the Vitest setup so component tests use the same handlers; verify the smoke test runs with handlers active
+- [x] 3.4 Wire MSW into the Vitest setup so component tests use the same handlers; verify the smoke test runs with handlers active
 
 ## 4. User session (spec `user-session`)
 
