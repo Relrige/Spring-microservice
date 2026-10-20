@@ -56,7 +56,7 @@
 - [x] 8.2 Write browser journeys: browse, filter, page and open a product; register, log out, log in again; staff login lands in its area; expired session returns to the same page; layout at 375 px has no horizontal scroll; verify they pass in the `mock` project
 - [x] 8.3 Run the same journeys in the `live` project against the Compose stack after `npm run seed`; fix any mock or API-type mismatch found and confirm the `basePrice` format (design, *Open Questions*); verify the `live` run passes and record the result in `frontend/README.md`
 - [x] 8.4 Add `.claude/launch.json` entries `frontend-dev` (5173) and `frontend-mock` (5174); verify both start from the preview pane
-- [ ] 8.5 Complete the *Checks* section of the existing `frontend/AGENTS.md` with the real commands, and write `frontend/README.md` (scripts, ports, demo accounts, `npm run seed` with its variables, live test setup); verify every command in the README runs as written
+- [x] 8.5 Complete the *Checks* section of the existing `frontend/AGENTS.md` with the real commands, and write `frontend/README.md` (scripts, ports, demo accounts, `npm run seed` with its variables, live test setup); verify every command in the README runs as written
 
 ## Workflow follow-up
 
