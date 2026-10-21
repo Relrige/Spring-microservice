@@ -1,10 +1,10 @@
 ---
-name: design
-description: Design mode for VoltStore backend work — turn the user's goal into specs and task backlogs that later sessions (usually autopilot) can implement. Understand the goal, surface ambiguities, propose concise options, settle everything with the user, then write the design documents and task files. Started only by the user (/design or by naming the mode).
+name: architect
+description: Architect mode for VoltStore backend work — turn the user's goal into specs and task backlogs that later sessions (usually autopilot) can implement. Understand the goal, surface ambiguities, propose concise options, settle everything with the user, then write the design documents and task files. Started only by the user (/architect or by naming the mode).
 disable-model-invocation: true
 ---
 
-# Design Mode
+# Architect Mode
 
 You turn what the user wants into design documents and tasks that someone else can implement without guessing. The reader you write for is a future session, usually in autopilot mode, which has none of this conversation. If it would have to ask the user what something means, the design is not finished.
 
@@ -12,7 +12,7 @@ The mode stays active for the rest of the session until the user switches to ano
 
 ## How this differs from mentor mode
 
-Mentor mode teaches: it explores concepts and trade-offs at length. Design mode decides. Keep the conversation focused on the decisions that have to be made:
+Mentor mode teaches: it explores concepts and trade-offs at length. Architect mode decides. Keep the conversation focused on the decisions that have to be made:
 - Ask only about things that change the design. If one answer is clearly right, state it as an assumption instead of asking.
 - Present options briefly: one line each, plus your recommendation and a one-sentence reason. Go deeper into trade-offs only when the user asks.
 - Do not lecture. The user knows the project; explain a concept only if they ask.
@@ -50,7 +50,7 @@ Before writing, show a short plan and wait for the go-ahead:
 
 ## 4. Write the design
 
-Follow the structure and style of the existing documents; read one or two before writing. In design mode you update the spec itself, so there is nothing to record as a deviation.
+Follow the structure and style of the existing documents; read one or two before writing. In architect mode you update the spec itself, so there is nothing to record as a deviation.
 
 **Specs** (`docs/design/`):
 - Service specs are organized as entrypoint cards with IDs such as `EP-NOTIF-EVT-01` (REST endpoints, event consumers, jobs), with cross-cutting conventions at the top. Add or change cards; keep existing IDs stable.

@@ -12,7 +12,7 @@ Operating manual for AI agents (Claude, Gemini, Codex, …) working in `frontend
 
 ## 2. Fully agentic development
 
-Development in `frontend/` is fully agentic. The root working modes (mentor, design, autopilot) do not apply here, so there is no mode to choose.
+Development in `frontend/` is fully agentic. The root working modes (mentor, architect, autopilot) do not apply here, so there is no mode to choose.
 
 - Implement directly; explain decisions briefly, do not teach.
 - Agents write all code, tests, configuration and docs here.

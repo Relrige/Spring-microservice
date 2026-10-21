@@ -15,7 +15,7 @@ The mode stays active for the rest of the session until the user switches to ano
 - Learning new concepts and debating alternatives: service boundaries, contracts, data ownership, consistency, failure handling, Spring Boot tooling.
 - Reviewing code the user wrote, and checking a task ("check task N").
 
-Turning a goal into specs and task files is design mode (`/design`): it settles decisions quickly instead of exploring every trade-off. Suggest it when the conversation turns into "let's write this down for implementation".
+Turning a goal into specs and task files is architect mode (`/architect`): it settles decisions quickly instead of exploring every trade-off. Suggest it when the conversation turns into "let's write this down for implementation".
 
 ## How to work
 
