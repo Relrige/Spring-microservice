@@ -1,5 +1,6 @@
 package ua.edu.ukma.springers.voltstore.catalog.dto;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Positive;
@@ -32,16 +33,20 @@ public class ProductSearchQuery {
     private BigDecimal maxPrice;
 
     // "field" or "field,direction", e.g. "basePrice,desc"; field is title or basePrice
+    @Parameter(description = "`title` or `basePrice`, optionally followed by `,asc` or `,desc`", example = "basePrice,desc")
     private String sortBy;
 
     // Applied for Catalog Managers only; ignored for every other caller
+    @Parameter(description = "Applied for CATALOG_MANAGER only")
     private ProductStatus status;
 
     // page × size must fit the int row offset Spring Data passes to JPA
+    @Parameter(description = "Zero-based page number, default 0")
     @PositiveOrZero
     @Max(Integer.MAX_VALUE / Paging.MAX_SIZE)
     private Integer page;
 
+    @Parameter(description = "Page size, default 20, at most 100")
     @Positive
     @Max(Paging.MAX_SIZE)
     private Integer size;

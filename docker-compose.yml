@@ -107,6 +107,10 @@ services:
       - "8081:8080"
     env_file:
       - catalog-service/.env
+    environment:
+      # OpenAPI documents and read-only Swagger UI (off by default, see openapi-conventions.md D2)
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
 
   # order-service section
   order-service-postgres:
