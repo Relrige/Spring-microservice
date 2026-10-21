@@ -315,7 +315,7 @@ class ProductControllerTest {
         UUID id = UUID.randomUUID();
         when(productService.browseProducts(any(), any())).thenReturn(new PageResponse<>(List.of(
                 new ProductSummaryResponse(id, "Phone", new BigDecimal("10.00"), CATEGORY_ID,
-                        ProductStatus.ACTIVE, StockStatus.OUT_OF_STOCK)), 0, 1));
+                        ProductStatus.ACTIVE, StockStatus.OUT_OF_STOCK)), 0, 20, 1));
 
         mockMvc.perform(get(URL))
                 .andExpect(status().isOk())
@@ -325,6 +325,7 @@ class ProductControllerTest {
                 .andExpect(jsonPath("$.content[0].stockStatus").value("OUT_OF_STOCK"))
                 .andExpect(jsonPath("$.content[0].description").doesNotExist())
                 .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
                 .andExpect(jsonPath("$.totalElements").value(1));
 
         verify(productService).browseProducts(any(), isNull());
@@ -332,7 +333,7 @@ class ProductControllerTest {
 
     @Test
     void browse_passesTheRoleFromTheTrustedHeaders() throws Exception {
-        when(productService.browseProducts(any(), any())).thenReturn(new PageResponse<>(List.of(), 0, 0));
+        when(productService.browseProducts(any(), any())).thenReturn(new PageResponse<>(List.of(), 0, 20, 0));
 
         mockMvc.perform(get(URL).headers(asUser("CUSTOMER"))).andExpect(status().isOk());
         mockMvc.perform(get(URL).headers(asManager())).andExpect(status().isOk());
@@ -346,7 +347,7 @@ class ProductControllerTest {
 
     @Test
     void browse_bindsQueryParameters() throws Exception {
-        when(productService.browseProducts(any(), any())).thenReturn(new PageResponse<>(List.of(), 2, 0));
+        when(productService.browseProducts(any(), any())).thenReturn(new PageResponse<>(List.of(), 2, 5, 0));
 
         mockMvc.perform(get(URL).headers(asManager())
                         .param("search", "phone").param("categoryId", CATEGORY_ID.toString())

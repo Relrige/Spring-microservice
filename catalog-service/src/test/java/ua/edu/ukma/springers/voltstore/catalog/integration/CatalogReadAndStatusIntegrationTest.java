@@ -79,11 +79,28 @@ class CatalogReadAndStatusIntegrationTest {
                 .andExpect(jsonPath("$.content.length()").value(1))
                 .andExpect(jsonPath("$.content[0].name").value("Gaming laptops"))
                 .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(1))
                 .andExpect(jsonPath("$.totalElements").value(2));
         mockMvc.perform(get("/catalog/categories").param("search", "50%"))
                 .andExpect(jsonPath("$.content[*].name", containsInAnyOrder("50% off")));
         mockMvc.perform(get("/catalog/categories").param("size", "101"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void lists_reportTheEffectivePageSize() throws Exception {
+        insertActive(categoryId, "Ultrabook", "light laptop", "1500.00");
+
+        // size is the effective page size (default 20), not the number of items on the page
+        for (String url : new String[]{"/catalog/categories", "/catalog/products"}) {
+            mockMvc.perform(get(url))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content.length()").value(1))
+                    .andExpect(jsonPath("$.size").value(20));
+            mockMvc.perform(get(url).param("size", "5"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.size").value(5));
+        }
     }
 
     // --- EP-CAT-03: change status ---
@@ -204,6 +221,7 @@ class CatalogReadAndStatusIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(cheap.toString())))
                 .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(1))
                 .andExpect(jsonPath("$.totalElements").value(2));
         mockMvc.perform(get("/catalog/products").param("search", "CAMERA").param("minPrice", "100").param("maxPrice", "400"))
                 .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(mid.toString())));
