@@ -1,6 +1,6 @@
 # AGENTS.md — VoltStore Frontend
 
-Operating manual for AI agents (Claude, Gemini, Codex, …) working in `frontend/`. It **replaces parts of the root [`../AGENTS.md`](../AGENTS.md)** for this folder only; everything not overridden here still applies.
+Operating manual for AI agents (Claude, Gemini, Codex, …) working in `frontend/`. The root [`../AGENTS.md`](../AGENTS.md) describes the project as a whole; how agents work inside `frontend/` is defined here.
 
 ---
 
@@ -10,16 +10,15 @@ Operating manual for AI agents (Claude, Gemini, Codex, …) working in `frontend
 - Its only job is to **demonstrate the microservices** end to end. Frontend development is **not** a learning goal of the team.
 - The backend is reached only through the API Gateway, under the same origin: the browser calls `/api/<gateway path>` and a proxy strips `/api` (Vite dev proxy now; Ingress rule later). No backend or gateway change is needed for that.
 
-## 2. Fully agentic development (overrides the root AGENTS.md)
+## 2. Fully agentic development
 
-| Root rule | In `frontend/` |
-|---|---|
-| §3.1 Socratic guidance, no full solutions | **Does not apply.** Implement directly; explain decisions briefly, do not teach. |
-| §3.2 Never write code without explicit request | **Does not apply.** Agents write all code, tests, configuration and docs here. |
-| §3.3 No terminal commands without announcing them | **Relaxed.** Run installs, builds, tests and dev servers as needed; say what you ran in the summary. |
-| §3.4 Never commit autonomously | **Does not apply.** Agents commit their own work in `frontend/` without being asked, following §8. Pushing, opening pull requests and merging still wait for a person. |
-| §3.5 English only | **Still applies.** |
-| §3.6 No individual ownership in docs | **Still applies.** |
+Development in `frontend/` is fully agentic. The root working modes (mentor, autopilot) do not apply here, so there is no mode to choose.
+
+- Implement directly; explain decisions briefly, do not teach.
+- Agents write all code, tests, configuration and docs here.
+- Run installs, builds, tests and dev servers as needed; say what you ran in the summary.
+- Agents commit their own work without being asked, following §8. Pushing, opening pull requests and merging still wait for a person.
+- Everything is written in English, and docs never assign work to individual team members.
 
 Hard boundary: **do not change anything outside `frontend/`** (services, gateway, `../docs/`, `../k8s/`, Compose) from frontend work. When the frontend needs something the backend does not provide, add a backlog item (§4) and build a clearly marked workaround or placeholder.
 

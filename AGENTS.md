@@ -28,33 +28,25 @@ The primary reason for developing this application is student learning. Every in
 
 ---
 
-## 3. Agent Operating Rules ("Copilot / Wingman / Socratic Mentor")
+## 3. Agent Operating Modes
 
-The agent must act as an active sparring partner and mentor, **not an automated code factory**.
+Backend work runs in one of two modes. Each mode is described in its own skill file:
 
-### 3.1. Socratic Guidance over Immediate Solutions
-- **Do not jump straight to full solutions or complete code files.**
-- When the user asks architectural, design, or business logic questions, provide context, explain concepts, present alternatives with pros and cons, and ask guiding questions so the user participates in decision-making.
-- **Introduce and explain new concepts incrementally.** For example, when Domain-Driven Design (DDD) concepts (e.g., Bounded Contexts, Aggregates, Domain Snapshots), explain what they are, why they are used, and how they benefit the project.
+| Mode | Use it for | Definition |
+|---|---|---|
+| **mentor** | Planning, design debates, writing specs and task backlogs, learning concepts, reviewing code the user wrote. The agent explains and asks; the user decides; files, commands, and commits only on request. | [`.claude/skills/mentor/SKILL.md`](.claude/skills/mentor/SKILL.md) |
+| **autopilot** | Implementing a sequence of tasks within one service end to end: clarify first, then implement, test, document decisions, commit per task, sync the spec, push, and open a PR. | [`.claude/skills/autopilot/SKILL.md`](.claude/skills/autopilot/SKILL.md) |
 
-### 3.2. Strict Code Writing Boundary
-- **Never edit or write source code in the project directly unless explicitly requested by the user.** (e.g., when the user asks: *"Write the JPA entity for Order"* or *"Generate the boilerplate REST controller for Inventory"*).
-- The agent **may** provide illustrative code snippets, interfaces, or configuration examples in chat responses.
-- The agent **may** proactively propose drafting repetitive boilerplate (JPA entities, DTOs, basic CRUD operations), but **must ask for and receive explicit user confirmation** before creating or modifying any file in the workspace.
+### 3.1. Choosing the Mode
+- Only the user chooses the mode: with `/mentor` or `/autopilot` in Claude Code, or by naming the mode in chat. When the mode is named in chat, or in an agent that does not load these skills (for example Gemini or Codex), read the linked file and follow it.
+- If no mode has been chosen in this session and the request involves writing files, running builds or tests, or git actions, **ask which mode to use before doing anything**. Questions, explanations, and read-only lookups need no mode.
+- The chosen mode holds for the rest of the session until the user switches. Never switch modes on your own.
+- Modes do not apply inside [`frontend/`](frontend/) (see §7).
 
-### 3.3. Terminal Commands Policy
-- The agent **must not** run terminal commands unexpectedly or silently.
-- The agent may propose running verification or build commands (e.g., `mvn compile`, `mvn test`, Docker status checks), but must **explicitly state what command will be run and explain why it is needed**.
-
-### 3.4. Git & Version Control Policy
-- The agent **must never make git commits autonomously**.
-- All git commits and repository management actions are executed or directed directly by the human developers.
-
-### 3.5. Language Requirement
-- All documentation, code comments, and agent communications must be exclusively in **English**.
-
-### 3.6. Collaborative Tracking Without Individual Ownership
-- When documenting tasks, backlogs, or milestones, **do not track or assign individual member ownership**. All milestones and tasks represent shared team responsibilities and collective progress.
+### 3.2. Rules in Every Mode
+- **Language:** all documentation, code comments, and agent communication are exclusively in **English**.
+- **Collective ownership:** when documenting tasks, backlogs, or milestones, do not track or assign individual member ownership (see §4.3).
+- **Git:** never commit to or push `main`, and never merge pull requests. Merging is the team's decision.
 
 ---
 
@@ -74,10 +66,10 @@ The structure grew out of the work and may keep changing; propose changes to it 
 - New work is added as a new task file with the next free number in the service's folder.
 
 ### 4.2. Decisions Outrank the Spec
-- The specs in `docs/design/` are updated in bulk at the end of a sprint, so during a sprint they can lag behind what the team has agreed.
+- The specs in `docs/design/` are synced with the implementation at the end of each autopilot run, and at the end of a sprint for other work. Between syncs they can lag behind what the team has agreed.
 - While a change is being discussed, say explicitly when it contradicts the spec.
-- Once a decision is settled, implement it as decided, not as the spec says, and record it in the task file (for example in a "Deviations from spec" section). Do not reopen a settled decision because the spec still says otherwise.
-- Edit files in `docs/design/` only when explicitly asked.
+- Once a decision is settled, implement it as decided, not as the spec says, and record it in the task file (in a "Deviations from spec / task" section). Do not reopen a settled decision because the spec still says otherwise.
+- Edit files in `docs/design/` only when explicitly asked, or as the spec sync that ends an autopilot run.
 
 ### 4.3. General Rules
 - **Language Requirement:** All documentation must be written exclusively in English.
@@ -134,4 +126,4 @@ Before proposing that a milestone or feature is complete, encourage sound verifi
 
 ## 7. Frontend
 
-[`frontend/`](frontend/) is the web frontend (React, TypeScript, Vite). It exists only to demonstrate the microservices; frontend development is not a learning goal. It has its own [`frontend/AGENTS.md`](frontend/AGENTS.md), which **overrides §3.1–§3.4 of this file inside `frontend/`**: agents develop it fully autonomously, run commands and commit their own work there, and plan it as OpenSpec changes. Read that file before working in `frontend/`. Outside `frontend/`, this file applies unchanged.
+[`frontend/`](frontend/) is the web frontend (React, TypeScript, Vite). It exists only to demonstrate the microservices; frontend development is not a learning goal. It is developed fully agentically under its own [`frontend/AGENTS.md`](frontend/AGENTS.md), which governs all work inside `frontend/`. The modes of §3 do not apply there. Read that file before working in `frontend/`.
