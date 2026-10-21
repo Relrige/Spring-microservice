@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Storefront product list</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#f5f7fa}
+a{color:#1f55e0}a:hover{color:#1843b3}
+</style>
+</helmet>
+<div style="min-height: 1480px; background: #f5f7fa; color: #111723; font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 15px; line-height: 22px; font-feature-settings: 'tnum';">
+
+<header style="background: #ffffff; border-bottom: 1px solid #d5dbe4;">
+<div style="max-width: 1200px; margin: 0 auto; padding: 0 24px; min-height: 64px; display: flex; flex-wrap: wrap; align-items: center; gap: 24px;">
+<a href="Main.dc.html" style="text-decoration: none; color: #111723; font-size: 20px; font-weight: 700; letter-spacing: -0.01em;"><span style="border-bottom: 4px solid #ffd319; padding-bottom: 1px;">Volt</span>Store</a>
+<form style="flex: 1 1 320px; display: flex; gap: 8px; min-width: 0;" role="search">
+<label for="q" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Search products</label>
+<input id="q" type="search" placeholder="Search phones, laptops, headphones…" style="flex: 1 1 auto; min-width: 0; height: 40px; box-sizing: border-box; padding: 0 12px; border: 1px solid #7b8599; border-radius: 6px; font: inherit; color: #111723; background: #ffffff;">
+<button type="submit" style="height: 40px; padding: 0 16px; border: 0; border-radius: 6px; background: #1f55e0; color: #ffffff; font: inherit; font-weight: 600;">Search</button>
+</form>
+<nav aria-label="Account" style="display: flex; align-items: center; gap: 16px;">
+<a href="#" style="text-decoration: none; color: #111723; font-weight: 600;">Orders</a>
+<a href="Cart.dc.html" aria-label="Cart, 2 items" style="position: relative; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 6px; color: #111723;">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="2"></circle><circle cx="17" cy="19" r="2"></circle><path d="M17 17H6V3H4"></path><path d="M6 5l14 1l-1 7H6"></path></svg>
+<span style="position: absolute; top: 2px; right: 0; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; background: #ffd319; color: #111723; font-size: 11px; line-height: 18px; font-weight: 700; text-align: center;">2</span>
+</a>
+<button type="button" aria-label="Account menu for olena@example.com" style="display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border: 1px solid #d5dbe4; border-radius: 6px; background: #ffffff; color: #111723; font: inherit;">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"></path></svg>
+<span style="font-size: 13px;">olena@example.com</span>
+</button>
+</nav>
+</div>
+</header>
+
+<main style="max-width: 1200px; margin: 0 auto; padding: 32px 24px 48px; display: flex; flex-direction: column; gap: 24px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 style="margin: 0; font-size: 28px; line-height: 34px; font-weight: 650; letter-spacing: -0.01em;">All products</h1>
+<p style="margin: 0; color: #566175; font-size: 13px; line-height: 18px;">45 products</p>
+</div>
+<div style="display: flex; align-items: center; gap: 8px;">
+<label for="sort" style="font-size: 13px; color: #566175;">Sort by</label>
+<select id="sort" style="height: 40px; padding: 0 12px; border: 1px solid #7b8599; border-radius: 6px; background: #ffffff; color: #111723; font: inherit;">
+<option>Name A–Z</option><option>Name Z–A</option><option>Price low to high</option><option>Price high to low</option>
+</select>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+<aside aria-label="Filters" style="flex: 1 1 264px; max-width: 264px; box-sizing: border-box; padding: 20px; background: #e9edf3; border-radius: 10px; display: flex; flex-direction: column; gap: 24px;">
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 10px;">
+<legend style="padding: 0 0 10px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #566175;">Category</legend>
+<label style="display: flex; align-items: center; gap: 8px;"><input type="radio" name="cat" checked style="accent-color: #1f55e0; width: 16px; height: 16px;"> All categories</label>
+<label style="display: flex; align-items: center; gap: 8px;"><input type="radio" name="cat" style="accent-color: #1f55e0; width: 16px; height: 16px;"> Accessories</label>
+<label style="display: flex; align-items: center; gap: 8px;"><input type="radio" name="cat" style="accent-color: #1f55e0; width: 16px; height: 16px;"> Audio</label>
+<label style="display: flex; align-items: center; gap: 8px;"><input type="radio" name="cat" style="accent-color: #1f55e0; width: 16px; height: 16px;"> Laptops</label>
+<label style="display: flex; align-items: center; gap: 8px;"><input type="radio" name="cat" style="accent-color: #1f55e0; width: 16px; height: 16px;"> Phones</label>
+</fieldset>
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 10px;">
+<legend style="padding: 0 0 10px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #566175;">Price, UAH</legend>
+<div style="display: flex; gap: 8px; align-items: center;">
+<label for="min" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Minimum price</label>
+<input id="min" inputmode="decimal" placeholder="Min" style="width: 0; flex: 1 1 0; height: 40px; box-sizing: border-box; padding: 0 10px; border: 1px solid #7b8599; border-radius: 6px; font: inherit; background: #ffffff; color: #111723;">
+<span style="color: #566175;">–</span>
+<label for="max" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Maximum price</label>
+<input id="max" inputmode="decimal" placeholder="Max" style="width: 0; flex: 1 1 0; height: 40px; box-sizing: border-box; padding: 0 10px; border: 1px solid #7b8599; border-radius: 6px; font: inherit; background: #ffffff; color: #111723;">
+</div>
+<button type="button" style="height: 40px; border: 1px solid #1f55e0; border-radius: 6px; background: #ffffff; color: #1f55e0; font: inherit; font-weight: 600;">Apply price</button>
+</fieldset>
+<a href="#" style="font-size: 13px; font-weight: 600;">Clear filters</a>
+</aside>
+
+<section aria-label="Products" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 24px;">
+<sc-for list="{{products}}" as="p" hint-placeholder-count="8">
+<a href="Product.dc.html" style="text-decoration: none; color: #111723; background: #ffffff; border: 1px solid #d5dbe4; border-radius: 10px; overflow: hidden; display: flex; flex-direction: column;">
+<div style="aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; background: {{p.bg}}; color: {{p.ink}};">
+<sc-if value="{{p.isPhone}}" hint-placeholder-val="{{true}}"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="2"></rect><path d="M11 4h2"></path><path d="M12 17v.01"></path></svg></sc-if>
+<sc-if value="{{p.isLaptop}}" hint-placeholder-val="{{false}}"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1"></rect><path d="M2 19h20"></path></svg></sc-if>
+<sc-if value="{{p.isAudio}}" hint-placeholder-val="{{false}}"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="13" width="5" height="7" rx="2"></rect><rect x="15" y="13" width="5" height="7" rx="2"></rect><path d="M4 15v-3a8 8 0 0 1 16 0v3"></path></svg></sc-if>
+<sc-if value="{{p.isAccessory}}" hint-placeholder-val="{{false}}"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7V3"></path><path d="M15 7V3"></path><path d="M6 7h12v4a6 6 0 0 1-12 0z"></path><path d="M12 17v4"></path></svg></sc-if>
+</div>
+<div style="padding: 16px; display: flex; flex-direction: column; gap: 8px; flex: 1 1 auto;">
+<h2 style="margin: 0; font-size: 16px; line-height: 24px; font-weight: 600;">{{p.title}}</h2>
+<div style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+<span style="font-size: 20px; line-height: 24px; font-weight: 700;">{{p.price}}</span>
+<span style="padding: 2px 8px; border-radius: 6px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; background: {{p.chipBg}}; color: {{p.chipInk}};">{{p.stock}}</span>
+</div>
+</div>
+</a>
+</sc-for>
+</div>
+<nav aria-label="Pages" style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+<button type="button" disabled style="height: 40px; padding: 0 14px; border: 1px solid #d5dbe4; border-radius: 6px; background: #ffffff; color: #111723; font: inherit; opacity: 0.45;">Previous</button>
+<span aria-current="page" style="min-width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; background: #1f55e0; color: #ffffff; font-weight: 600;">1</span>
+<a href="#" style="min-width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; color: #111723; text-decoration: none;">2</a>
+<a href="#" style="min-width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; color: #111723; text-decoration: none;">3</a>
+<a href="#" style="height: 40px; padding: 0 14px; display: inline-flex; align-items: center; border: 1px solid #d5dbe4; border-radius: 6px; background: #ffffff; color: #111723; text-decoration: none;">Next</a>
+</nav>
+</section>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1480}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const cat = {
+      phone: { bg: '#dfe8ff', ink: '#1f55e0', isPhone: true },
+      laptop: { bg: '#fff1bf', ink: '#7a5c00', isLaptop: true },
+      audio: { bg: '#d9f2e6', ink: '#18794e', isAudio: true },
+      accessory: { bg: '#ffe3da', ink: '#b0402a', isAccessory: true }
+    };
+    const inStock = { stock: 'In stock', chipBg: '#e3f5ec', chipInk: '#18794e' };
+    const outStock = { stock: 'Out of stock', chipBg: '#fde9e8', chipInk: '#c4302b' };
+    const rows = [
+      ['Anker 737 power bank, 24,000 mAh', 'UAH 4,899.00', 'accessory', inStock],
+      ['Apple iPhone 16, 128 GB, Black', 'UAH 37,999.00', 'phone', inStock],
+      ['ASUS Vivobook 15 OLED, Core i5, 16 GB', 'UAH 27,499.00', 'laptop', outStock],
+      ['Baseus 65 W GaN charger, 3 ports', 'UAH 1,599.00', 'accessory', outStock],
+      ['JBL Flip 6 portable speaker', 'UAH 4,299.00', 'audio', inStock],
+      ['Lenovo IdeaPad Slim 5 14", Ryzen 7', 'UAH 32,999.00', 'laptop', inStock],
+      ['Samsung Galaxy A56 5G, 256 GB', 'UAH 17,499.00', 'phone', inStock],
+      ['Sony WH-1000XM5 headphones', 'UAH 12,999.00', 'audio', inStock]
+    ];
+    const products = rows.map(([title, price, c, s]) => ({ title, price, isPhone: false, isLaptop: false, isAudio: false, isAccessory: false, ...cat[c], ...s }));
+    return { products };
+  }
+}
+</script>
+</body>
+</html>
