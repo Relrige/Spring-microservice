@@ -1,0 +1,41 @@
+# Grafana Tempo in monolithic mode (one process runs every component): receives the sampled traces from the gateway
+# collector over OTLP gRPC and serves them to Grafana on 3200. Traces are kept for 2 days, like Prometheus' metrics.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo-config
+  namespace: voltstore
+data:
+  tempo.yaml: |
+    # Lets Grafana stream search results over HTTP (no separate gRPC port needed)
+    stream_over_http_enabled: true
+
+    server:
+      http_listen_port: 3200
+      log_level: info
+
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+
+    ingester:
+      # A trace becomes searchable in the backend blocks after at most this long
+      max_block_duration: 5m
+
+    compactor:
+      compaction:
+        block_retention: 48h
+
+    storage:
+      trace:
+        backend: local
+        wal:
+          path: /var/tempo/wal
+        local:
+          path: /var/tempo/blocks
+
+    usage_report:
+      reporting_enabled: false

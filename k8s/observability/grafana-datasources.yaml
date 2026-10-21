@@ -1,0 +1,28 @@
+# Grafana data sources, provisioned from this file at startup (nothing is clicked together in the UI, so nothing is
+# lost with the pod). Fixed uids, so the links between them (task 06: span -> logs, log -> trace) can refer to
+# each other.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: voltstore
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: http://tempo:3200
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://loki:3100

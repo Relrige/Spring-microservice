@@ -1,0 +1,90 @@
+# Agent collector configuration (decisions 1 and 2): runs on every node, tails the log files of the voltstore pods
+# on that node and ships them to Loki. The services only print JSON lines to stdout; they know nothing about Loki.
+#
+# This is the transport only. Task 05 adds parsing of the services' ECS JSON lines (body, severity, traceId).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-agent-config
+  namespace: voltstore
+data:
+  config.yaml: |
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+      # Remembers how far each file was read, on the node's disk (hostPath), so a restarted agent continues where it
+      # stopped instead of skipping or re-sending lines
+      file_storage:
+        directory: /var/lib/otelcol/file_storage
+
+    receivers:
+      filelog:
+        # The kubelet writes each container's stdout/stderr to /var/log/pods/<namespace>_<pod>_<uid>/<container>/N.log
+        include:
+          - /var/log/pods/voltstore_*/*/*.log
+        # The agent's own output would otherwise be read back and shipped again
+        exclude:
+          - /var/log/pods/voltstore_otel-agent-*/*/*.log
+        # Only at the very first start; files that appear later (new pods) are read from their beginning, and after a
+        # restart file_storage gives the saved offsets
+        start_at: end
+        include_file_path: true
+        include_file_name: false
+        storage: file_storage
+        operators:
+          # Unwraps the container runtime's format (Docker JSON or CRI text), joins partial lines, and sets
+          # k8s.namespace.name, k8s.pod.name, k8s.pod.uid and k8s.container.name from the file path
+          - type: container
+            id: container-parser
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+      # Adds the pod's metadata from the Kubernetes API; service.name comes from the pod label "app", the same
+      # label Prometheus uses for "application" and the services use for spring.application.name
+      k8sattributes:
+        auth_type: serviceAccount
+        filter:
+          # Only pods on this agent's own node, only in voltstore (allows a namespaced Role instead of a ClusterRole)
+          node_from_env_var: K8S_NODE_NAME
+          namespace: voltstore
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.deployment.name
+            - k8s.node.name
+          labels:
+            - tag_name: service.name
+              key: app
+              from: pod
+        pod_association:
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.uid
+      batch: { }
+
+    exporters:
+      # Loki's native OTLP endpoint: resource attributes such as service.name and k8s.namespace.name become stream
+      # labels, the rest is stored as structured metadata
+      otlphttp/loki:
+        endpoint: http://loki:3100/otlp
+
+    service:
+      extensions: [ health_check, file_storage ]
+      pipelines:
+        logs:
+          receivers: [ filelog ]
+          processors: [ memory_limiter, k8sattributes, batch ]
+          exporters: [ otlphttp/loki ]
+      telemetry:
+        metrics:
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: 0.0.0.0
+                    port: 8888
