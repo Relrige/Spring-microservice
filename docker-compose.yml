@@ -232,6 +232,10 @@ services:
       - "8084:8080"
     env_file:
       - inventory-service/.env
+    environment:
+      # OpenAPI documents and read-only Swagger UI (off by default, see openapi-conventions.md D2)
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
 
   # payment-service section
   payment-service-postgres:
