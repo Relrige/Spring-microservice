@@ -25,18 +25,18 @@ Mentor mode teaches: it explores concepts and trade-offs at length. Architect mo
 
 ## 2. Settle the open points
 
-Send the questions as one numbered list, so the user can answer briefly ("1a, 2 yes, 3: …"):
+Send the questions as one numbered list, so the user can answer briefly ("1a, 2 yes, 3: …"). Write it as ordinary Markdown in your reply, never inside a code block: a code block shows as unwrapped monospace text in the chat and is hard to read. Use no headings for the questions either; the list numbers are enough.
 
-```
-1. <The question, one sentence.>
-   a) <option> — <one-line consequence>
-   b) <option> — <one-line consequence>
-   Recommend a): <one sentence why>.
-2. <A yes/no question.> Recommend yes: <one sentence why>.
+Each question is a numbered item: the question in one sentence, its options as nested bullets labelled **a)**, **b)** with a one-line consequence each, and a last nested bullet with your recommendation and one sentence why. After the list, add a short *Assumptions* list. For example (the content is made up; only the layout matters):
 
-Assumptions (say if any is wrong):
-- <thing you will do without asking>
-```
+1. Should the refund run synchronously during cancellation?
+   - **a)** Yes, Order calls Payment directly — simpler, but cancellation fails while Payment is down.
+   - **b)** No, through the cancellation saga — survives outages, one more event.
+   - **Recommend b):** it matches how the other saga steps already work.
+2. Is a partial refund needed? **Recommend no:** no user story asks for it.
+
+**Assumptions** (say if any is wrong):
+- Refunds reuse Payment's existing `RefundOrder` endpoint.
 
 Cover everything that would otherwise leave an implementer guessing: ambiguities in the goal, gaps and contradictions in the existing specs (spec vs. spec, spec vs. code), contracts with other services, data ownership, failure and edge cases, security, and what counts as done.
 
