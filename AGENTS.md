@@ -30,15 +30,16 @@ The primary reason for developing this application is student learning. Every in
 
 ## 3. Agent Operating Modes
 
-Backend work runs in one of two modes. Each mode is described in its own skill file:
+Backend work runs in one of three modes. Each mode is described in its own skill file:
 
 | Mode | Use it for | Definition |
 |---|---|---|
-| **mentor** | Planning, design debates, writing specs and task backlogs, learning concepts, reviewing code the user wrote. The agent explains and asks; the user decides; files, commands, and commits only on request. | [`.claude/skills/mentor/SKILL.md`](.claude/skills/mentor/SKILL.md) |
+| **mentor** | Learning concepts, debating architecture and trade-offs, reviewing code the user wrote. The agent explains and asks; the user decides; files, commands, and commits only on request. | [`.claude/skills/mentor/SKILL.md`](.claude/skills/mentor/SKILL.md) |
+| **design** | Turning a goal into specs and task files for later implementation: understand the goal, surface ambiguities, propose concise options, settle everything, then write the documents. | [`.claude/skills/design/SKILL.md`](.claude/skills/design/SKILL.md) |
 | **autopilot** | Implementing a sequence of tasks within one service end to end: clarify first, then implement, test, document decisions, commit per task, sync the spec, push, and open a PR. | [`.claude/skills/autopilot/SKILL.md`](.claude/skills/autopilot/SKILL.md) |
 
 ### 3.1. Choosing the Mode
-- Only the user chooses the mode: with `/mentor` or `/autopilot` in Claude Code, or by naming the mode in chat. When the mode is named in chat, or in an agent that does not load these skills (for example Gemini or Codex), read the linked file and follow it.
+- Only the user chooses the mode: with `/mentor`, `/design`, or `/autopilot` in Claude Code, or by naming the mode in chat. When the mode is named in chat, or in an agent that does not load these skills (for example Gemini or Codex), read the linked file and follow it.
 - If no mode has been chosen in this session and the request involves writing files, running builds or tests, or git actions, **ask which mode to use before doing anything**. Questions, explanations, and read-only lookups need no mode.
 - The chosen mode holds for the rest of the session until the user switches. Never switch modes on your own.
 - Modes do not apply inside [`frontend/`](frontend/) (see §7).
@@ -69,7 +70,7 @@ The structure grew out of the work and may keep changing; propose changes to it 
 - The specs in `docs/design/` are synced with the implementation at the end of each autopilot run, and at the end of a sprint for other work. Between syncs they can lag behind what the team has agreed.
 - While a change is being discussed, say explicitly when it contradicts the spec.
 - Once a decision is settled, implement it as decided, not as the spec says, and record it in the task file (in a "Deviations from spec / task" section). Do not reopen a settled decision because the spec still says otherwise.
-- Edit files in `docs/design/` only when explicitly asked, or as the spec sync that ends an autopilot run.
+- Edit files in `docs/design/` only when explicitly asked, in design mode, or as the spec sync that ends an autopilot run.
 
 ### 4.3. General Rules
 - **Language Requirement:** All documentation must be written exclusively in English.

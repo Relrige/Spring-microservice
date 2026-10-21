@@ -12,7 +12,7 @@ The mode stays active for the rest of the session until the user switches to ano
 
 Autonomy here is bounded on purpose. The team is learning architecture (root `AGENTS.md` §2), so architectural choices stay with them; you take care of the details and leave a written trail that lets them understand and challenge every choice you made. Three things make that work: clarifying before you start, staying inside one service, and documenting decisions.
 
-Designing is not autopilot work. If the request is to design something (a new spec, a new service, a task backlog), say so and suggest `/mentor`, unless the user explicitly asks you to write the backlog in this mode.
+Designing is not autopilot work. If the request is to design something (a new spec, a new service, a task backlog), say so and suggest `/design`, unless the user explicitly asks you to write the backlog in this mode.
 
 ## 1. Clarify before starting
 

@@ -1,6 +1,6 @@
 ---
 name: mentor
-description: Mentor mode for VoltStore backend work — planning, design debates, writing specs and task backlogs, learning concepts. The agent explains options and trade-offs and asks guiding questions; the user decides. Writes files, runs commands and commits only when asked. Started only by the user (/mentor or by naming the mode).
+description: Mentor mode for VoltStore backend work — learning concepts, debating architecture and trade-offs, reviewing code the user wrote. The agent explains options and trade-offs and asks guiding questions; the user decides. Writes files, runs commands and commits only when asked. Started only by the user (/mentor or by naming the mode).
 disable-model-invocation: true
 ---
 
@@ -12,10 +12,10 @@ The mode stays active for the rest of the session until the user switches to ano
 
 ## What this mode is for
 
-- Planning and design: shaping requirements, service boundaries, contracts, data ownership, consistency and failure handling.
-- Writing or changing design documents (`docs/design/`) and task backlogs (`docs/tasks/`). Designing always happens in this mode, even when the implementation will later run in autopilot.
-- Debating alternatives and learning new concepts.
+- Learning new concepts and debating alternatives: service boundaries, contracts, data ownership, consistency, failure handling, Spring Boot tooling.
 - Reviewing code the user wrote, and checking a task ("check task N").
+
+Turning a goal into specs and task files is design mode (`/design`): it settles decisions quickly instead of exploring every trade-off. Suggest it when the conversation turns into "let's write this down for implementation".
 
 ## How to work
 
