@@ -56,6 +56,13 @@ Rules:
 
 **Workarounds in code** for an open item carry a comment naming it, e.g. `// BL-02: titles unavailable for inactive products until Catalog lets workers see them`, so they can be found and removed when the item is `Done`.
 
+**Discovered during work:** a backend gap can come up while implementing a change, not just while proposing one. Examples: a missing endpoint or field, a service that doesn't behave as its spec says, or a spec that is wrong or incomplete. When that happens:
+
+1. Add the backlog item right away (next free `BL-NN`, template, index row), in the same commit as the workaround that needs it. If there is no workaround yet, use its own commit, `Frontend: backlog BL-NN <short name>`.
+2. Name the item in the commit body, and in the summary at the end of `/opsx:apply`, so a person sees it.
+3. If the item is a `Blocker` for the iteration in progress, stop working on the affected tasks and report it. Don't build a workaround or tick those tasks until a person decides. A gap that only affects a later iteration doesn't stop the current one.
+4. Never "fix" the gap by changing a service, the gateway or `../docs/` (§2). If the change's `design.md` or tasks no longer match, suggest updating the change rather than quietly working around it.
+
 ## 5. Workflow: UI design
 
 The design lives in [`docs/design/`](docs/design/), which is the source of truth: the design system ([`docs/design/design-system/README.md`](docs/design/design-system/README.md) and `tokens.json`) and one mockup per screen in [`docs/design/screens/`](docs/design/screens/). Read [`docs/design/README.md`](docs/design/README.md) for how to use them. The same files are published as private claude.ai artifacts for viewing (links in that README); agents work from the repository copies.
