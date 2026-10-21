@@ -49,6 +49,7 @@ A request's `X-Correlation-Id` is kept in the logging context (a new ID is gener
 - Extra properties: `errors` (`400`, map of field or parameter → messages), `insufficientItems` (`422` of EP-INV-06), `reason` (`422` of EP-INV-04/05).
 - The `503` of EP-INV-02/03 has a fixed `detail` ("The product cannot be checked in the catalog right now. Please try again later.") and the header `Retry-After: 10`; hosts, Catalog's status and causes are only logged.
 - `400` = malformed request: invalid JSON, a field rule broken, a non-UUID path variable, a non-integer number (for example `1.5` for an integer field). `422` = a well-formed request that cannot be done in the current state. Unexpected errors → `500` with a generic message; the stack trace is only logged.
+- **OpenAPI:** the API is also described by an OpenAPI document generated from the code, `inventory-service/openapi/public.json` and `internal.json` ([OpenAPI Conventions](../services-requirements/openapi-conventions.md)); its error responses reference the named problem schemas listed there.
 
 | Error | Status | Extra property |
 |---|---|---|

@@ -53,6 +53,7 @@ Authentication follows the [Security Model](../services-requirements/security-mo
 - `400` = malformed request (invalid JSON, a field rule broken, a non-UUID path variable) with a field-level `errors` map. `422` = a well-formed request that cannot be done in the current state. Unexpected errors → `500` with a generic message; the stack trace is only logged.
 - A dependency that is down or too slow → `503 Service Unavailable` with a fixed `detail` and `Retry-After`; hosts, upstream statuses and causes are only logged.
 - Card data (EP-ORD-03) is never logged or echoed in an error, exactly as in Payment Service (see its *Card Data* section).
+- **OpenAPI:** the API is also described by an OpenAPI document generated from the code, `order-service/openapi/public.json` ([OpenAPI Conventions](../services-requirements/openapi-conventions.md)); its error responses reference the named problem schemas listed there.
 
 | Error | Status | Extra property |
 |---|---|---|

@@ -45,6 +45,7 @@ Authentication follows the [Security Model](../services-requirements/security-mo
 - Errors use the shared RFC 9457 `ProblemDetail` shape (`type`, `title`, `status`, `detail`, `timestamp`, `service`) with `type` = `https://voltstore.com/errors/{validation | not-found | conflict | ttn-generation-failed | unauthorized | forbidden | internal-error}`.
 - `400` = malformed request (invalid JSON, a broken field rule, a non-UUID path or query value), always with an `errors` property (`{field: [messages]}`; `body` for invalid JSON). `409` = a well-formed request that the shipment's current state does not allow. Unexpected errors → `500` with a generic message.
 - A successful call with nothing to return answers `204 No Content` (cancel).
+- **OpenAPI:** the API is also described by an OpenAPI document generated from the code, `delivery-service/openapi/public.json` and `internal.json` ([OpenAPI Conventions](../services-requirements/openapi-conventions.md)); its error responses reference the named problem schemas listed there.
 
 | Error | Status | Extra property |
 |---|---|---|
