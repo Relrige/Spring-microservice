@@ -66,7 +66,7 @@ test('register, log out, log in again', async ({ page }) => {
 test('staff login lands in its area', async ({ page }) => {
   const cases = [
     { account: manager, path: '/manage', heading: 'Catalog console' },
-    { account: worker, path: '/warehouse', heading: 'Warehouse' },
+    { account: worker, path: '/warehouse', heading: 'Stock' },
     { account: adminAccount(), path: '/admin', heading: 'Administration' },
   ];
   for (const { account, path, heading } of cases) {

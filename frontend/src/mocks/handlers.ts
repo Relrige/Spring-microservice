@@ -10,6 +10,9 @@ import type { components as AuthComponents } from '../api/generated/auth';
 import type { components as CatalogComponents } from '../api/generated/catalog';
 import type { components as CustomerComponents } from '../api/generated/customer';
 import type { components as OrderComponents } from '../api/generated/order';
+import type { components as InventoryComponents } from '../api/generated/inventory';
+import type { components as DeliveryComponents } from '../api/generated/delivery';
+import type { DemoPackaging } from '../fixtures/demo-data';
 import type { Received } from '../api/contract';
 import type { CartItem } from '../api/customer';
 import {
@@ -24,7 +27,7 @@ import {
   checkCart,
   type RuleResult,
 } from '../features/cart/cart-rules';
-import { db, type MockOrder, type MockUser } from './db';
+import { db, type MockOrder, type MockProduct, type MockUser } from './db';
 import { createMockToken, readMockToken, type MockClaims } from './tokens';
 
 const api = (path: string) => `*/api${path}`;
@@ -42,6 +45,8 @@ export function compareText(a: string, b: string): number {
 type AuthSchemas = AuthComponents['schemas'];
 type CatalogSchemas = CatalogComponents['schemas'];
 type CustomerSchemas = CustomerComponents['schemas'];
+type InventorySchemas = InventoryComponents['schemas'];
+type DeliverySchemas = DeliveryComponents['schemas'];
 
 /** Default `type` kind and title per status, as the services' exception handlers write them. */
 const KINDS: Record<number, [string, string]> = {
@@ -52,6 +57,7 @@ const KINDS: Record<number, [string, string]> = {
   404: ['not-found', 'Not Found'],
   409: ['conflict', 'Conflict'],
   422: ['unprocessable-entity', 'Unprocessable Entity'],
+  424: ['ttn-generation-failed', 'Failed Dependency'],
   503: ['service-unavailable', 'Service Unavailable'],
 };
 
@@ -367,6 +373,7 @@ const ORDER = 'order-service';
 const PAYMENT_WINDOW_MS = 15 * 60_000;
 const EXPIRY_GRACE_MS = 30_000;
 const TTN_AFTER_MS = 3_000;
+const DELIVERED_AFTER_MS = 30_000;
 const MAX_TOTAL = 9_999_999_999.99;
 const CARRIERS = ['NOVA_POSHTA'];
 
@@ -390,12 +397,36 @@ function progress(order: MockOrder, now = Date.now()): MockOrder {
     order.status = 'EXPIRED';
     release(order);
   }
-  if (order.status === 'PAID' && now - Date.parse(order.paidAt!) >= TTN_AFTER_MS) {
-    order.status = 'PENDING_SHIPPING';
-    order.ttn = `2045${order.orderId.replace(/\D/g, '').padEnd(10, '0').slice(0, 10)}`;
-    order.deliveryStatus = 'TTN_GENERATED';
+  // Delivery's first TTN attempt; a failed one waits for the worker's retry (EP-DEL-03).
+  const paidFor = now - Date.parse(order.paidAt ?? '');
+  if (order.status === 'PAID' && order.deliveryStatus == null && paidFor >= TTN_AFTER_MS) {
+    generateTtn(order);
+  }
+  if (order.status === 'SHIPPED' && now - Date.parse(order.shippedAt!) >= DELIVERED_AFTER_MS) {
+    order.status = 'DELIVERED';
+    order.deliveryStatus = 'DELIVERED';
   }
   return order;
+}
+
+const packed = (productId: string) => {
+  const packaging = db.products.find((p) => p.productId === productId)?.packaging;
+  return !!packaging && Object.values(packaging).every((value) => value > 0);
+};
+
+/** One TTN attempt; fails with `packaging_data_missing:{productId}` like Delivery does. */
+function generateTtn(order: MockOrder): boolean {
+  const unpacked = order.items.find((item) => !packed(item.productId));
+  if (unpacked) {
+    order.deliveryStatus = 'TTN_FAILED';
+    order.failureReason = `packaging_data_missing:${unpacked.productId}`;
+    return false;
+  }
+  order.status = 'PENDING_SHIPPING';
+  order.ttn = `2045${order.orderId.replace(/\D/g, '').padEnd(10, '0').slice(0, 10)}`;
+  order.deliveryStatus = 'TTN_GENERATED';
+  order.failureReason = undefined;
+  return true;
 }
 
 function ownOrder(claims: MockClaims, id: string): MockOrder | undefined {
@@ -725,9 +756,212 @@ const orderHandlers: HttpHandler[] = [
   }),
 ];
 
+// Worker routes (change inventory-worker-console, design D8).
+const WORKER_ONLY: AuthMode = { required: ['INVENTORY_WORKER'] };
+const INVENTORY = 'inventory-service';
+const HOLDS_STOCK = new Set(['PENDING_PAYMENT', 'PAID', 'PENDING_SHIPPING']);
+const SORTABLE = ['productId', 'title', 'availableQuantity', 'reservedQuantity'] as const;
+type StockRow = InventorySchemas['StockBalanceResponse'];
+
+function stockRow(product: MockProduct): StockRow {
+  const reserved = db.orders
+    .filter((order) => HOLDS_STOCK.has(progress(order).status))
+    .flatMap((order) => order.items)
+    .filter((item) => item.productId === product.productId)
+    .reduce((sum, item) => sum + item.quantity, 0);
+  return {
+    productId: product.productId,
+    title: product.title,
+    productStatus: product.status,
+    availableQuantity: product.available,
+    reservedQuantity: reserved,
+    totalQuantity: product.available + reserved,
+    packagingConfigured: packed(product.productId),
+  };
+}
+
+const workerHandlers: HttpHandler[] = [
+  // Inventory spec EP-INV-01: stock balances with the copied product data.
+  http.get(api('/inventory/stock'), ({ request }) => {
+    const { denied } = authenticate(request, WORKER_ONLY);
+    if (denied) return denied;
+    const params = new URL(request.url).searchParams;
+    const errors: Record<string, string[]> = {};
+    const page = intParam(params.get('page'), 0);
+    const size = intParam(params.get('size'), 20);
+    if (page === undefined) errors.page = ['must be a non-negative integer'];
+    if (size === undefined || size < 1 || size > 100) errors.size = ['must be between 1 and 100'];
+    const packaging = params.get('packagingConfigured');
+    if (packaging !== null && packaging !== 'true' && packaging !== 'false') {
+      errors.packagingConfigured = ['must be true or false'];
+    }
+    const status = params.get('productStatus') || null;
+    if (status !== null && status !== 'ACTIVE' && status !== 'NOT_ACTIVE') {
+      errors.productStatus = ['must be ACTIVE or NOT_ACTIVE'];
+    }
+    const sort = /^(\w+)(?:,(asc|desc))?$/i.exec(params.get('sortBy') ?? 'productId');
+    const field = sort?.[1] as (typeof SORTABLE)[number] | undefined;
+    if (!field || !SORTABLE.includes(field)) errors.sortBy = ['unknown sort field'];
+    if (Object.keys(errors).length > 0) {
+      return problem(400, 'Invalid request parameters', { errors }, INVENTORY);
+    }
+    const search = params.get('search')?.trim().toLowerCase();
+    const direction = sort![2]?.toLowerCase() === 'desc' ? -1 : 1;
+    const rows = db.products
+      .map(stockRow)
+      .filter((row) => packaging === null || String(row.packagingConfigured) === packaging)
+      .filter((row) => !status || row.productStatus === status)
+      .filter((row) => !search || (row.title ?? '').toLowerCase().includes(search))
+      .sort((a, b) => {
+        const [x, y] = [a[field!], b[field!]];
+        // Rows without a title come last in both directions.
+        if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1;
+        const order = typeof x === 'number' ? x - (y as number) : compareText(String(x), String(y));
+        return order * direction || compareText(a.productId, b.productId);
+      });
+    return HttpResponse.json({
+      content: rows.slice(page! * size!, page! * size! + size!),
+      page: page!,
+      size: size!,
+      totalElements: rows.length,
+    } satisfies InventorySchemas['PageResponseStockBalanceResponse']);
+  }),
+
+  // EP-INV-02: restock or write off.
+  http.post(api('/inventory/stock/:productId/adjust'), async ({ request, params }) => {
+    const { denied } = authenticate(request, WORKER_ONLY);
+    if (denied) return denied;
+    const delta = (await readJson(request))?.delta;
+    if (typeof delta !== 'number' || !Number.isInteger(delta) || delta === 0) {
+      return problem(
+        400,
+        'Validation failed',
+        { errors: { delta: ['must be a non-zero integer'] } },
+        INVENTORY,
+      );
+    }
+    const product = db.products.find((p) => p.productId === String(params.productId));
+    if (!product) return problem(404, 'Product not found', {}, INVENTORY);
+    if (product.available + delta < 0) {
+      return problem(
+        422,
+        'Insufficient available stock for write-off',
+        {},
+        INVENTORY,
+        'insufficient-stock',
+      );
+    }
+    setStock(product.productId, delta);
+    return HttpResponse.json({
+      newAvailableQuantity: product.available,
+    } satisfies InventorySchemas['AdjustStockResponse']);
+  }),
+
+  // EP-INV-03: replace the four packaging values.
+  http.put(api('/inventory/stock/:productId/packaging'), async ({ request, params }) => {
+    const { denied } = authenticate(request, WORKER_ONLY);
+    if (denied) return denied;
+    const body = (await readJson(request)) ?? {};
+    const fields = ['grossWeightGrams', 'lengthCm', 'widthCm', 'heightCm'] as const;
+    const errors: Record<string, string[]> = {};
+    for (const field of fields) {
+      const value = body[field];
+      if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+        errors[field] = ['must be a positive integer'];
+      }
+    }
+    if (Object.keys(errors).length > 0) {
+      return problem(400, 'Validation failed', { errors }, INVENTORY);
+    }
+    const product = db.products.find((p) => p.productId === String(params.productId));
+    if (!product) return problem(404, 'Product not found', {}, INVENTORY);
+    product.packaging = body as unknown as DemoPackaging;
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Order spec EP-ORD-07: paid orders waiting for dispatch, oldest payment first.
+  http.get(api('/orders/fulfillment-queue'), ({ request }) => {
+    const { denied } = authenticate(request, WORKER_ONLY);
+    if (denied) return denied;
+    const waiting = db.orders
+      .map((order) => progress(order))
+      .filter((order) => order.status === 'PAID' || order.status === 'PENDING_SHIPPING')
+      .sort((a, b) => a.paidAt!.localeCompare(b.paidAt!));
+    return HttpResponse.json({
+      deliveryDataAvailable: true,
+      orders: waiting.map((order) => ({
+        orderId: order.orderId,
+        status: order.status,
+        placedAt: order.placedAt,
+        paidAt: order.paidAt!,
+        items: order.items.map(({ productId, productTitle, quantity }) => ({
+          productId,
+          productTitle,
+          quantity,
+        })),
+        deliveryDetails: order.deliveryDetails,
+        ...(order.deliveryStatus ? { deliveryStatus: order.deliveryStatus } : {}),
+        ...(order.ttn ? { ttn: order.ttn } : {}),
+        ...(order.failureReason ? { failureReason: order.failureReason } : {}),
+      })),
+    } satisfies OrderSchemas['FulfillmentQueueResponse']);
+  }),
+
+  // EP-ORD-08: dispatch; only with a generated TTN.
+  http.post(api('/orders/:orderId/ship'), ({ request, params }) => {
+    const { denied } = authenticate(request, WORKER_ONLY);
+    if (denied) return denied;
+    const found = db.orders.find((o) => o.orderId === String(params.orderId));
+    if (!found) return problem(404, 'Order not found', {}, ORDER);
+    const order = progress(found);
+    if (order.status !== 'PAID' && order.status !== 'PENDING_SHIPPING') {
+      return orderState(order, 'Order is not awaiting dispatch');
+    }
+    if (order.deliveryStatus !== 'TTN_GENERATED') {
+      return problem(409, 'TTN must be generated before dispatching', {}, ORDER, 'conflict');
+    }
+    order.status = 'SHIPPED';
+    order.shippedAt = new Date().toISOString();
+    order.deliveryStatus = 'IN_TRANSIT';
+    return HttpResponse.json({
+      orderId: order.orderId,
+      status: order.status,
+      ttn: order.ttn!,
+    } satisfies OrderSchemas['ShippedOrderResponse']);
+  }),
+
+  // Delivery spec EP-DEL-03: one TTN attempt for a shipment in TTN_FAILED.
+  http.post(api('/delivery/orders/:orderId/ttn/retry'), ({ request, params }) => {
+    const { denied } = authenticate(request, WORKER_ONLY);
+    if (denied) return denied;
+    const found = db.orders.find((o) => o.orderId === String(params.orderId));
+    const order = found && progress(found);
+    if (!order?.deliveryStatus) return problem(404, 'Shipment not found', {}, 'delivery-service');
+    if (order.deliveryStatus !== 'TTN_FAILED') {
+      return problem(
+        409,
+        'Retry is only allowed for shipments in TTN_FAILED status',
+        {},
+        'delivery-service',
+      );
+    }
+    if (!generateTtn(order)) {
+      return problem(
+        424,
+        'TTN generation failed',
+        { reason: order.failureReason! },
+        'delivery-service',
+        'ttn-generation-failed',
+      );
+    }
+    return HttpResponse.json({ ttn: order.ttn! } satisfies DeliverySchemas['RetryTtnResponse']);
+  }),
+];
+
 export const handlers: HttpHandler[] = [
   ...cartHandlers,
   ...profileHandlers,
+  ...workerHandlers,
   ...orderHandlers,
 
   // Auth spec EP-AUTH-01: register a customer.

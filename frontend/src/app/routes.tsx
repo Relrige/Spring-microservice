@@ -8,6 +8,8 @@ import { PaymentPage } from '../features/checkout/PaymentPage';
 import { OrderHistoryPage } from '../features/orders/OrderHistoryPage';
 import { OrderPage } from '../features/orders/OrderPage';
 import { ProfilePage } from '../features/profile/ProfilePage';
+import { QueuePage } from '../features/warehouse/QueuePage';
+import { StockPage } from '../features/warehouse/StockPage';
 import { GuestCartResolver } from '../features/cart/GuestCartResolver';
 import { RegisterPage } from '../features/auth/RegisterPage';
 import { ProductDetailsPage } from '../features/catalog/ProductDetailsPage';
@@ -74,16 +76,19 @@ export const routes: RouteObject[] = [
           </RequireRole>
         ),
       },
+      // Worker pages (change inventory-worker-console, design D3).
       {
-        path: 'warehouse/*',
+        path: 'warehouse',
         element: (
           <RequireRole allow="INVENTORY_WORKER">
-            <AreaPlaceholderPage
-              title="Warehouse"
-              arrives="Stock, packaging and the fulfillment queue arrive in iteration 5 (inventory-worker-console)."
-            />
+            <Outlet />
           </RequireRole>
         ),
+        children: [
+          { index: true, element: <StockPage /> },
+          { path: 'queue', element: <QueuePage /> },
+          { path: '*', element: <NotFoundPage /> },
+        ],
       },
       {
         path: 'admin/*',

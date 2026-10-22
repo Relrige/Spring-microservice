@@ -6,6 +6,7 @@ import { writeGuestCart } from '../features/cart/guest-cart';
 import { db } from '../mocks/db';
 import { recordCartRequests } from '../test/cart';
 import { server } from '../test/server';
+import { addOrder } from '../test/orders';
 import { currentUrl, loginAs, renderApp } from '../test/render';
 import { currentUserText, submitLogin } from '../test/ui';
 
@@ -44,11 +45,17 @@ describe('Protected pages need a login', () => {
     );
   });
 
-  it('shows the placeholder landing pages of the staff areas', async () => {
+  it('shows the placeholder landing page of a staff area without screens yet', async () => {
+    loginAs('ADMIN');
+    renderApp('/admin');
+    expect(await screen.findByRole('heading', { name: 'Administration' })).toBeInTheDocument();
+    expect(screen.getByText(/iteration 6/)).toBeInTheDocument();
+  });
+
+  it("worker's landing: /warehouse is the stock page", async () => {
     loginAs('INVENTORY_WORKER');
     renderApp('/warehouse');
-    expect(await screen.findByRole('heading', { name: 'Warehouse' })).toBeInTheDocument();
-    expect(screen.getByText(/iteration 5/)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Stock' })).toBeInTheDocument();
   });
 });
 
@@ -70,7 +77,7 @@ describe('Role-aware navigation', () => {
     expect(screen.queryByTestId('cart-count')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Log in' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Register' })).toBeInTheDocument();
-    for (const name of ['Catalog console', 'Warehouse', 'Admin']) {
+    for (const name of ['Catalog console', 'Stock', /^Fulfillment queue/, 'Admin']) {
       expect(screen.queryByRole('link', { name })).not.toBeInTheDocument();
     }
   });
@@ -84,7 +91,7 @@ describe('Role-aware navigation', () => {
     );
     expect(currentUserText()).toBe(`${manager.email} · Catalog manager`);
     expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument();
-    for (const name of ['Warehouse', 'Admin', 'Log in', 'Register', /^Cart/]) {
+    for (const name of ['Stock', /^Fulfillment queue/, 'Admin', 'Log in', 'Register', /^Cart/]) {
       expect(screen.queryByRole('link', { name })).not.toBeInTheDocument();
     }
   });
@@ -144,7 +151,9 @@ describe('Customer areas', () => {
     loginAs('INVENTORY_WORKER');
     const calls: string[] = [];
     server.events.on('request:start', ({ request }) => {
-      if (new URL(request.url).pathname.startsWith('/api/orders')) calls.push(request.url);
+      // The worker header's queue count is not an order request of the checkout.
+      const path = new URL(request.url).pathname;
+      if (path.startsWith('/api/orders') && !path.endsWith('/fulfillment-queue')) calls.push(path);
     });
     renderApp('/checkout');
     expect(await screen.findByText('You do not have access to this page')).toBeInTheDocument();
@@ -180,5 +189,20 @@ describe('Customer areas', () => {
     );
     expect(await screen.findByRole('link', { name: /^Cart/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument();
+  });
+});
+
+describe('Worker navigation', () => {
+  it('Worker header: Stock and Fulfillment queue with the count, no cart', async () => {
+    const paid = { status: 'PAID' as const, paidAt: new Date().toISOString() };
+    addOrder(paid);
+    addOrder(paid);
+    loginAs('INVENTORY_WORKER');
+    renderApp('/warehouse');
+    const nav = await screen.findByRole('navigation', { name: 'Main' });
+    expect(within(nav).getByRole('link', { name: 'Stock' })).toHaveAttribute('href', '/warehouse');
+    const queue = await within(nav).findByRole('link', { name: 'Fulfillment queue 2' });
+    expect(queue).toHaveAttribute('href', '/warehouse/queue');
+    expect(screen.queryByRole('link', { name: /^Cart/ })).not.toBeInTheDocument();
   });
 });

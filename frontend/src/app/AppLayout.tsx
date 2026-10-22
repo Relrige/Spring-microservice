@@ -1,4 +1,15 @@
-import { Anchor, AppShell, Box, Burger, Button, Divider, Group, Stack, Text } from '@mantine/core';
+import {
+  Anchor,
+  AppShell,
+  Badge,
+  Box,
+  Burger,
+  Button,
+  Divider,
+  Group,
+  Stack,
+  Text,
+} from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useEffect } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router';
@@ -7,6 +18,7 @@ import { ColorSchemeToggle } from '../components/ColorSchemeToggle';
 import { Wordmark } from '../components/Wordmark';
 import { CartButton } from '../features/cart/CartButton';
 import { SearchForm } from '../features/catalog/SearchForm';
+import { useQueue } from '../features/warehouse/queries';
 import { ROLE_LABELS } from '../session/roles';
 import { useSession } from '../session/SessionProvider';
 import { useIsDesktop } from './layout';
@@ -14,6 +26,8 @@ import { useIsDesktop } from './layout';
 interface NavItem {
   to: string;
   label: string;
+  /** A neutral count badge (no volt in staff screens). */
+  count?: number;
 }
 
 /** Links per role: only pages of the user's own area that exist (spec app-navigation). */
@@ -23,7 +37,10 @@ const AREA_LINKS: Record<Role, NavItem[]> = {
     { to: '/account/profile', label: 'Profile' },
   ],
   CATALOG_MANAGER: [{ to: '/manage', label: 'Catalog console' }],
-  INVENTORY_WORKER: [{ to: '/warehouse', label: 'Warehouse' }],
+  INVENTORY_WORKER: [
+    { to: '/warehouse', label: 'Stock' },
+    { to: '/warehouse/queue', label: 'Fulfillment queue' },
+  ],
   ADMIN: [{ to: '/admin', label: 'Admin' }],
 };
 
@@ -39,7 +56,7 @@ function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => 
           key={item.to}
           component={NavLink}
           to={item.to}
-          end={item.to === '/'}
+          end={item.to === '/' || item.to === '/warehouse'}
           onClick={onNavigate}
           underline="never"
           fw={600}
@@ -47,11 +64,19 @@ function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => 
           py={9}
           style={({ isActive }: { isActive: boolean }) => ({
             borderRadius: 6,
+            display: 'inline-flex',
+            alignItems: 'center',
+            whiteSpace: 'nowrap',
             color: isActive ? 'var(--vs-primary)' : 'var(--vs-ink)',
             background: isActive ? 'var(--vs-primary-soft)' : undefined,
           })}
         >
           {item.label}
+          {item.count ? (
+            <Badge size="sm" variant="light" color="gray" ml={6} circle>
+              {item.count}
+            </Badge>
+          ) : null}
         </Anchor>
       ))}
     </>
@@ -68,9 +93,14 @@ export function AppLayout() {
     if (isDesktop) close();
   }, [isDesktop, close]);
 
+  const isWorker = session?.role === 'INVENTORY_WORKER';
+  const queue = useQueue({ enabled: isWorker, refetchInterval: 30_000 });
+  const waiting = isWorker ? queue.data?.orders.length : undefined;
   const items: NavItem[] = [
     { to: '/', label: 'Catalog' },
-    ...(session ? AREA_LINKS[session.role] : []),
+    ...(session ? AREA_LINKS[session.role] : []).map((item) =>
+      item.to === '/warehouse/queue' ? { ...item, count: waiting } : item,
+    ),
   ];
   const who = session
     ? [session.email, ROLE_LABELS[session.role]].filter(Boolean).join(' · ')

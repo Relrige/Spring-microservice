@@ -120,8 +120,15 @@ export interface components {
             packagingConfigured: boolean;
             /** Format: uuid */
             productId: string;
+            /**
+             * @description Catalog's product status; missing until copied
+             * @enum {string}
+             */
+            productStatus?: "ACTIVE" | "NOT_ACTIVE";
             /** Format: int32 */
             reservedQuantity: number;
+            /** @description Catalog's product title; missing until copied */
+            title?: string;
             /** Format: int32 */
             totalQuantity: number;
         };
@@ -157,12 +164,16 @@ export interface operations {
             query?: {
                 /** @description Only items whose packaging is (or is not) configured */
                 packagingConfigured?: boolean;
+                /** @description Case-insensitive part of the product title; `%` and `_` match literally. Blank means no filter; rows without a copied title never match */
+                search?: string;
+                /** @description Only items whose product has this Catalog status */
+                productStatus?: "ACTIVE" | "NOT_ACTIVE";
                 /** @description Zero-based page number */
                 page?: number;
                 /** @description Page size, at most 100 */
                 size?: number;
                 /**
-                 * @description `productId`, `availableQuantity` or `reservedQuantity`, optionally followed by `,asc` or `,desc`; default `productId`
+                 * @description `productId`, `title`, `availableQuantity` or `reservedQuantity`, optionally followed by `,asc` or `,desc`; default `productId`. Rows without a title come last
                  * @example availableQuantity,desc
                  */
                 sortBy?: string;

@@ -3,6 +3,7 @@ import {
   DEMO_ADMIN,
   DEMO_CART,
   DEMO_CUSTOMER,
+  DEMO_PROFILE,
   DEMO_STAFF,
   type DemoAccount,
 } from '../src/fixtures/demo-data';
@@ -68,7 +69,7 @@ export async function resetDemoCart(request: APIRequestContext) {
     request,
     DEMO_STAFF.find((a) => a.role === 'CATALOG_MANAGER')!,
   );
-  const items = [];
+  const items: { productId: string; quantity: number }[] = [];
   for (const line of DEMO_CART) {
     // The manager also sees the inactive product of the demo cart.
     const found = await request.get('/api/catalog/products', {
@@ -80,10 +81,46 @@ export async function resetDemoCart(request: APIRequestContext) {
     expect(product, `demo product ${line.title}`).toBeDefined();
     items.push({ productId: product!.productId, quantity: line.quantity });
   }
-  const customer = await apiToken(request, DEMO_CUSTOMER);
-  const answer = await request.put('/api/customers/cart', {
-    headers: { Authorization: `Bearer ${customer}` },
-    data: { items },
-  });
-  expect(answer.ok(), 'reset the demo cart').toBe(true);
+  const headers = { Authorization: `Bearer ${await apiToken(request, DEMO_CUSTOMER)}` };
+  // An earlier journey's payment clears ordered lines asynchronously (OrderPaid), possibly
+  // after this reset: check for a few seconds and put the demo cart back if it changed.
+  await expect(async () => {
+    const answer = await request.put('/api/customers/cart', { headers, data: { items } });
+    expect(answer.ok(), 'reset the demo cart').toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    const cart = (await (
+      await request.get('/api/customers/cart', { headers })
+    ).json()) as unknown[];
+    expect(cart).toHaveLength(items.length);
+  }).toPass({ timeout: 15_000 });
+}
+
+/** Logs in as the demo customer and goes from the cart to the payment step of a new order. */
+export async function placeOrder(page: Page): Promise<string> {
+  await page.goto('/login');
+  await logIn(page, DEMO_CUSTOMER.email, DEMO_CUSTOMER.password);
+  await expect(page.getByTestId('current-user')).toContainText(DEMO_CUSTOMER.email);
+
+  await page.getByRole('link', { name: /^Cart, \d+ items?$/ }).click();
+  const gone = page.getByTestId('cart-line').filter({ hasText: 'Product no longer available' });
+  await expect(gone).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Proceed to checkout' })).toBeDisabled();
+  await gone.getByRole('button', { name: 'Remove' }).click();
+  await expect(gone).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Proceed to checkout' }).click();
+  await expect(page).toHaveURL(/\/checkout$/);
+  await expect(page.getByLabel('Recipient')).toHaveValue(
+    `${DEMO_PROFILE.firstName} ${DEMO_PROFILE.lastName}`,
+  );
+  await page.getByRole('button', { name: 'Place order' }).click();
+  await expect(page).toHaveURL(/\/checkout\/[0-9a-f-]{36}$/);
+  return page.url().split('/').pop()!;
+}
+
+export async function pay(page: Page, number: string) {
+  await page.getByLabel('Card number').fill(number);
+  await page.getByLabel('Expiry (MM/YY)').fill('12/30');
+  await page.getByLabel('CVV').fill('123');
+  await page.getByRole('button', { name: /^Pay UAH/ }).click();
 }

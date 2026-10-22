@@ -81,6 +81,23 @@ export function cancelOrder(orderId: string): Promise<Received<Ok<operations['ca
   return request(pathFor('/orders/{orderId}', { orderId }), { method: 'DELETE' });
 }
 
+export type FulfillmentQueue = Received<Ok<operations['queue']>>;
+export type QueueEntry = FulfillmentQueue['orders'][number];
+
+/** EP-ORD-07 (`queue`): paid orders waiting for dispatch, oldest payment first (worker). */
+export function getFulfillmentQueue(
+  options: { signal?: AbortSignal } = {},
+): Promise<FulfillmentQueue> {
+  return request<FulfillmentQueue>(pathFor('/orders/fulfillment-queue'), {
+    signal: options.signal,
+  });
+}
+
+/** EP-ORD-08 (`ship`): `409` unless the order awaits dispatch and its TTN is generated. */
+export function shipOrder(orderId: string): Promise<Received<Ok<operations['ship']>>> {
+  return request(pathFor('/orders/{orderId}/ship', { orderId }), { method: 'POST' });
+}
+
 /** The problems of the order endpoints, told apart by `type` (AGENTS.md §3). */
 export type OrderProblem =
   | { kind: 'ineligible-items'; items: Received<Schemas['IneligibleItem']>[] }
