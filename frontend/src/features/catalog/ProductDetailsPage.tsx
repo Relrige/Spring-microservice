@@ -7,6 +7,7 @@ import { Loading } from '../../components/Loading';
 import { Price } from '../../components/Price';
 import { ProductImage } from '../../components/ProductImage';
 import { StockBadge } from '../../components/StatusChip';
+import { AddToCart } from '../cart/AddToCart';
 import { useCategoryNames, useProduct } from './queries';
 import { catalogUrl, DEFAULT_STATE } from './url-state';
 
@@ -94,6 +95,7 @@ export function ProductDetailsPage() {
               <Price value={data.basePrice} large />
               <StockBadge status={data.stockStatus} />
             </Group>
+            <AddToCart productId={data.productId} stockStatus={data.stockStatus} />
             <Stack gap="sm" pt={20} maw="68ch" style={{ borderTop: '1px solid var(--vs-line)' }}>
               <Title order={2}>Description</Title>
               {paragraphs.map((paragraph, index) => (

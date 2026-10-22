@@ -21,7 +21,7 @@ Apply after `api-contract-types`: `src/api/generated/customer.ts`, `src/api/cont
 - [x] 3.2 Build the cart page as in `Cart.dc.html`: lines with live product data (design D5), unavailable lines, product-load failure with "Try again", stepper and remove, clear with confirmation, empty state, loading and error states; verify with component tests for *Cart with two products*, *Product details cannot be loaded*, *Product deactivated after it was added*, *Product sold out after it was added*, *Increase a quantity*, *Stepper bounds*, *Remove a line*, *Clear after confirming*, *Clear cancelled* and *New visitor opens the cart*
 - [x] 3.3 Add the summary with item count, estimated subtotal in kopecks, the incomplete-subtotal note and the checkout stub (design D5, D9); verify with a unit test for the kopeck sum and component tests for *Summary with an unavailable line* and *Visitor proceeds to checkout*
 - [x] 3.4 Add the header cart control with the volt count badge for visitors and customers, outside the burger menu on phones (design D7), and update the `/account` placeholder text; verify with component tests for *Count after adding*, *Visitor header*, *Manager header* and *Customer header on a phone*
-- [ ] 3.5 Add the quantity selector and "Add to cart" to the product details page (design D8); verify with component tests for *Visitor adds two*, *Out-of-stock product*, *Manager sees no cart action* and *Add is rejected by a limit*
+- [x] 3.5 Add the quantity selector and "Add to cart" to the product details page (design D8); verify with component tests for *Visitor adds two*, *Out-of-stock product*, *Manager sees no cart action* and *Add is rejected by a limit*
 
 ## 4. Guest cart on login
 
