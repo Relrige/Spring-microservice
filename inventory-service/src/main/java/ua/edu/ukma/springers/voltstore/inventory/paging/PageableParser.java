@@ -6,6 +6,7 @@ import org.springframework.data.domain.Sort;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 
 /**
@@ -15,7 +16,8 @@ import java.util.TreeSet;
  * case-insensitive). Only fields from the whitelist are accepted, and the whitelist maps the public name to the
  * entity property, so the API does not expose (or depend on) entity internals. The tiebreaker property is always
  * appended as the last sort key, which keeps page boundaries deterministic when the sorted values are equal.
- * Without {@code sortBy} the result is ordered by the tiebreaker ascending.
+ * Without {@code sortBy} the result is ordered by the tiebreaker ascending. Properties listed as "nulls last" put
+ * rows without a value at the end in both directions (PostgreSQL's default puts them first for {@code desc}).
  */
 public class PageableParser {
     public static final int DEFAULT_SIZE = 20;
@@ -23,10 +25,17 @@ public class PageableParser {
 
     private final Map<String, String> sortableFields;
     private final String tiebreakerProperty;
+    private final Set<String> nullsLastProperties;
 
     public PageableParser(Map<String, String> sortableFields, String tiebreakerProperty) {
+        this(sortableFields, tiebreakerProperty, Set.of());
+    }
+
+    public PageableParser(Map<String, String> sortableFields, String tiebreakerProperty,
+                          Set<String> nullsLastProperties) {
         this.sortableFields = Map.copyOf(sortableFields);
         this.tiebreakerProperty = tiebreakerProperty;
+        this.nullsLastProperties = Set.copyOf(nullsLastProperties);
     }
 
     public Pageable parse(int page, int size, String sortBy) {
@@ -53,7 +62,8 @@ public class PageableParser {
             throw invalidSort();
         }
         Sort.Direction direction = parts.length == 2 ? parseDirection(parts[1]) : Sort.Direction.ASC;
-        Sort requested = Sort.by(direction, property);
+        Sort.Order order = new Sort.Order(direction, property);
+        Sort requested = Sort.by(nullsLastProperties.contains(property) ? order.nullsLast() : order);
         return property.equals(tiebreakerProperty) ? requested : requested.and(tiebreaker);
     }
 

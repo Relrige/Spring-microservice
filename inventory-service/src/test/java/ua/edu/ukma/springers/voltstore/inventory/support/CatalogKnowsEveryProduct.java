@@ -3,6 +3,7 @@ package ua.edu.ukma.springers.voltstore.inventory.support;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import ua.edu.ukma.springers.voltstore.inventory.services.CatalogProductData;
 import ua.edu.ukma.springers.voltstore.inventory.services.ProductCatalog;
 
 /**
@@ -15,6 +16,7 @@ public class CatalogKnowsEveryProduct {
     @Bean
     @Primary
     ProductCatalog everyProductExists() {
-        return productId -> true;
+        // Known, but without product data (no version): the rows get no copy
+        return productIds -> productIds.stream().map(id -> new CatalogProductData(id, null, null, null)).toList();
     }
 }

@@ -118,7 +118,7 @@ Each `StockItem` keeps a copy of three Catalog values (D8), so the worker's stoc
    WHERE stock_items.product_version IS NULL OR stock_items.product_version < EXCLUDED.product_version
   ```
 - **Newer version wins.** Catalog does not guarantee the order of product events, and the retry topics can reorder them further. The version check in the same statement makes an older event that arrives late, and every repeat, change nothing. The check and the write are one statement, so concurrent consumer threads or replicas cannot interleave.
-- **No version, no copy.** A source without `version` (an event published before Catalog [task 29](../../tasks/catalog-service/29-product-version-and-full-state-events.md)) still creates a missing row, with `INSERT … ON CONFLICT DO NOTHING` as before, but does not write the copied values; the backfill fills them later. The same applies to a `status` value Inventory does not know (tolerant reader): the source is logged at `WARN` and its copy is not written.
+- **No version, no copy.** A source without `version` (an event published before Catalog [task 29](../../tasks/catalog-service/29-product-version-and-full-state-events.md)) still creates a missing row, with `INSERT … ON CONFLICT DO NOTHING` as before, but does not write the copied values; the backfill fills them later. The same applies to a `status` value Inventory does not know (tolerant reader) and to a versioned source without a `title`: the source is logged at `WARN` and its copy is not written.
 - **Never written by stock changes.** In the `StockItem` JPA entity the three fields are read-only (`insertable = false, updatable = false`), so saving a stock change can never write back an old copy. Stock changes lock the row before reading it, so they never hold a stale copy anyway.
 - `null` means "not copied yet". It appears for rows created before this revision, or from an event without a version, until EP-INV-JOB-01 fills it.
 
@@ -161,7 +161,8 @@ Lists use the shared paging envelope `{ content, page, size, totalElements }` (`
 
 **Edge cases:**
 - No stock items exist yet → `200 OK` with empty `content`
-- Invalid boolean, invalid `productStatus`, `page < 0`, `size` outside `1`–`100`, unknown sort field or direction → `400`
+- Invalid boolean, invalid `productStatus`, `page < 0`, `size` outside `1`–`100`, unknown sort field or direction → `400` with `errors.<parameter>`
+- `search` is trimmed before matching; an empty `productStatus=` means no filter, like a blank `search`
 - `totalQuantity` is computed in Java and cannot be sorted or filtered
 - The copy is eventually consistent: right after a rename in Catalog, `search` matches the old title until the event has arrived
 
@@ -419,7 +420,7 @@ Lists use the shared paging envelope `{ content, page, size, totalElements }` (`
 **Producer:** Catalog Service (topic `catalog.product-events`, the same topic and the same listener container as EP-INV-EVT-01, which dispatches by the `eventType` header); only records with header `eventType: ProductUpdated` are handled here. A second listener container in the same consumer group would split the partitions between the two containers, and each would drop the other's event type, so both types must share one container
 **Trigger:** A catalog manager updates a product (EP-CAT-02) or changes its status (EP-CAT-03).
 
-**Payload received:** `{ eventId, productId, title, categoryId, basePrice, status, version, timestamp }`; Inventory reads `eventId`, `productId`, `title`, `status` and `version`, and ignores the rest. `eventId`, `productId`, `title`, `status` and `version` are mandatory: without them the event goes to the DLT. An unknown `status` value is not an error: the row is still created if missing, the copy is not written, and a `WARN` is logged (*Copy of product data*).
+**Payload received:** `{ eventId, productId, title, categoryId, basePrice, status, version, timestamp }`; Inventory reads `eventId`, `productId`, `title`, `status` and `version`, and ignores the rest. `eventId`, `productId`, `title`, `status` and `version` are mandatory: without them the event goes to the DLT. A missing mandatory field sends the event to the DLT at once, without retries (retrying cannot add the field). An unknown `status` value is not an error: the row is still created if missing, the copy is not written, and a `WARN` is logged (*Copy of product data*).
 
 **Steps:**
 1. Receive and deserialise the `ProductUpdated` event.
@@ -442,7 +443,7 @@ Lists use the shared paging envelope `{ content, page, size, totalElements }` (`
 
 ## EP-INV-JOB-01: Fill Missing Product Data
 
-**Type:** Scheduled job, every `PRODUCT_DATA_BACKFILL_INTERVAL` (default `60s`, measured from the end of the previous run)
+**Type:** Scheduled job, every `PRODUCT_DATA_BACKFILL_INTERVAL` (default `60s`, measured from the end of the previous run; the first run starts one interval after startup)
 **Purpose:** fill the copied product data of stock rows where it is missing (D9): rows that existed before this revision, and rows created from an event without a version.
 
 **Steps:**
@@ -454,7 +455,7 @@ Lists use the shared paging envelope `{ content, page, size, totalElements }` (`
 
 **Edge cases:**
 - Catalog unavailable → log once at `WARN` and end the run; the next run tries again. Nothing is changed
-- A product unknown to Catalog → its row stays `null`; the run logs the number of such rows at `WARN` (should not happen: stock rows exist only for Catalog products)
+- A product unknown to Catalog → its row stays `null`; the run logs the number of such rows once at `WARN` (should not happen: stock rows exist only for Catalog products). Step 5 continues after the last ID, so such rows never block the rows after them
 - An answer without `version` (Catalog older than task 29) → the row is skipped and stays `null`
 - An event applied between the Catalog call and the upsert → the version check keeps whichever is newer
 - Several replicas run the job at the same time → harmless: the upsert is idempotent and keeps the newest version; no lock is needed
@@ -477,7 +478,7 @@ Lists use the shared paging envelope `{ content, page, size, totalElements }` (`
 | Transactional outbox for stock events | Implemented ([task 17](../../tasks/inventory-service/17-transactional-outbox.md)) |
 | Compose / Kubernetes deployment | Implemented ([infrastructure task](../../tasks/infrastructure/kafka-inventory-wiring-and-minikube-check.md), [task 18](../../tasks/inventory-service/18-containerization-and-deployment.md)); secrets split into `inventory-db-credentials` and `inventory-secrets`; verified in Compose with 2 replicas. Open: a `NetworkPolicy` (cross-service, Security Model) |
 | Order Service integration | Order Service does not publish `OrderShipped` yet; the topic name `order.order-events` is provisional |
-| Copy of product data (D8–D10): EP-INV-EVT-01 changes, EP-INV-EVT-03, EP-INV-JOB-01, EP-INV-01 `title` / `productStatus` / `search` | Not implemented: tasks [22](../../tasks/inventory-service/22-product-data-copy-from-events.md), [23](../../tasks/inventory-service/23-product-data-backfill.md), [24](../../tasks/inventory-service/24-stock-list-title-search-and-sort.md) |
+| Copy of product data (D8–D10): EP-INV-EVT-01 changes, EP-INV-EVT-03, EP-INV-JOB-01, EP-INV-01 `title` / `productStatus` / `search` | Implemented (tasks [22](../../tasks/inventory-service/22-product-data-copy-from-events.md), [23](../../tasks/inventory-service/23-product-data-backfill.md), [24](../../tasks/inventory-service/24-stock-list-title-search-and-sort.md)). The copy fills in once Catalog task 29 is deployed |
 
 ---
 
@@ -519,5 +520,12 @@ Workers need to find stock rows by product title and sort them by title (fronten
 | D8 | `StockItem` keeps a copy of Catalog's `title`, `status` and `version`, written only through one upsert with "newer version wins", from `ProductCreated`, `ProductUpdated`, the existence check and the backfill (D9) | Searching, filtering and sorting with full paging need the data locally; the version makes reordered and repeated events harmless. The mirror image of Catalog's copy of Inventory's `stockStatus`. Rejected: Catalog leading the query with a `productIds` filter on EP-INV-01 (title search could not be combined with the stock filters and quantity sorts) and calling Catalog while serving EP-INV-01 (sorting would need every product) |
 | D9 | A scheduled job (EP-INV-JOB-01) fills missing copies from Catalog's batch-get | Rows created before this revision, or from old events, would otherwise never get a title |
 | D10 | EP-INV-01 rows add `title` and `productStatus`; new `search` (title substring) and `productStatus` filters and the sort field `title` (missing titles last) | What the worker console needs; the status shows which products are still being prepared |
+
+*Implemented 2026-10-22 (tasks 22–24).* Implementation details worth knowing:
+- Flyway `V5__add_product_data_copy.sql`. The upsert is `StockItemRepository.upsertProductData`; its only caller is `StockService.storeProductData`, which chooses between the upsert and create-only for every source (events, existence check, backfill).
+- Both product events are read into one record, `events/ProductEvent`, by one listener, `ProductEventsListener` (filter `productEventsOnly`). A `ProductUpdated` without its mandatory fields throws `InvalidProductEventException`, which `@RetryableTopic` excludes from retries. The listener properties are `inventory.kafka.product-events.*`.
+- `ProductCatalog.findAll(ids)` (and `find(id)` on top of it) returns `CatalogProductData { productId, title, status, version }` for both the existence check and the backfill.
+- EP-INV-JOB-01 is `services/ProductDataBackfill`, property `inventory.product-data-backfill.interval`.
+- Title sort uses `Sort.Order.nullsLast()` (`NULLS LAST` on PostgreSQL). Unconvertible query parameters answer `400` with `errors.<parameter>` from `GlobalExceptionHandler.handleTypeMismatch`.
 
 ---

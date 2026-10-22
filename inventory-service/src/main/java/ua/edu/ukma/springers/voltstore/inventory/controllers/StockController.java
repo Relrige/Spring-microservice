@@ -25,6 +25,7 @@ import ua.edu.ukma.springers.voltstore.inventory.dto.AdjustStockResponse;
 import ua.edu.ukma.springers.voltstore.inventory.dto.PackagingResponse;
 import ua.edu.ukma.springers.voltstore.inventory.dto.SetPackagingRequest;
 import ua.edu.ukma.springers.voltstore.inventory.dto.StockBalanceResponse;
+import ua.edu.ukma.springers.voltstore.inventory.entities.ProductStatus;
 import ua.edu.ukma.springers.voltstore.inventory.openapi.InternalApi;
 import ua.edu.ukma.springers.voltstore.inventory.openapi.PackagingNotConfiguredProblem;
 import ua.edu.ukma.springers.voltstore.inventory.openapi.Problem;
@@ -34,6 +35,7 @@ import ua.edu.ukma.springers.voltstore.inventory.paging.PageableParser;
 import ua.edu.ukma.springers.voltstore.inventory.services.StockService;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.springframework.http.MediaType.APPLICATION_PROBLEM_JSON_VALUE;
@@ -44,11 +46,13 @@ import static ua.edu.ukma.springers.voltstore.inventory.openapi.OpenApiConfig.BE
 @RequestMapping("/inventory/stock")
 @RequiredArgsConstructor
 public class StockController {
-    // Public sortBy names mapped to entity properties; productId is the tiebreaker (and the default order)
+    // Public sortBy names mapped to entity properties; productId is the tiebreaker (and the default order). Rows
+    // without a copied title come last in both directions.
     private static final PageableParser PAGEABLE_PARSER = new PageableParser(Map.of(
             "productId", "productId",
+            "title", "title",
             "availableQuantity", "availableQuantity",
-            "reservedQuantity", "reservedQuantity"), "productId");
+            "reservedQuantity", "reservedQuantity"), "productId", Set.of("title"));
 
     private final StockService stockService;
 
@@ -66,15 +70,22 @@ public class StockController {
     public PageResponse<StockBalanceResponse> listStock(
             @Parameter(description = "Only items whose packaging is (or is not) configured")
             @RequestParam(required = false) Boolean packagingConfigured,
+            @Parameter(description = "Case-insensitive part of the product title; `%` and `_` match literally. "
+                    + "Blank means no filter; rows without a copied title never match")
+            @RequestParam(required = false) String search,
+            @Parameter(description = "Only items whose product has this Catalog status")
+            @RequestParam(required = false) ProductStatus productStatus,
             @Parameter(description = "Zero-based page number")
             @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Page size, at most " + PageableParser.MAX_SIZE)
             @RequestParam(defaultValue = "" + PageableParser.DEFAULT_SIZE) int size,
-            @Parameter(description = "`productId`, `availableQuantity` or `reservedQuantity`, optionally followed by "
-                    + "`,asc` or `,desc`; default `productId`", example = "availableQuantity,desc")
+            @Parameter(description = "`productId`, `title`, `availableQuantity` or `reservedQuantity`, optionally "
+                    + "followed by `,asc` or `,desc`; default `productId`. Rows without a title come last",
+                    example = "availableQuantity,desc")
             @RequestParam(required = false) String sortBy) {
         return PageResponse.from(
-                stockService.listStock(packagingConfigured, PAGEABLE_PARSER.parse(page, size, sortBy)),
+                stockService.listStock(packagingConfigured, search, productStatus,
+                        PAGEABLE_PARSER.parse(page, size, sortBy)),
                 StockBalanceResponse::from);
     }
 

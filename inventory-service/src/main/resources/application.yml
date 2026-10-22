@@ -44,13 +44,14 @@ spring:
 inventory:
   kafka:
     topics:
-      # Owned by Catalog (catalog-service KafkaTopics.PRODUCT_EVENTS); carries ProductCreated. Inventory only
-      # subscribes; @RetryableTopic creates it with Catalog's settings if it is missing (see ProductCreatedListener)
+      # Owned by Catalog (catalog-service KafkaTopics.PRODUCT_EVENTS); carries ProductCreated and ProductUpdated.
+      # Inventory only subscribes; @RetryableTopic creates it with Catalog's settings if it is missing (see
+      # ProductEventsListener)
       product-events: ${CATALOG_PRODUCT_EVENTS_TOPIC:catalog.product-events}
       # Owned by Order Service. PROVISIONAL name following the <service>.<aggregate>-events convention; align it
       # when Order publishes OrderShipped (only records with header eventType=OrderShipped are consumed)
       order-events: ${ORDER_EVENTS_TOPIC:order.order-events}
-    product-created:
+    product-events:
       # @RetryableTopic: 1 attempt on the source topic + 3 on retry topics (after 1 s, 2 s, 4 s), then the DLT
       attempts: 4
       backoff-delay-ms: 1000
@@ -67,6 +68,10 @@ inventory:
     # Published events are deleted after this long by a job running every cleanup-interval
     retention: 7d
     cleanup-interval: 1h
+  product-data-backfill:
+    # EP-INV-JOB-01: pause between two runs that fill missing copies of product data from Catalog (also the delay
+    # of the first run after startup)
+    interval: ${PRODUCT_DATA_BACKFILL_INTERVAL:60s}
   idempotency:
     # processed_events keys are kept far longer than any redelivery window (retry topics: seconds;
     # Catalog's outbox: minutes to hours during an outage), then deleted

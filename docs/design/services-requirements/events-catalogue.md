@@ -56,7 +56,7 @@
   ```
   `version` is the product's version after the change. An EP-CAT-02 call that changed nothing repeats the stored version.
 - **Delivery:** at-least-once, through Catalog's transactional outbox.
-- **Inventory consumer:** group `inventory-service`, the same listener, retries and DLT as `ProductCreated`; idempotent by state (the version check), so no `processed_events` key. A missing stock row is created. See EP-INV-EVT-03.
+- **Inventory consumer:** group `inventory-service`, the same listener, retries and DLT as `ProductCreated`; idempotent by state (the version check), so no `processed_events` key. A missing stock row is created. A record without `title`, `status` or `version` goes to the DLT without retries. See EP-INV-EVT-03.
 
 ### `ProductStockReplenished`
 - **Producer:** Inventory Service

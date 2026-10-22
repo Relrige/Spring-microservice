@@ -126,15 +126,20 @@ class ConsumedEventsIntegrationTest {
     void productCreated_createsEmptyStockItem() throws Exception {
         UUID productId = UUID.randomUUID();
 
-        // Unknown fields (here: title) are ignored
+        // An event from before Catalog task 29: a title, but no version and no status. Unknown fields are ignored.
         send(PRODUCT_EVENTS, productId, "ProductCreated", "{\"eventId\":\"" + UUID.randomUUID()
-                + "\",\"productId\":\"" + productId + "\",\"timestamp\":\"2026-10-12T10:00:00Z\",\"title\":\"x\"}");
+                + "\",\"productId\":\"" + productId + "\",\"timestamp\":\"2026-10-12T10:00:00Z\",\"title\":\"x\","
+                + "\"futureField\":1}");
 
         await().atMost(WAIT).until(() -> stockItemRepository.findById(productId).isPresent());
         StockItemEntity item = stockItemRepository.findById(productId).orElseThrow();
         assertThat(item.getAvailableQuantity()).isZero();
         assertThat(item.getReservedQuantity()).isZero();
         assertThat(item.isPackagingConfigured()).isFalse();
+        // No version, no copy: the backfill fills it later
+        assertThat(item.getTitle()).isNull();
+        assertThat(item.getProductStatus()).isNull();
+        assertThat(item.getProductVersion()).isNull();
     }
 
     @Test
@@ -156,7 +161,7 @@ class ConsumedEventsIntegrationTest {
     void productEventsTopic_otherEventTypesAreSkipped() throws Exception {
         UUID productId = UUID.randomUUID();
 
-        send(PRODUCT_EVENTS, productId, "ProductUpdated", productCreated(productId));
+        send(PRODUCT_EVENTS, productId, "ProductDeleted", productCreated(productId));
         send(PRODUCT_EVENTS, productId, null, productCreated(productId));
         UUID marker = sendMarkerAfter(productId);
 
@@ -246,6 +251,116 @@ class ConsumedEventsIntegrationTest {
         assertThat(results).noneMatch(Exception.class::isInstance);
         assertThat(count("SELECT count(*) FROM stock_items WHERE product_id = ?", productId)).isEqualTo(1);
         assertThat(stockItemRepository.findById(productId).orElseThrow().getAvailableQuantity()).isEqualTo(5);
+    }
+
+    // --- Task 22: copy of product data from ProductCreated and ProductUpdated ---
+
+    @Test
+    void productCreated_fullState_storesTheCopy() throws Exception {
+        UUID productId = UUID.randomUUID();
+
+        send(PRODUCT_EVENTS, productId, "ProductCreated", productEvent(productId, "Laptop", "NOT_ACTIVE", 0));
+
+        await().atMost(WAIT).until(() -> stockItemRepository.findById(productId).isPresent());
+        assertCopy(productId, "Laptop", "NOT_ACTIVE", 0L);
+        assertStock(productId, 0, 0);
+    }
+
+    @Test
+    void productUpdated_afterProductCreated_updatesTheCopy() throws Exception {
+        UUID productId = UUID.randomUUID();
+
+        send(PRODUCT_EVENTS, productId, "ProductCreated", productEvent(productId, "Laptop", "NOT_ACTIVE", 0));
+        send(PRODUCT_EVENTS, productId, "ProductUpdated", productEvent(productId, "Gaming laptop", "ACTIVE", 1));
+
+        await().atMost(WAIT).untilAsserted(() -> assertCopy(productId, "Gaming laptop", "ACTIVE", 1L));
+    }
+
+    @Test
+    void productUpdated_olderVersionAfterNewer_andRepeats_changeNothing() throws Exception {
+        UUID productId = UUID.randomUUID();
+        String v2 = productEvent(productId, "Version two", "ACTIVE", 2);
+
+        send(PRODUCT_EVENTS, productId, "ProductUpdated", v2);
+        send(PRODUCT_EVENTS, productId, "ProductUpdated", productEvent(productId, "Version one", "NOT_ACTIVE", 1));
+        // The same event again, and the ProductCreated (v0) that the updates overtook
+        send(PRODUCT_EVENTS, productId, "ProductUpdated", v2);
+        send(PRODUCT_EVENTS, productId, "ProductCreated", productEvent(productId, "Version zero", "NOT_ACTIVE", 0));
+        UUID marker = sendMarkerAfter(productId);
+
+        await().atMost(WAIT).until(() -> stockItemRepository.findById(marker).isPresent());
+        assertCopy(productId, "Version two", "ACTIVE", 2L);
+    }
+
+    @Test
+    void productUpdated_forAProductWithoutStockItem_createsTheRowWithTheCopy() throws Exception {
+        UUID productId = UUID.randomUUID();
+
+        send(PRODUCT_EVENTS, productId, "ProductUpdated", productEvent(productId, "Laptop", "ACTIVE", 3));
+
+        await().atMost(WAIT).until(() -> stockItemRepository.findById(productId).isPresent());
+        assertCopy(productId, "Laptop", "ACTIVE", 3L);
+        assertStock(productId, 0, 0);
+    }
+
+    @Test
+    void productUpdated_withoutVersion_goesToTheDeadLetterTopicAtOnce() throws Exception {
+        UUID productId = UUID.randomUUID();
+        String withoutVersion = "{\"eventId\":\"" + UUID.randomUUID() + "\",\"productId\":\"" + productId
+                + "\",\"title\":\"Laptop\",\"status\":\"ACTIVE\",\"timestamp\":\"2026-10-22T10:00:00Z\"}";
+
+        send(PRODUCT_EVENTS, productId, "ProductUpdated", withoutVersion);
+        UUID marker = sendMarkerAfter(productId);
+
+        await().atMost(WAIT).until(() -> stockItemRepository.findById(marker).isPresent());
+        await().atMost(WAIT).untilAsserted(() ->
+                assertThat(deadLetters(PRODUCT_EVENTS_DLT, productId.toString())).containsExactly(withoutVersion));
+        assertThat(deadLetters(PRODUCT_EVENTS_RETRY_0, productId.toString())).isEmpty();
+        assertThat(stockItemRepository.findById(productId)).isEmpty();
+    }
+
+    @Test
+    void unknownStatus_createsTheRowWithoutACopy_andIsNotDeadLettered() throws Exception {
+        UUID created = UUID.randomUUID();
+        UUID updated = UUID.randomUUID();
+
+        send(PRODUCT_EVENTS, created, "ProductCreated", productEvent(created, "Laptop", "ARCHIVED", 0));
+        send(PRODUCT_EVENTS, updated, "ProductUpdated", productEvent(updated, "Phone", "ARCHIVED", 4));
+
+        await().atMost(WAIT).until(() -> stockItemRepository.findById(created).isPresent()
+                && stockItemRepository.findById(updated).isPresent());
+        assertCopy(created, null, null, null);
+        assertCopy(updated, null, null, null);
+        assertThat(deadLetters(PRODUCT_EVENTS_DLT, created.toString())).isEmpty();
+        assertThat(deadLetters(PRODUCT_EVENTS_DLT, updated.toString())).isEmpty();
+    }
+
+    @Test
+    void productEvents_neverChangeQuantitiesOrPackaging() throws Exception {
+        UUID productId = UUID.randomUUID();
+        stockService.adjustStock(productId, 7);
+        stockService.setPackaging(productId, 500, 10, 5, 2);
+        reservationService.reserve(UUID.randomUUID(), Map.of(productId, 2));
+
+        send(PRODUCT_EVENTS, productId, "ProductCreated", productEvent(productId, "Laptop", "NOT_ACTIVE", 0));
+        send(PRODUCT_EVENTS, productId, "ProductUpdated", productEvent(productId, "Laptop", "ACTIVE", 1));
+
+        await().atMost(WAIT).untilAsserted(() -> assertCopy(productId, "Laptop", "ACTIVE", 1L));
+        assertStock(productId, 5, 2);
+        assertThat(stockItemRepository.findById(productId).orElseThrow().isPackagingConfigured()).isTrue();
+    }
+
+    @Test
+    void stockAdjustmentAfterACopyUpdate_keepsTheCopy() throws Exception {
+        UUID productId = UUID.randomUUID();
+        send(PRODUCT_EVENTS, productId, "ProductUpdated", productEvent(productId, "Laptop", "ACTIVE", 1));
+        await().atMost(WAIT).until(() -> stockItemRepository.findById(productId).isPresent());
+
+        stockService.adjustStock(productId, 4);
+        stockService.setPackaging(productId, 500, 10, 5, 2);
+
+        assertStock(productId, 4, 0);
+        assertCopy(productId, "Laptop", "ACTIVE", 1L);
     }
 
     // --- Task 16: OrderShipped ---
@@ -360,6 +475,21 @@ class ConsumedEventsIntegrationTest {
         StockItemEntity item = stockItemRepository.findById(productId).orElseThrow();
         assertThat(item.getAvailableQuantity()).as("available").isEqualTo(available);
         assertThat(item.getReservedQuantity()).as("reserved").isEqualTo(reserved);
+    }
+
+    private void assertCopy(UUID productId, String title, String status, Long version) {
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT title, product_status, product_version FROM stock_items WHERE product_id = ?", productId);
+        assertThat(row.get("title")).as("title").isEqualTo(title);
+        assertThat(row.get("product_status")).as("product_status").isEqualTo(status);
+        assertThat(row.get("product_version")).as("product_version").isEqualTo(version);
+    }
+
+    // The full-state payload of ProductCreated and ProductUpdated (Catalog task 29), from the Event Catalogue
+    private static String productEvent(UUID productId, String title, String status, long version) {
+        return ("{\"eventId\":\"%s\",\"productId\":\"%s\",\"title\":\"%s\",\"categoryId\":\"%s\",\"basePrice\":10.50,"
+                + "\"status\":\"%s\",\"version\":%d,\"timestamp\":\"2026-10-22T10:00:00Z\"}")
+                .formatted(UUID.randomUUID(), productId, title, UUID.randomUUID(), status, version);
     }
 
     private Integer count(String sql, Object arg) {

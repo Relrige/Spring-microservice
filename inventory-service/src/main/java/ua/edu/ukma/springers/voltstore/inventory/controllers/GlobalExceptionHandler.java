@@ -1,6 +1,7 @@
 package ua.edu.ukma.springers.voltstore.inventory.controllers;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.CatalogUnavailableException;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.InsufficientStockException;
@@ -25,6 +27,7 @@ import ua.edu.ukma.springers.voltstore.inventory.paging.InvalidQueryParameterExc
 import java.net.URI;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -109,6 +112,34 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setDetail("One or more fields are invalid.");
         problem.setProperty("errors", fieldErrors);
         return handleExceptionInternal(ex, problem, headers, status, request);
+    }
+
+    /**
+     * A query parameter that cannot be converted (e.g. {@code productStatus=archived},
+     * {@code packagingConfigured=maybe}) names the parameter in {@code errors}, like the parameters checked by hand
+     * ({@link InvalidQueryParameterException}).
+     */
+    @Override
+    protected ResponseEntity<Object> handleTypeMismatch(TypeMismatchException ex, HttpHeaders headers,
+                                                        HttpStatusCode status, WebRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "One or more parameters are invalid.");
+        problem.setTitle("Validation failed");
+        String parameter = ex instanceof MethodArgumentTypeMismatchException mismatch ? mismatch.getName()
+                : ex.getPropertyName();
+        if (parameter != null) {
+            problem.setProperty("errors", Map.of(parameter, List.of(expectation(parameter, ex.getRequiredType()))));
+        }
+        return handleExceptionInternal(ex, problem, headers, status, request);
+    }
+
+    private static String expectation(String parameter, @Nullable Class<?> requiredType) {
+        if (requiredType != null && requiredType.isEnum()) {
+            return parameter + " must be one of " + Arrays.toString(requiredType.getEnumConstants());
+        }
+        if (requiredType == Boolean.class || requiredType == boolean.class) {
+            return parameter + " must be true or false";
+        }
+        return parameter + " has an invalid value";
     }
 
     /**

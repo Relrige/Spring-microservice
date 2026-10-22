@@ -14,6 +14,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import ua.edu.ukma.springers.voltstore.inventory.PostgresTestContainerConfig;
+import ua.edu.ukma.springers.voltstore.inventory.entities.ProductStatus;
 import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
 import ua.edu.ukma.springers.voltstore.inventory.specifications.StockItemSpecifications;
 
@@ -196,6 +197,118 @@ class StockItemRepositoryTest {
         assertThat(firstPage.getTotalElements()).isEqualTo(4);
         assertThat(configuredOnly.getContent()).isEmpty();
         assertThat(configuredOnly.getTotalElements()).isZero();
+    }
+
+    // --- copy of product data (task 22) ---
+
+    @Test
+    void upsertProductData_missingRow_createsItWithZeroQuantitiesAndTheCopy() {
+        UUID productId = UUID.randomUUID();
+
+        assertThat(repository.upsertProductData(productId, "Laptop", "NOT_ACTIVE", 0)).isEqualTo(1);
+
+        StockItemEntity found = repository.findById(productId).orElseThrow();
+        assertThat(found.getTitle()).isEqualTo("Laptop");
+        assertThat(found.getProductStatus()).isEqualTo(ProductStatus.NOT_ACTIVE);
+        assertThat(found.getProductVersion()).isZero();
+        assertThat(found.getAvailableQuantity()).isZero();
+        assertThat(found.getReservedQuantity()).isZero();
+        assertThat(found.isPackagingConfigured()).isFalse();
+    }
+
+    @Test
+    void upsertProductData_newerVersionWins_olderAndEqualChangeNothing() {
+        UUID productId = UUID.randomUUID();
+        repository.upsertProductData(productId, "Version two", "ACTIVE", 2);
+
+        assertThat(repository.upsertProductData(productId, "Version one", "NOT_ACTIVE", 1)).isZero();
+        assertThat(repository.upsertProductData(productId, "Version two again", "NOT_ACTIVE", 2)).isZero();
+        assertThat(copyOf(productId)).containsExactly("Version two", "ACTIVE", 2L);
+
+        assertThat(repository.upsertProductData(productId, "Version three", "NOT_ACTIVE", 3)).isEqualTo(1);
+        assertThat(copyOf(productId)).containsExactly("Version three", "NOT_ACTIVE", 3L);
+    }
+
+    @Test
+    void upsertProductData_existingRowWithoutCopy_getsTheCopy_andKeepsQuantitiesAndPackaging() {
+        UUID productId = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO stock_items (product_id, available_quantity, reserved_quantity, "
+                + "gross_weight_grams, length_cm, width_cm, height_cm) VALUES (?, 7, 2, 500, 10, 5, 2)", productId);
+
+        assertThat(repository.upsertProductData(productId, "Laptop", "ACTIVE", 0)).isEqualTo(1);
+
+        assertThat(copyOf(productId)).containsExactly("Laptop", "ACTIVE", 0L);
+        assertThat(jdbcTemplate.queryForList("SELECT available_quantity, reserved_quantity, gross_weight_grams FROM "
+                + "stock_items WHERE product_id = ?", productId).getFirst().values()).containsExactly(7, 2, 500);
+    }
+
+    @Test
+    void productStatusColumn_rejectsUnknownValues() {
+        assertThatThrownBy(() -> repository.upsertProductData(UUID.randomUUID(), "Laptop", "ARCHIVED", 0))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void savingAStockChange_neverWritesTheCopy() {
+        UUID productId = UUID.randomUUID();
+        repository.upsertProductData(productId, "Laptop", "ACTIVE", 1);
+        StockItemEntity loaded = repository.findById(productId).orElseThrow();
+        // A newer copy arrives while the entity is loaded (read-only mapping: the save must not restore the old one)
+        jdbcTemplate.update("UPDATE stock_items SET title = 'Renamed', product_version = 2 WHERE product_id = ?",
+                productId);
+
+        loaded.setAvailableQuantity(9);
+        repository.saveAndFlush(loaded);
+
+        assertThat(copyOf(productId)).containsExactly("Renamed", "ACTIVE", 2L);
+        assertThat(jdbcTemplate.queryForObject("SELECT available_quantity FROM stock_items WHERE product_id = ?",
+                Integer.class, productId)).isEqualTo(9);
+    }
+
+    // --- stock list filters on the copy (task 24) ---
+
+    @Test
+    void titleContains_isCaseInsensitive_andMatchesPercentAndUnderscoreLiterally() {
+        UUID laptop = copied("Gaming LAPTOP 15", "ACTIVE");
+        UUID percent = copied("Charger 50% off", "ACTIVE");
+        UUID underscore = copied("Cable_USB", "ACTIVE");
+        copied("Charger 50 off", "ACTIVE");
+        UUID cableDash = copied("Cable-USB", "ACTIVE");
+        repository.insertIfAbsent(UUID.randomUUID());
+
+        assertThat(idsMatching(StockItemSpecifications.titleContains("laptop"))).containsExactly(laptop);
+        assertThat(idsMatching(StockItemSpecifications.titleContains("50%"))).containsExactly(percent);
+        assertThat(idsMatching(StockItemSpecifications.titleContains("e_u"))).containsExactly(underscore);
+        assertThat(idsMatching(StockItemSpecifications.titleContains("%"))).containsExactly(percent);
+        assertThat(idsMatching(StockItemSpecifications.titleContains("cable"))).containsExactlyInAnyOrder(underscore,
+                cableDash);
+    }
+
+    @Test
+    void hasProductStatus_matchesTheCopiedStatus_rowsWithoutCopyMatchNeither() {
+        UUID active = copied("A", "ACTIVE");
+        UUID inactive = copied("B", "NOT_ACTIVE");
+        repository.insertIfAbsent(UUID.randomUUID());
+
+        assertThat(idsMatching(StockItemSpecifications.hasProductStatus(ProductStatus.ACTIVE)))
+                .containsExactly(active);
+        assertThat(idsMatching(StockItemSpecifications.hasProductStatus(ProductStatus.NOT_ACTIVE)))
+                .containsExactly(inactive);
+    }
+
+    private UUID copied(String title, String status) {
+        UUID productId = UUID.randomUUID();
+        repository.upsertProductData(productId, title, status, 0);
+        return productId;
+    }
+
+    private List<UUID> idsMatching(org.springframework.data.jpa.domain.Specification<StockItemEntity> spec) {
+        return repository.findAll(spec).stream().map(StockItemEntity::getProductId).toList();
+    }
+
+    private List<Object> copyOf(UUID productId) {
+        return List.copyOf(jdbcTemplate.queryForMap("SELECT title, product_status, product_version FROM stock_items "
+                + "WHERE product_id = ?", productId).values());
     }
 
     private void assertPackagingRejected(StockItemEntity.StockItemEntityBuilder builder) {
