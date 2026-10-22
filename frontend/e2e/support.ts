@@ -69,7 +69,7 @@ export async function resetDemoCart(request: APIRequestContext) {
     request,
     DEMO_STAFF.find((a) => a.role === 'CATALOG_MANAGER')!,
   );
-  const items = [];
+  const items: { productId: string; quantity: number }[] = [];
   for (const line of DEMO_CART) {
     // The manager also sees the inactive product of the demo cart.
     const found = await request.get('/api/catalog/products', {
@@ -81,12 +81,18 @@ export async function resetDemoCart(request: APIRequestContext) {
     expect(product, `demo product ${line.title}`).toBeDefined();
     items.push({ productId: product!.productId, quantity: line.quantity });
   }
-  const customer = await apiToken(request, DEMO_CUSTOMER);
-  const answer = await request.put('/api/customers/cart', {
-    headers: { Authorization: `Bearer ${customer}` },
-    data: { items },
-  });
-  expect(answer.ok(), 'reset the demo cart').toBe(true);
+  const headers = { Authorization: `Bearer ${await apiToken(request, DEMO_CUSTOMER)}` };
+  // An earlier journey's payment clears ordered lines asynchronously (OrderPaid), possibly
+  // after this reset: check for a few seconds and put the demo cart back if it changed.
+  await expect(async () => {
+    const answer = await request.put('/api/customers/cart', { headers, data: { items } });
+    expect(answer.ok(), 'reset the demo cart').toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    const cart = (await (
+      await request.get('/api/customers/cart', { headers })
+    ).json()) as unknown[];
+    expect(cart).toHaveLength(items.length);
+  }).toPass({ timeout: 15_000 });
 }
 
 /** Logs in as the demo customer and goes from the cart to the payment step of a new order. */

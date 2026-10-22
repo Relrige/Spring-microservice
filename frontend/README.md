@@ -83,7 +83,14 @@ Result of the last live run: see *Live verification* below.
 
 ## Live verification
 
-Last run: 2026-10-22, branch `new-feature` (change `customer-checkout-orders`), Compose stack of the repository root with the catalog and order images rebuilt after Catalog tasks 27–29 and Order tasks 19–20.
+Last run: 2026-10-22, branch `inventory-worker-console` (change `inventory-worker-console`), Compose stack of the repository root with the inventory, delivery and gateway images rebuilt from main (Inventory tasks 22–24, gateway task 12).
+
+- Inventory applied migration V5 (product data copy); its backfill filled the title and status of all 45 stock rows about a minute after startup (BL-02).
+- `npm run seed`: `Result: seeded.` (stock adjusted back to the fixture targets for 2 products after earlier journeys).
+- `npm run test:e2e:live`: 10 of 10 journeys passed (about 50 s), including the worker journey: a paid order reached the fulfillment queue, got its TTN from Delivery and was marked as shipped; the stock page searched by title, restocked and wrote off one unit and saved packaging. `npm run check:e2e` against the mock: 10 of 10.
+- Found in the run: a journey's payment clears the ordered cart lines asynchronously (`OrderPaid`), sometimes after the next journey's demo-cart reset. The reset in `e2e/support.ts` now checks the cart for a few seconds and puts it back if it changed. No mismatch between the mock and the services.
+
+Previous run: 2026-10-22, branch `new-feature` (change `customer-checkout-orders`), Compose stack of the repository root with the catalog and order images rebuilt after Catalog tasks 27–29 and Order tasks 19–20.
 
 - `npm run seed`, first run: `Result: seeded.` with `demo profile: set`; second run: `Result: unchanged`, `demo cart: kept, demo profile: kept`. Storefront: 42 active products with the expected stock status.
 - `npm run test:e2e:live`: 9 of 9 journeys passed (about 30 s), including checkout with a declined (`…0002`) and an approved (`…4242`) card and cancelling an unpaid order. `npm run check:e2e` against the mock: 9 of 9.

@@ -1,7 +1,7 @@
 ---
 id: BL-02
 title: Inventory workers can see product titles for stock rows
-status: In progress
+status: Done
 importance: Blocker
 services: [catalog-service, inventory-service]
 blocks: iteration 5 (inventory-worker-console)
@@ -39,6 +39,9 @@ Alternatives considered:
 - [x] Updated: catalog spec EP-CAT-04, `api-contracts.md`
 
 ## Frontend impact
+
+Done in the OpenSpec change `inventory-worker-console` (2026-10-22): the stock page takes `title` and `productStatus` from `GET /inventory/stock`, with search, the status filter and sort by title, and shows the product id while a title is not copied yet; no Catalog request per row. Verified on the Compose stack: after Inventory restarted with tasks 22–24, the backfill filled all 45 stock rows within about a minute, and the worker journey searched the stock list by title.
+
 
 - Until done: the worker console (iteration 5) shows product ids, and titles only for active products (looked up through the public list one by one). Marked in code with `BL-02`.
 - After: one extra request per stock page fetches all titles.
