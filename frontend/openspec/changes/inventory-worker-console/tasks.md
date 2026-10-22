@@ -20,9 +20,9 @@ Apply on `inventory-worker-console`, branched from main after PR #27 (Catalog ta
 
 ## 4. Fulfillment queue
 
-- [ ] 4.1 Build the queue page with polling and the Delivery notice (design D7); verify with tests for *Orders waiting*, *Empty queue*, *Delivery Service down* and *TTN arrives* (fake timers)
-- [ ] 4.2 Add "Mark as shipped" with confirmation (design D7); verify with tests for *Order shipped*, *TTN not ready* and *Shipped elsewhere*
-- [ ] 4.3 Add "Retry TTN" (design D7); verify with tests for *Retry succeeds* and *Packaging still missing*, including the link to the stock page
+- [x] 4.1 Build the queue page with polling and the Delivery notice (design D7); verify with tests for *Orders waiting*, *Empty queue*, *Delivery Service down* and *TTN arrives* (fake timers)
+- [x] 4.2 Add "Mark as shipped" with confirmation (design D7); verify with tests for *Order shipped*, *TTN not ready* and *Shipped elsewhere*
+- [x] 4.3 Add "Retry TTN" (design D7); verify with tests for *Retry succeeds* and *Packaging still missing*, including the link to the stock page
 
 ## 5. Journeys, live run and docs
 
