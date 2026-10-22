@@ -14,6 +14,7 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 | **Key enums** | `ProductStatus { ACTIVE, NOT_ACTIVE }`; `StockStatus { IN_STOCK, OUT_OF_STOCK }` |
 | **Events emitted** | `ProductCreated` |
 | **Events consumed** | `ProductStockReplenished`, `ProductStockDepleted` (both from Inventory Service) |
+| **API description** | OpenAPI documents `catalog-service/openapi/public.json` and `internal.json`, generated from the code ([OpenAPI Conventions](../services-requirements/openapi-conventions.md)); pilot service for them |
 
 ---
 
@@ -119,7 +120,7 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
    - **Catalog Manager**: no status filter — all products (`ACTIVE` and `NOT_ACTIVE`) are returned. An additional optional `status` query param may be used to filter.
 3. Execute the filtered, paginated query against the `products` table.
 4. For each product in the result, include the `stockStatus` read-model field (`IN_STOCK` or `OUT_OF_STOCK`) directly from the stored column (no Inventory call required).
-5. Return `200 OK { content: [ { productId, title, basePrice, categoryId, status, stockStatus } ], page, totalElements }`.
+5. Return `200 OK { content: [ { productId, title, basePrice, categoryId, status, stockStatus } ], page, size, totalElements }` — the shared paging envelope ([api-contracts.md](../services-requirements/api-contracts.md#shared-conventions)); `size` is the effective page size (the requested one, or `20`).
 
 **Edge cases:**
 - `minPrice` > `maxPrice` → `400 Bad Request`
@@ -262,7 +263,7 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 **Steps:**
 1. Parse optional query parameters: `search` (case-insensitive substring of `name`), `page` (zero-based, default `0`), `size` (default `20`, maximum `100`).
 2. Query categories ordered by `name` (then `id`), applying `search` if present. `%` and `_` in `search` are matched literally.
-3. Return `200 OK { content: [ { categoryId, name } ], page, totalElements }` (the same paging envelope as EP-CAT-04).
+3. Return `200 OK { content: [ { categoryId, name } ], page, size, totalElements }` (the same paging envelope as EP-CAT-04; `size` is the effective page size).
 
 **Edge cases:**
 - No category matches → `200 OK` with empty `content`
@@ -317,3 +318,16 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 
 **External calls:** none
 **Refs:** SCN-S02, customer-technical-insights §1
+
+---
+
+## Revisions
+
+### 2026-10-21: Paging envelope and OpenAPI document
+
+- EP-CAT-04 and EP-CAT-10 answer the shared paging envelope `{ content, page, size, totalElements }`: `size` was added, matching Order and Inventory (frontend backlog BL-05, [task 25](../../tasks/catalog-service/25-uniform-paging-envelope.md)). The change is additive.
+- Catalog publishes OpenAPI documents generated from its code and is the pilot for the conventions in [OpenAPI Conventions](../services-requirements/openapi-conventions.md) (frontend backlog BL-04, [task 26](../../tasks/catalog-service/26-openapi-document.md)).
+
+*Implemented 2026-10-22 ([task 25](../../tasks/catalog-service/25-uniform-paging-envelope.md), [task 26](../../tasks/catalog-service/26-openapi-document.md)): the committed documents are `catalog-service/openapi/public.json` (9 operations) and `internal.json` (EP-CAT-09). The pilot's building blocks, including the Catalog-only `@OptionalAuthentication` for EP-CAT-04, are described in [OpenAPI Conventions](../services-requirements/openapi-conventions.md#building-blocks-per-service).*
+
+**Other documents updated with this revision (2026-10-21):** `api-contracts.md` (shared conventions section, `size` in the Catalog list responses), `security-model.md` (documentation paths), the Auth, Customer, Inventory, Order and Delivery specs (link to the OpenAPI conventions), and the new `openapi-conventions.md`.

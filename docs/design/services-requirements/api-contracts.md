@@ -3,6 +3,12 @@
 > This document defines the synchronous HTTP API contracts for all microservices. 
 > These are the endpoints that will be exposed to clients (via the API Gateway) or used for internal service-to-service communication.
 
+## Shared Conventions
+
+- **Errors:** RFC 9457 problem details (`application/problem+json`, `type` = `https://voltstore.com/errors/<kind>`), with service-specific extensions listed per endpoint below.
+- **Paging envelope:** every paged list answers `{ content: [...], page, size, totalElements }`. `page` is zero-based, and `size` is the effective page size (the requested one, or the default). The query parameters are `page` and `size`; each endpoint states its default and maximum `size`.
+- **OpenAPI:** Auth, Catalog, Customer, Inventory, Order and Delivery publish OpenAPI 3.1 documents generated from the code, committed as `<service>/openapi/public.json` (and `internal.json`). How they are produced, and the named problem schemas, are in [OpenAPI Conventions](openapi-conventions.md). This document stays the design; the OpenAPI files describe the implementation.
+
 ---
 
 ## 1. Auth Service
@@ -37,12 +43,12 @@ Cart rules: at most 10 distinct products per cart, quantity 1–10 per product. 
 
 | Method | Path | Auth Role | Description |
 |--------|------|-----------|-------------|
-| `GET` | `/catalog/products` | None/`CATALOG_MANAGER`| Paginated search. Customers see only ACTIVE. Managers can filter by `status`. <br> **Query:** `search, categoryId, minPrice, maxPrice, sortBy (title\|basePrice[,asc\|desc]), status, page (zero-based), size (default 20, max 100)` <br> **Res:** `200 OK {content: [{productId, title, basePrice, categoryId, status, stockStatus}], page, totalElements}` |
+| `GET` | `/catalog/products` | None/`CATALOG_MANAGER`| Paginated search. Customers see only ACTIVE. Managers can filter by `status`. <br> **Query:** `search, categoryId, minPrice, maxPrice, sortBy (title\|basePrice[,asc\|desc]), status, page (zero-based), size (default 20, max 100)` <br> **Res:** `200 OK {content: [{productId, title, basePrice, categoryId, status, stockStatus}], page, size, totalElements}` |
 | `GET` | `/catalog/products/{id}` | None | Get product details (ACTIVE only; inactive → same `404` as missing). <br> **Res:** `200 OK {productId, title, description, categoryId, basePrice, stockStatus}` |
 | `POST` | `/catalog/products` | `CATALOG_MANAGER`| Create product in NOT_ACTIVE state. <br> **Req:** `{title, description, categoryId, basePrice}` <br> **Res:** `201 Created {productId}` |
 | `PUT` | `/catalog/products/{id}` | `CATALOG_MANAGER`| Update product details. <br> **Req:** `{title, desc, categoryId, basePrice}` <br> **Res:** `200 OK` |
 | `PATCH`| `/catalog/products/{id}/status`| `CATALOG_MANAGER`| Activate/Deactivate product. <br> **Req:** `{status}` <br> **Res:** `200 OK` or `422 Unprocessable` (if activation fails readiness check) |
-| `GET` | `/catalog/categories` | None | List/search categories (EP-CAT-10, added to the original spec). <br> **Query:** `search, page (zero-based), size (default 20, max 100)` <br> **Res:** `200 OK {content: [{categoryId, name}], page, totalElements}` |
+| `GET` | `/catalog/categories` | None | List/search categories (EP-CAT-10, added to the original spec). <br> **Query:** `search, page (zero-based), size (default 20, max 100)` <br> **Res:** `200 OK {content: [{categoryId, name}], page, size, totalElements}` |
 | `POST` | `/catalog/categories` | `CATALOG_MANAGER`| Create category. <br> **Req:** `{name}` <br> **Res:** `201 Created {categoryId}` |
 | `PUT` | `/catalog/categories/{id}`| `CATALOG_MANAGER`| Rename category. <br> **Req:** `{name}` <br> **Res:** `200 OK` |
 | `DELETE`|`/catalog/categories/{id}`| `CATALOG_MANAGER`| Delete category. <br> **Res:** `200 OK` or `409 Conflict` (if products attached) |
@@ -79,7 +85,7 @@ Cart rules: at most 10 distinct products per cart, quantity 1–10 per product. 
 | `GET` | `/orders/{id}` | `CUSTOMER` (owner) | View own order details. <br> **Res:** `200 OK {orderId, status, items, deliveryDetails, totalAmount, currency, placedAt, paidAt, reservationExpiresAt, ttn, deliveryStatus}` or `404` |
 | `DELETE`| `/orders/{id}` | `CUSTOMER` (owner) | Cancel own order. <br> **Res:** `202 Accepted {orderId, status}` — `CANCELLED`, or `CANCELLATION_REQUESTED` while a saga step is retried later; `409` if not cancellable |
 | `GET` | `/orders/fulfillment-queue` | `INVENTORY_WORKER`| Get `PAID` & `PENDING_SHIPPING` orders. (Order Service queries Delivery Service internally for TTN states). <br> **Res:** `200 OK {deliveryDataAvailable, orders: [{orderId, status, placedAt, paidAt, items, deliveryDetails, deliveryStatus, ttn, failureReason}]}` (oldest payment first; `deliveryDataAvailable: false` when Delivery is down) |
-| `POST` | `/orders/{id}/ship` | `INVENTORY_WORKER`| Dispatch order to courier. <br> **Res:** `200 OK` (Transitions to `SHIPPED`) |
+| `POST` | `/orders/{id}/ship` | `INVENTORY_WORKER`| Dispatch order to courier. <br> **Res:** `200 OK {orderId, status, ttn}` (Transitions to `SHIPPED`), `409` (not awaiting dispatch, or TTN not generated yet), `503` (Delivery unavailable, with `Retry-After`) |
 
 ---
 

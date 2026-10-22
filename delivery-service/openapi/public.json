@@ -1,0 +1,248 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "Delivery API",
+    "version" : "1"
+  },
+  "servers" : [ {
+    "url" : "/",
+    "description" : "Through the API Gateway"
+  } ],
+  "paths" : {
+    "/delivery/orders/{orderId}/ttn/retry" : {
+      "post" : {
+        "description" : "Role: INVENTORY_WORKER. One synchronous attempt for a shipment in TTN_FAILED.",
+        "operationId" : "retryTtnGeneration",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "orderId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RetryTtnResponse"
+                }
+              }
+            },
+            "description" : "TTN generated"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Malformed request or invalid fields"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not an INVENTORY_WORKER"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "No shipment for this order"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "The shipment is not in TTN_FAILED, or changed meanwhile"
+          },
+          "424" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TtnGenerationFailedProblem"
+                }
+              }
+            },
+            "description" : "Inventory or the carrier rejected the attempt"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Retry TTN generation (EP-DEL-03)",
+        "tags" : [ "Shipments" ]
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "Problem" : {
+        "type" : "object",
+        "description" : "RFC 9457 problem details",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "service" : {
+            "type" : "string",
+            "description" : "Name of the service that answered"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri",
+            "description" : "Error kind: `https://voltstore.com/errors/<kind>`"
+          }
+        },
+        "required" : [ "status", "title", "type" ]
+      },
+      "RetryTtnResponse" : {
+        "type" : "object",
+        "properties" : {
+          "ttn" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "ttn" ]
+      },
+      "TtnGenerationFailedProblem" : {
+        "type" : "object",
+        "description" : "The TTN could not be generated (424)",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "reason" : {
+            "type" : "string",
+            "description" : "Why the attempt failed, e.g. `packaging_data_missing:{productId}`"
+          },
+          "service" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          }
+        },
+        "required" : [ "reason", "status", "title", "type" ]
+      },
+      "ValidationProblem" : {
+        "type" : "object",
+        "description" : "A malformed request or broken field rules (400)",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "errors" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              }
+            },
+            "description" : "Field or parameter name to its messages"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "service" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          }
+        },
+        "required" : [ "status", "title", "type" ]
+      }
+    },
+    "securitySchemes" : {
+      "bearerAuth" : {
+        "bearerFormat" : "JWT",
+        "description" : "JWT from POST /auth/login",
+        "scheme" : "bearer",
+        "type" : "http"
+      }
+    }
+  }
+}

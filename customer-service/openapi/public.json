@@ -1,0 +1,937 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "Customer API",
+    "version" : "1"
+  },
+  "servers" : [ {
+    "url" : "/",
+    "description" : "Through the API Gateway"
+  } ],
+  "paths" : {
+    "/customers/cart" : {
+      "delete" : {
+        "description" : "Role: CUSTOMER. Idempotent; answers `[]`.",
+        "operationId" : "clearCart",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/CartItemResponse"
+                  }
+                }
+              }
+            },
+            "description" : "The empty cart"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not a CUSTOMER"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Clear my cart (EP-CUST-09)",
+        "tags" : [ "Cart" ]
+      },
+      "get" : {
+        "description" : "Role: CUSTOMER. An empty or never-created cart is `[]`.",
+        "operationId" : "getCart",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/CartItemResponse"
+                  }
+                }
+              }
+            },
+            "description" : "The cart, ordered by product ID"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not a CUSTOMER"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Get my cart (EP-CUST-03)",
+        "tags" : [ "Cart" ]
+      },
+      "put" : {
+        "description" : "Role: CUSTOMER. Idempotent; `items` may be empty. Cart rules: at most 10 distinct products, quantity 1 to 10 per product.",
+        "operationId" : "replaceCart",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CartItemsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/CartItemResponse"
+                  }
+                }
+              }
+            },
+            "description" : "The new cart"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Malformed request or item"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not a CUSTOMER"
+          },
+          "422" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CartRuleProblem"
+                }
+              }
+            },
+            "description" : "A cart rule is broken, or a product is listed twice; the cart is unchanged"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Replace my cart (EP-CUST-07)",
+        "tags" : [ "Cart" ]
+      }
+    },
+    "/customers/cart/items" : {
+      "post" : {
+        "description" : "Role: CUSTOMER. A product already in the cart gets its quantity increased. Cart rules: at most 10 distinct products, quantity 1 to 10 per product.",
+        "operationId" : "addItem",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AddCartItemRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/CartItemResponse"
+                  }
+                }
+              }
+            },
+            "description" : "The updated cart"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Invalid fields"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not a CUSTOMER"
+          },
+          "422" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CartRuleProblem"
+                }
+              }
+            },
+            "description" : "A cart rule is broken; the cart is unchanged"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Add an item to my cart (EP-CUST-04)",
+        "tags" : [ "Cart" ]
+      }
+    },
+    "/customers/cart/items/{productId}" : {
+      "delete" : {
+        "description" : "Role: CUSTOMER. Idempotent: a product that is not in the cart is not an error.",
+        "operationId" : "removeItem",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "productId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/CartItemResponse"
+                  }
+                }
+              }
+            },
+            "description" : "The updated cart"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Malformed request or invalid fields"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not a CUSTOMER"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Remove an item from my cart (EP-CUST-06)",
+        "tags" : [ "Cart" ]
+      },
+      "patch" : {
+        "description" : "Role: CUSTOMER. Cart rules: at most 10 distinct products, quantity 1 to 10 per product.",
+        "operationId" : "setItemQuantity",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "productId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SetCartItemQuantityRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/CartItemResponse"
+                  }
+                }
+              }
+            },
+            "description" : "The updated cart"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Invalid quantity or product ID"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not a CUSTOMER"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "The product is not in the cart"
+          },
+          "422" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CartRuleProblem"
+                }
+              }
+            },
+            "description" : "The quantity exceeds 10; the cart is unchanged"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Set the quantity of a cart item (EP-CUST-05)",
+        "tags" : [ "Cart" ]
+      }
+    },
+    "/customers/cart/merge" : {
+      "post" : {
+        "description" : "Role: CUSTOMER. Quantities of products already in the cart are summed; not idempotent. Cart rules: at most 10 distinct products, quantity 1 to 10 per product.",
+        "operationId" : "mergeIntoCart",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CartItemsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/CartItemResponse"
+                  }
+                }
+              }
+            },
+            "description" : "The merged cart"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Malformed request or item"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not a CUSTOMER"
+          },
+          "422" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CartRuleProblem"
+                }
+              }
+            },
+            "description" : "A cart rule is broken, or a product is listed twice; the cart is unchanged"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Merge items into my cart (EP-CUST-08)",
+        "tags" : [ "Cart" ]
+      }
+    },
+    "/customers/me/profile" : {
+      "get" : {
+        "description" : "Role: CUSTOMER. A customer who never saved a profile gets every field `null`.",
+        "operationId" : "getProfile",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProfileResponse"
+                }
+              }
+            },
+            "description" : "The profile"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not a CUSTOMER"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Get my profile (EP-CUST-01)",
+        "tags" : [ "Profile" ]
+      },
+      "put" : {
+        "description" : "Role: CUSTOMER. Creates or replaces the profile.",
+        "operationId" : "saveProfile",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ProfileRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProfileResponse"
+                }
+              }
+            },
+            "description" : "The profile as stored"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Invalid fields"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not a CUSTOMER"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Save my profile (EP-CUST-02)",
+        "tags" : [ "Profile" ]
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "AddCartItemRequest" : {
+        "type" : "object",
+        "properties" : {
+          "productId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "quantity" : {
+            "type" : "integer",
+            "format" : "int32",
+            "minimum" : 1
+          }
+        },
+        "required" : [ "productId", "quantity" ]
+      },
+      "CartItemResponse" : {
+        "type" : "object",
+        "properties" : {
+          "productId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "quantity" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "productId", "quantity" ]
+      },
+      "CartItemsRequest" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CartItemsRequestItem"
+            }
+          }
+        },
+        "required" : [ "items" ]
+      },
+      "CartItemsRequestItem" : {
+        "type" : "object",
+        "properties" : {
+          "productId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "quantity" : {
+            "type" : "integer",
+            "format" : "int32",
+            "minimum" : 1
+          }
+        },
+        "required" : [ "productId", "quantity" ]
+      },
+      "CartRuleProblem" : {
+        "type" : "object",
+        "description" : "The request breaks a cart rule; the cart is unchanged (422)",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "maxProducts" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "TOO_MANY_PRODUCTS: the limit"
+          },
+          "maxQuantity" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "QUANTITY_LIMIT_EXCEEDED: the limit per product"
+          },
+          "productIds" : {
+            "type" : "array",
+            "description" : "QUANTITY_LIMIT_EXCEEDED, DUPLICATE_PRODUCT: the products concerned, sorted",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          },
+          "resultingProductCount" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "TOO_MANY_PRODUCTS: distinct products the cart would contain"
+          },
+          "service" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "violation" : {
+            "type" : "string",
+            "enum" : [ "TOO_MANY_PRODUCTS", "QUANTITY_LIMIT_EXCEEDED", "DUPLICATE_PRODUCT" ]
+          }
+        },
+        "required" : [ "status", "title", "type", "violation" ]
+      },
+      "Problem" : {
+        "type" : "object",
+        "description" : "RFC 9457 problem details",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "service" : {
+            "type" : "string",
+            "description" : "Name of the service that answered"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri",
+            "description" : "Error kind: `https://voltstore.com/errors/<kind>`"
+          }
+        },
+        "required" : [ "status", "title", "type" ]
+      },
+      "ProfileRequest" : {
+        "type" : "object",
+        "properties" : {
+          "defaultAddress" : {
+            "type" : "string",
+            "maxLength" : 500,
+            "minLength" : 0
+          },
+          "firstName" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "lastName" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "phone" : {
+            "type" : "string",
+            "pattern" : "^\\+[1-9]\\d{7,14}$"
+          }
+        },
+        "required" : [ "firstName", "lastName", "phone" ]
+      },
+      "ProfileResponse" : {
+        "type" : "object",
+        "properties" : {
+          "defaultAddress" : {
+            "type" : "string"
+          },
+          "firstName" : {
+            "type" : "string"
+          },
+          "lastName" : {
+            "type" : "string"
+          },
+          "phone" : {
+            "type" : "string"
+          }
+        }
+      },
+      "SetCartItemQuantityRequest" : {
+        "type" : "object",
+        "properties" : {
+          "quantity" : {
+            "type" : "integer",
+            "format" : "int32",
+            "minimum" : 1
+          }
+        },
+        "required" : [ "quantity" ]
+      },
+      "ValidationProblem" : {
+        "type" : "object",
+        "description" : "A malformed request or broken field rules (400)",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "errors" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              }
+            },
+            "description" : "Field or parameter name to its messages"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "service" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          }
+        },
+        "required" : [ "status", "title", "type" ]
+      }
+    },
+    "securitySchemes" : {
+      "bearerAuth" : {
+        "bearerFormat" : "JWT",
+        "description" : "JWT from POST /auth/login",
+        "scheme" : "bearer",
+        "type" : "http"
+      }
+    }
+  }
+}

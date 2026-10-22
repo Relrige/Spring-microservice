@@ -46,6 +46,9 @@ public class SecurityConfig {
                         // Probes, and the metrics Prometheus scrapes without credentials (k8s/monitoring/), as in
                         // Payment; no other actuator endpoint is exposed
                         .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
+                        // OpenAPI documents and Swagger UI. They exist only when springdoc is turned on (Compose);
+                        // otherwise no handler is mapped and the paths answer 404. The gateway never routes them.
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
                         // Worker routes. The queue must come before GET /orders/{orderId}, which would otherwise
                         // also match "/orders/fulfillment-queue" (the first matching rule wins)
                         .requestMatchers(HttpMethod.GET, "/orders/fulfillment-queue").hasRole(WORKER)

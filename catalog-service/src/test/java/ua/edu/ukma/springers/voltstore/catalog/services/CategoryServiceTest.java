@@ -220,6 +220,7 @@ class CategoryServiceTest {
         assertThat(pageable.getValue().getSort()).isEqualTo(Sort.by("name", "id"));
         assertThat(response.getContent()).extracting(CategoryResponse::getName).containsExactly("Laptops");
         assertThat(response.getPage()).isZero();
+        assertThat(response.getSize()).isEqualTo(Paging.DEFAULT_SIZE);
         assertThat(response.getTotalElements()).isEqualTo(41);
     }
 

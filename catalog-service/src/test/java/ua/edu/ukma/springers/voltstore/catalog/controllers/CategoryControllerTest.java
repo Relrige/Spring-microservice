@@ -55,13 +55,14 @@ class CategoryControllerTest {
     void list_anonymous_returnsPagingEnvelope() throws Exception {
         UUID id = UUID.randomUUID();
         when(categoryService.listCategories(any()))
-                .thenReturn(new PageResponse<>(List.of(new CategoryResponse(id, "Laptops")), 1, 21));
+                .thenReturn(new PageResponse<>(List.of(new CategoryResponse(id, "Laptops")), 1, 20, 21));
 
         mockMvc.perform(get(URL).param("search", "lap").param("page", "1").param("size", "20"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].categoryId").value(id.toString()))
                 .andExpect(jsonPath("$.content[0].name").value("Laptops"))
                 .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(20))
                 .andExpect(jsonPath("$.totalElements").value(21));
 
         ArgumentCaptor<CategorySearchQuery> query = ArgumentCaptor.forClass(CategorySearchQuery.class);
@@ -73,7 +74,7 @@ class CategoryControllerTest {
 
     @Test
     void list_noMatch_returnsEmptyContent() throws Exception {
-        when(categoryService.listCategories(any())).thenReturn(new PageResponse<>(List.of(), 0, 0));
+        when(categoryService.listCategories(any())).thenReturn(new PageResponse<>(List.of(), 0, 20, 0));
 
         mockMvc.perform(get(URL).param("search", "nothing"))
                 .andExpect(status().isOk())

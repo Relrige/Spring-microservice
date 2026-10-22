@@ -21,6 +21,8 @@
 
 Authorization then decides: anonymous on a protected endpoint is `401`, authenticated without the required role is `403`. Public endpoints (e.g. the public catalog) are explicitly permitted in each service's filter chain. The chain ends with `denyAll()`: a route without an explicit rule is unreachable for everyone, and a test per service verifies that every route has a rule.
 
+The OpenAPI documentation paths (`/v3/api-docs/**`, `/swagger-ui.html`, `/swagger-ui/**`) are permitted in the services that publish documents. They exist only when springdoc is turned on (Compose); otherwise they answer `404`. The gateway never routes them. See [OpenAPI Conventions](openapi-conventions.md).
+
 ## Preconditions (otherwise the model is unsafe)
 
 - Services must not be reachable by clients except through the gateway (ClusterIP services, `NetworkPolicy`).

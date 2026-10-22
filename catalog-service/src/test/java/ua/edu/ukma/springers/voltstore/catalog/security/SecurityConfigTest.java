@@ -51,7 +51,7 @@ class SecurityConfigTest {
     void recordAuthenticationSeenByService() {
         when(categoryService.listCategories(any())).thenAnswer(invocation -> {
             seenAuthentication.set(SecurityContextHolder.getContext().getAuthentication());
-            return new PageResponse<>(List.of(), 0, 0);
+            return new PageResponse<>(List.of(), 0, 20, 0);
         });
     }
 

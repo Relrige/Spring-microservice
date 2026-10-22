@@ -21,6 +21,8 @@ Responsible for customer profile data and the backend cart aggregate. Separated 
 
 **Security.** Every endpoint is called by a logged-in customer through the API Gateway, which validates the JWT and forwards `X-User-Id` and `X-User-Role`. The service trusts these headers (see the [Security Model](../services-requirements/security-model.md)) and takes `customerId` from `X-User-Id` only, never from the path or body, so a customer can reach only their own profile and cart. All nine routes require role `CUSTOMER` (`401` without valid headers, `403` for any other role, including `ADMIN`); every other route is denied. Customer Service has no internal (service-to-service) routes and makes no outgoing calls, so unlike the other services it has no `X-Internal-Token` filter and no `AUTH_INTERNAL_TOKEN`.
 
+**OpenAPI.** The API is also described by an OpenAPI document generated from the code, `customer-service/openapi/public.json` ([OpenAPI Conventions](../services-requirements/openapi-conventions.md)); cart-rule errors use its `CartRuleProblem` schema.
+
 **Configuration** (environment variables; see `customer-service/.env.example` and `k8s/customer/app-config.yaml`):
 
 | Variable | Meaning |

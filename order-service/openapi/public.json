@@ -1,0 +1,1488 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "Order API",
+    "version" : "1"
+  },
+  "servers" : [ {
+    "url" : "/",
+    "description" : "Through the API Gateway"
+  } ],
+  "paths" : {
+    "/orders" : {
+      "get" : {
+        "description" : "Role: CUSTOMER. Newest first.",
+        "operationId" : "history",
+        "parameters" : [ {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 0
+          }
+        }, {
+          "description" : "Page size, at most 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 20
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseOrderSummaryResponse"
+                }
+              }
+            },
+            "description" : "One page of orders"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Invalid `page` or `size`"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not a CUSTOMER"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "View my order history (EP-ORD-04)",
+        "tags" : [ "Orders" ]
+      },
+      "post" : {
+        "description" : "Role: CUSTOMER. Takes current prices from Catalog and reserves the stock; the order must then be paid before `reservationExpiresAt`.",
+        "operationId" : "place",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PlaceOrderRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlacedOrderResponse"
+                }
+              }
+            },
+            "description" : "Placed",
+            "headers" : {
+              "Location" : {
+                "description" : "`/orders/{orderId}`",
+                "schema" : {
+                  "type" : "string"
+                },
+                "style" : "simple"
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Invalid items or delivery details"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated, or the token carries no email"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not a CUSTOMER"
+          },
+          "422" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "oneOf" : [ {
+                    "$ref" : "#/components/schemas/IneligibleItemsProblem"
+                  }, {
+                    "$ref" : "#/components/schemas/InsufficientStockProblem"
+                  }, {
+                    "$ref" : "#/components/schemas/OrderTotalTooLargeProblem"
+                  } ]
+                }
+              }
+            },
+            "description" : "A product cannot be ordered, the stock is insufficient, or the total is too large; no order was created. The `type` tells them apart."
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          },
+          "503" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Catalog or Inventory cannot be reached; no order was created",
+            "headers" : {
+              "Retry-After" : {
+                "description" : "Seconds to wait before retrying",
+                "schema" : {
+                  "type" : "integer"
+                },
+                "style" : "simple"
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Place an order (EP-ORD-02)",
+        "tags" : [ "Orders" ]
+      }
+    },
+    "/orders/fulfillment-queue" : {
+      "get" : {
+        "description" : "Role: INVENTORY_WORKER. Paid orders waiting for dispatch, oldest payment first. When Delivery cannot be asked, `deliveryDataAvailable` is `false` and the shipment fields are missing (which then does not mean \"no shipment\").",
+        "operationId" : "queue",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FulfillmentQueueResponse"
+                }
+              }
+            },
+            "description" : "The queue"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not an INVENTORY_WORKER"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "View the fulfillment queue (EP-ORD-07)",
+        "tags" : [ "Fulfillment" ]
+      }
+    },
+    "/orders/validate" : {
+      "post" : {
+        "description" : "Role: CUSTOMER. A soft check against Catalog: every product active and in stock. Nothing is stored and no stock is locked.",
+        "operationId" : "validate",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ValidateCheckoutRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Every product can be ordered"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Empty items, more than 100, a duplicate product or an invalid quantity"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not a CUSTOMER"
+          },
+          "422" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/IneligibleItemsProblem"
+                }
+              }
+            },
+            "description" : "Some products cannot be ordered"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          },
+          "503" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Catalog cannot be reached",
+            "headers" : {
+              "Retry-After" : {
+                "description" : "Seconds to wait before retrying",
+                "schema" : {
+                  "type" : "integer"
+                },
+                "style" : "simple"
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Check a cart before checkout (EP-ORD-01)",
+        "tags" : [ "Orders" ]
+      }
+    },
+    "/orders/{orderId}" : {
+      "delete" : {
+        "description" : "Role: CUSTOMER. Allowed in PENDING_PAYMENT, PAID and PENDING_SHIPPING; a paid order is refunded. `status` is CANCELLED when the cancellation finished, or CANCELLATION_REQUESTED when a step will be retried.",
+        "operationId" : "cancel",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "orderId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "202" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CancellationResponse"
+                }
+              }
+            },
+            "description" : "Cancellation accepted"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Malformed request or invalid fields"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not a CUSTOMER"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "No such order, or not the caller's"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OrderStateProblem"
+                }
+              }
+            },
+            "description" : "The order cannot be cancelled in its status, or a cancellation is already in progress"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Cancel an order (EP-ORD-06)",
+        "tags" : [ "Orders" ]
+      },
+      "get" : {
+        "description" : "Role: CUSTOMER. `ttn` and `deliveryStatus` are missing while Delivery has no shipment or cannot be reached.",
+        "operationId" : "details",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "orderId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OrderDetailsResponse"
+                }
+              }
+            },
+            "description" : "The order"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Malformed request or invalid fields"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not a CUSTOMER"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "No such order, or not the caller's"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "View an order (EP-ORD-05)",
+        "tags" : [ "Orders" ]
+      }
+    },
+    "/orders/{orderId}/pay" : {
+      "post" : {
+        "description" : "Role: CUSTOMER. Charges the order total to the card. After a 503, repeating the request with the same card is safe: it is never charged twice.",
+        "operationId" : "pay",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "orderId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PayOrderRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PaidOrderResponse"
+                }
+              }
+            },
+            "description" : "Paid"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Invalid card details"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated"
+          },
+          "402" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PaymentDeclinedProblem"
+                }
+              }
+            },
+            "description" : "The card was declined; the order can be paid with another card"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not a CUSTOMER"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "No such order, or not the caller's"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "oneOf" : [ {
+                    "$ref" : "#/components/schemas/OrderStateProblem"
+                  }, {
+                    "$ref" : "#/components/schemas/Problem"
+                  } ]
+                }
+              }
+            },
+            "description" : "The order is not awaiting payment (OrderStateProblem), its payment window has passed, or a previous attempt is still in progress (Problem)"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          },
+          "503" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Payment cannot be reached; retry with the same card",
+            "headers" : {
+              "Retry-After" : {
+                "description" : "Seconds to wait before retrying",
+                "schema" : {
+                  "type" : "integer"
+                },
+                "style" : "simple"
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Pay for an order (EP-ORD-03)",
+        "tags" : [ "Orders" ]
+      }
+    },
+    "/orders/{orderId}/ship" : {
+      "post" : {
+        "description" : "Role: INVENTORY_WORKER. Allowed only once Delivery has generated the TTN.",
+        "operationId" : "ship",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "orderId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShippedOrderResponse"
+                }
+              }
+            },
+            "description" : "Shipped"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Malformed request or invalid fields"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not authenticated"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not an INVENTORY_WORKER"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "No such order"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "oneOf" : [ {
+                    "$ref" : "#/components/schemas/OrderStateProblem"
+                  }, {
+                    "$ref" : "#/components/schemas/Problem"
+                  } ]
+                }
+              }
+            },
+            "description" : "The order is not awaiting dispatch (OrderStateProblem), or its TTN is not generated yet (Problem)"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          },
+          "503" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Delivery cannot be reached; nothing changed",
+            "headers" : {
+              "Retry-After" : {
+                "description" : "Seconds to wait before retrying",
+                "schema" : {
+                  "type" : "integer"
+                },
+                "style" : "simple"
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Mark an order as shipped (EP-ORD-08)",
+        "tags" : [ "Fulfillment" ]
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "CancellationResponse" : {
+        "type" : "object",
+        "properties" : {
+          "orderId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "PENDING_PAYMENT", "PAID", "PENDING_SHIPPING", "SHIPPED", "DELIVERED", "CANCELLATION_REQUESTED", "CANCELLED", "EXPIRED" ]
+          }
+        },
+        "required" : [ "orderId", "status" ]
+      },
+      "CardDetailsRequest" : {
+        "type" : "object",
+        "properties" : {
+          "cvv" : {
+            "type" : "string",
+            "pattern" : "\\d{3,4}"
+          },
+          "expiryMonth" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 12,
+            "minimum" : 1
+          },
+          "expiryYear" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 2099,
+            "minimum" : 2000
+          },
+          "number" : {
+            "type" : "string",
+            "pattern" : "\\d{13,19}"
+          }
+        },
+        "required" : [ "cvv", "expiryMonth", "expiryYear", "number" ]
+      },
+      "DeliveryDetailsRequest" : {
+        "type" : "object",
+        "properties" : {
+          "address" : {
+            "type" : "string",
+            "maxLength" : 500,
+            "minLength" : 0
+          },
+          "carrier" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "name" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0
+          },
+          "phone" : {
+            "type" : "string",
+            "minLength" : 1,
+            "pattern" : "\\+[1-9]\\d{7,14}"
+          }
+        },
+        "required" : [ "address", "carrier", "name", "phone" ]
+      },
+      "FulfillmentQueueDelivery" : {
+        "type" : "object",
+        "properties" : {
+          "address" : {
+            "type" : "string"
+          },
+          "carrier" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "phone" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "address", "carrier", "name", "phone" ]
+      },
+      "FulfillmentQueueEntry" : {
+        "type" : "object",
+        "properties" : {
+          "deliveryDetails" : {
+            "$ref" : "#/components/schemas/FulfillmentQueueDelivery"
+          },
+          "deliveryStatus" : {
+            "type" : "string",
+            "enum" : [ "TTN_PENDING", "TTN_FAILED", "TTN_GENERATED", "IN_TRANSIT", "DELIVERED", "CANCELLED" ]
+          },
+          "failureReason" : {
+            "type" : "string"
+          },
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/FulfillmentQueueItem"
+            }
+          },
+          "orderId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "paidAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "placedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "PENDING_PAYMENT", "PAID", "PENDING_SHIPPING", "SHIPPED", "DELIVERED", "CANCELLATION_REQUESTED", "CANCELLED", "EXPIRED" ]
+          },
+          "ttn" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "deliveryDetails", "items", "orderId", "paidAt", "placedAt", "status" ]
+      },
+      "FulfillmentQueueItem" : {
+        "type" : "object",
+        "properties" : {
+          "productId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "productTitle" : {
+            "type" : "string"
+          },
+          "quantity" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "productId", "productTitle", "quantity" ]
+      },
+      "FulfillmentQueueResponse" : {
+        "type" : "object",
+        "properties" : {
+          "deliveryDataAvailable" : {
+            "type" : "boolean"
+          },
+          "orders" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/FulfillmentQueueEntry"
+            }
+          }
+        },
+        "required" : [ "deliveryDataAvailable", "orders" ]
+      },
+      "IneligibleItem" : {
+        "type" : "object",
+        "properties" : {
+          "productId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "reason" : {
+            "type" : "string",
+            "enum" : [ "NOT_ACTIVE", "INSUFFICIENT_STOCK" ]
+          }
+        },
+        "required" : [ "productId", "reason" ]
+      },
+      "IneligibleItemsProblem" : {
+        "type" : "object",
+        "description" : "Some products cannot be ordered (422)",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "ineligibleItems" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/IneligibleItem"
+            }
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "service" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          }
+        },
+        "required" : [ "ineligibleItems", "status", "title", "type" ]
+      },
+      "InsufficientItem" : {
+        "type" : "object",
+        "properties" : {
+          "available" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "productId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "requested" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "available", "productId", "requested" ]
+      },
+      "InsufficientStockProblem" : {
+        "type" : "object",
+        "description" : "Inventory cannot reserve enough stock (422)",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "insufficientItems" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/InsufficientItem"
+            }
+          },
+          "service" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          }
+        },
+        "required" : [ "insufficientItems", "status", "title", "type" ]
+      },
+      "OrderDetailsDelivery" : {
+        "type" : "object",
+        "properties" : {
+          "address" : {
+            "type" : "string"
+          },
+          "carrier" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "phone" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "address", "carrier", "name", "phone" ]
+      },
+      "OrderDetailsItem" : {
+        "type" : "object",
+        "properties" : {
+          "productId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "productTitle" : {
+            "type" : "string"
+          },
+          "quantity" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "unitPriceAtOrder" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "productId", "productTitle", "quantity", "unitPriceAtOrder" ]
+      },
+      "OrderDetailsResponse" : {
+        "type" : "object",
+        "properties" : {
+          "currency" : {
+            "type" : "string"
+          },
+          "deliveryDetails" : {
+            "$ref" : "#/components/schemas/OrderDetailsDelivery"
+          },
+          "deliveryStatus" : {
+            "type" : "string",
+            "enum" : [ "TTN_PENDING", "TTN_FAILED", "TTN_GENERATED", "IN_TRANSIT", "DELIVERED", "CANCELLED" ]
+          },
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/OrderDetailsItem"
+            }
+          },
+          "orderId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "paidAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "placedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "reservationExpiresAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "PENDING_PAYMENT", "PAID", "PENDING_SHIPPING", "SHIPPED", "DELIVERED", "CANCELLATION_REQUESTED", "CANCELLED", "EXPIRED" ]
+          },
+          "totalAmount" : {
+            "type" : "number"
+          },
+          "ttn" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "currency", "deliveryDetails", "items", "orderId", "placedAt", "reservationExpiresAt", "status", "totalAmount" ]
+      },
+      "OrderItemRequest" : {
+        "type" : "object",
+        "properties" : {
+          "productId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "quantity" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 10,
+            "minimum" : 1
+          }
+        },
+        "required" : [ "productId", "quantity" ]
+      },
+      "OrderStateProblem" : {
+        "type" : "object",
+        "description" : "The order's status does not allow this (409)",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "orderStatus" : {
+            "type" : "string",
+            "description" : "The order's current status",
+            "enum" : [ "PENDING_PAYMENT", "PAID", "PENDING_SHIPPING", "SHIPPED", "DELIVERED", "CANCELLATION_REQUESTED", "CANCELLED", "EXPIRED" ]
+          },
+          "service" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          }
+        },
+        "required" : [ "orderStatus", "status", "title", "type" ]
+      },
+      "OrderSummaryResponse" : {
+        "type" : "object",
+        "properties" : {
+          "currency" : {
+            "type" : "string"
+          },
+          "orderId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "placedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "PENDING_PAYMENT", "PAID", "PENDING_SHIPPING", "SHIPPED", "DELIVERED", "CANCELLATION_REQUESTED", "CANCELLED", "EXPIRED" ]
+          },
+          "totalAmount" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "currency", "orderId", "placedAt", "status", "totalAmount" ]
+      },
+      "OrderTotalTooLargeProblem" : {
+        "type" : "object",
+        "description" : "The order total is above what can be paid at once (422)",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "maxTotal" : {
+            "type" : "number",
+            "description" : "The largest total that can be paid"
+          },
+          "service" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          }
+        },
+        "required" : [ "maxTotal", "status", "title", "type" ]
+      },
+      "PageResponseOrderSummaryResponse" : {
+        "type" : "object",
+        "properties" : {
+          "content" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/OrderSummaryResponse"
+            }
+          },
+          "page" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalElements" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "content", "page", "size", "totalElements" ]
+      },
+      "PaidOrderResponse" : {
+        "type" : "object",
+        "properties" : {
+          "orderId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "PENDING_PAYMENT", "PAID", "PENDING_SHIPPING", "SHIPPED", "DELIVERED", "CANCELLATION_REQUESTED", "CANCELLED", "EXPIRED" ]
+          }
+        },
+        "required" : [ "orderId", "status" ]
+      },
+      "PayOrderRequest" : {
+        "type" : "object",
+        "properties" : {
+          "cardDetails" : {
+            "$ref" : "#/components/schemas/CardDetailsRequest"
+          }
+        },
+        "required" : [ "cardDetails" ]
+      },
+      "PaymentDeclinedProblem" : {
+        "type" : "object",
+        "description" : "The card was declined (402)",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "reason" : {
+            "type" : "string",
+            "description" : "Payment's decline reason"
+          },
+          "service" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          }
+        },
+        "required" : [ "reason", "status", "title", "type" ]
+      },
+      "PlaceOrderRequest" : {
+        "type" : "object",
+        "properties" : {
+          "deliveryDetails" : {
+            "$ref" : "#/components/schemas/DeliveryDetailsRequest"
+          },
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/OrderItemRequest"
+            },
+            "maxItems" : 100,
+            "minItems" : 0
+          }
+        },
+        "required" : [ "deliveryDetails", "items" ]
+      },
+      "PlacedOrderResponse" : {
+        "type" : "object",
+        "properties" : {
+          "currency" : {
+            "type" : "string"
+          },
+          "orderId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "reservationExpiresAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "PENDING_PAYMENT", "PAID", "PENDING_SHIPPING", "SHIPPED", "DELIVERED", "CANCELLATION_REQUESTED", "CANCELLED", "EXPIRED" ]
+          },
+          "totalAmount" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "currency", "orderId", "reservationExpiresAt", "status", "totalAmount" ]
+      },
+      "Problem" : {
+        "type" : "object",
+        "description" : "RFC 9457 problem details",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "service" : {
+            "type" : "string",
+            "description" : "Name of the service that answered"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri",
+            "description" : "Error kind: `https://voltstore.com/errors/<kind>`"
+          }
+        },
+        "required" : [ "status", "title", "type" ]
+      },
+      "ShippedOrderResponse" : {
+        "type" : "object",
+        "properties" : {
+          "orderId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "PENDING_PAYMENT", "PAID", "PENDING_SHIPPING", "SHIPPED", "DELIVERED", "CANCELLATION_REQUESTED", "CANCELLED", "EXPIRED" ]
+          },
+          "ttn" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "orderId", "status", "ttn" ]
+      },
+      "ValidateCheckoutRequest" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/OrderItemRequest"
+            },
+            "maxItems" : 100,
+            "minItems" : 0
+          }
+        },
+        "required" : [ "items" ]
+      },
+      "ValidationProblem" : {
+        "type" : "object",
+        "description" : "A malformed request or broken field rules (400)",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "errors" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              }
+            },
+            "description" : "Field or parameter name to its messages"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "service" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          }
+        },
+        "required" : [ "status", "title", "type" ]
+      }
+    },
+    "securitySchemes" : {
+      "bearerAuth" : {
+        "bearerFormat" : "JWT",
+        "description" : "JWT from POST /auth/login",
+        "scheme" : "bearer",
+        "type" : "http"
+      }
+    }
+  }
+}
