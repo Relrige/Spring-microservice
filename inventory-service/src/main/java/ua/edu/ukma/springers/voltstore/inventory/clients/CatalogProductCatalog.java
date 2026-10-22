@@ -8,17 +8,19 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.CatalogUnavailableException;
+import ua.edu.ukma.springers.voltstore.inventory.services.CatalogProductData;
 import ua.edu.ukma.springers.voltstore.inventory.services.ProductCatalog;
 
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
 /**
- * Asks Catalog's internal batch-get whether a product exists.
+ * Asks Catalog's internal batch-get for products: whether they exist, and their data for the copy in the stock row.
  * <ul>
- *   <li>The product is in the answer → {@code true}; an empty answer (or one without it) → {@code false}. Both are
- *   business answers, never retried.</li>
+ *   <li>The answer lists the products Catalog knows; a product missing from it does not exist. Both are business
+ *   answers, never retried.</li>
  *   <li>Connection error, timeout or {@code 5xx} → transient: retried {@code maxRetries} times with jittered delay
  *   (task 20), then {@link CatalogUnavailableException} (503).</li>
  *   <li>Any other status (e.g. {@code 401}/{@code 403}: wrong internal token or route rule) → configuration
@@ -45,9 +47,10 @@ public class CatalogProductCatalog implements ProductCatalog {
     }
 
     @Override
-    public boolean exists(UUID productId) {
+    public List<CatalogProductData> findAll(Collection<UUID> productIds) {
+        List<UUID> ids = List.copyOf(productIds);
         try {
-            return retryTemplate.execute(() -> existsOnce(productId));
+            return retryTemplate.execute(() -> findAllOnce(ids));
         } catch (RetryException e) {
             Throwable last = e.getLastException();
             if (last instanceof CatalogUnavailableException unavailable) {
@@ -57,21 +60,30 @@ public class CatalogProductCatalog implements ProductCatalog {
         }
     }
 
-    private boolean existsOnce(UUID productId) {
+    private List<CatalogProductData> findAllOnce(List<UUID> productIds) {
+        // One ID is the existence check of EP-INV-02/03; more are the backfill (EP-INV-JOB-01)
+        String what = productIds.size() == 1 ? "product " + productIds.getFirst() : productIds.size() + " products";
         try {
-            List<CatalogProduct> products = catalogClient.batchGet(List.of(productId));
-            return products != null && products.stream().anyMatch(product -> productId.equals(product.productId()));
+            List<CatalogProduct> answer = catalogClient.batchGet(productIds);
+            if (answer == null) {
+                return List.of();
+            }
+            return answer.stream()
+                    .filter(product -> product.productId() != null)
+                    .map(product -> new CatalogProductData(product.productId(), product.title(), product.status(),
+                            product.version()))
+                    .toList();
         } catch (RestClientResponseException e) {
             if (e.getStatusCode().is5xxServerError()) {
-                log.warn("Catalog lookup of product {} failed: Catalog answered {}", productId, e.getStatusCode());
+                log.warn("Catalog lookup of {} failed: Catalog answered {}", what, e.getStatusCode());
                 throw new TransientFailure(e);
             }
-            log.error("Catalog lookup of product {}: unexpected status {} from Catalog "
-                    + "(check the internal token and Catalog's route rules)", productId, e.getStatusCode());
+            log.error("Catalog lookup of {}: unexpected status {} from Catalog "
+                    + "(check the internal token and Catalog's route rules)", what, e.getStatusCode());
             throw new CatalogUnavailableException("Catalog answered " + e.getStatusCode(), e);
         } catch (RestClientException e) {
             // Connection refused, connect or read timeout, broken response
-            log.warn("Catalog lookup of product {} failed: {}", productId, e.getMessage());
+            log.warn("Catalog lookup of {} failed: {}", what, e.getMessage());
             throw new TransientFailure(e);
         }
     }

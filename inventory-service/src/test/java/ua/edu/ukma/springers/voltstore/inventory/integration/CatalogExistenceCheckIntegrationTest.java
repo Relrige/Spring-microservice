@@ -85,6 +85,34 @@ class CatalogExistenceCheckIntegrationTest {
     }
 
     @Test
+    void adjust_productKnownToCatalog_storesTheCopyFromTheAnswer() throws Exception {
+        UUID productId = UUID.randomUUID();
+        catalogKnows(productId);
+
+        adjust(productId, 10).andExpect(status().isOk());
+
+        assertThat(jdbc.queryForMap("SELECT title, product_status, product_version FROM stock_items "
+                + "WHERE product_id = ?", productId))
+                .containsEntry("title", "Laptop")
+                .containsEntry("product_status", "NOT_ACTIVE")
+                .containsEntry("product_version", 3L);
+    }
+
+    @Test
+    void adjust_answerWithoutVersion_createsTheRowWithoutACopy() throws Exception {
+        UUID productId = UUID.randomUUID();
+        catalog.stubFor(get(urlPathEqualTo(BATCH_GET)).willReturn(okJson("""
+                [{"productId":"%s","title":"Laptop","basePrice":999.99,"status":"NOT_ACTIVE"}]
+                """.formatted(productId))));
+
+        adjust(productId, 10).andExpect(status().isOk());
+
+        assertThat(availableQuantity(productId)).containsExactly(10);
+        assertThat(jdbc.queryForObject("SELECT title FROM stock_items WHERE product_id = ?", String.class,
+                productId)).isNull();
+    }
+
+    @Test
     void adjust_productUnknownToCatalog_returns404AndCreatesNothing() throws Exception {
         UUID productId = UUID.randomUUID();
         catalog.stubFor(get(urlPathEqualTo(BATCH_GET)).willReturn(okJson("[]")));
@@ -175,7 +203,7 @@ class CatalogExistenceCheckIntegrationTest {
     private void catalogKnows(UUID productId) {
         catalog.stubFor(get(urlPathEqualTo(BATCH_GET)).withQueryParam("ids", equalTo(productId.toString()))
                 .willReturn(okJson("""
-                        [{"productId":"%s","title":"Laptop","basePrice":999.99,"status":"NOT_ACTIVE"}]
+                        [{"productId":"%s","title":"Laptop","basePrice":999.99,"status":"NOT_ACTIVE","version":3}]
                         """.formatted(productId))));
     }
 
