@@ -545,3 +545,14 @@ export const DEMO_CART: DemoCartLine[] = [
   { title: 'Anker 737 power bank, 24,000 mAh', quantity: 2 },
   { title: 'Xiaomi 14T, 512 GB', quantity: 1 },
 ];
+
+/**
+ * The demo customer's profile (change customer-checkout-orders, design D11): the
+ * recipient of the checkout mockup, so the delivery form is pre-filled.
+ */
+export const DEMO_PROFILE = {
+  firstName: 'Olena',
+  lastName: 'Kovalenko',
+  phone: '+380501234567',
+  defaultAddress: 'Kyiv, branch No. 12, Velyka Vasylkivska St 72',
+};

@@ -1,13 +1,15 @@
 // In-memory database of the mock backend, started from the shared demo fixtures (design D10, D14).
 import type { Role } from '../api/auth';
 import type { Category, ProductStatus, StockStatus } from '../api/catalog';
-import type { CartItem } from '../api/customer';
+import type { CartItem, Profile } from '../api/customer';
+import type { DeliveryDetails, DeliveryStatus, OrderStatus } from '../api/order';
 import {
   DEMO_ACCOUNTS,
   DEMO_CART,
   DEMO_CATEGORIES,
   DEMO_CUSTOMER,
   DEMO_PRODUCTS,
+  DEMO_PROFILE,
   type DemoPackaging,
 } from '../fixtures/demo-data';
 
@@ -37,6 +39,26 @@ export interface MockDb {
   products: MockProduct[];
   /** Customer Service carts by user id, ordered by `productId`. */
   carts: Map<string, CartItem[]>;
+  /** Customer Service profiles by user id. */
+  profiles: Map<string, Profile>;
+  /** Order Service orders (change customer-checkout-orders, design D10). */
+  orders: MockOrder[];
+  /** Submissions by `<userId> <Idempotency-Key>`: request hash and the order placed. */
+  idempotencyKeys: Map<string, { hash: string; orderId: string }>;
+}
+
+export interface MockOrder {
+  orderId: string;
+  customerId: string;
+  status: OrderStatus;
+  items: { productId: string; productTitle: string; unitPriceAtOrder: number; quantity: number }[];
+  deliveryDetails: DeliveryDetails;
+  totalAmount: number;
+  placedAt: string;
+  paidAt?: string;
+  reservationExpiresAt: string;
+  ttn?: string;
+  deliveryStatus?: DeliveryStatus;
 }
 
 function fixedUuid(group: string, index: number): string {
@@ -64,9 +86,13 @@ export function createDb(): MockDb {
     productId: productId(line.title),
     quantity: line.quantity,
   })).sort((a, b) => (a.productId < b.productId ? -1 : 1));
+  const demoCustomerId = users.find((u) => u.email === DEMO_CUSTOMER.email)!.id;
   return {
     users,
-    carts: new Map([[users.find((u) => u.email === DEMO_CUSTOMER.email)!.id, demoCart]]),
+    carts: new Map([[demoCustomerId, demoCart]]),
+    profiles: new Map([[demoCustomerId, { ...DEMO_PROFILE }]]),
+    orders: [],
+    idempotencyKeys: new Map(),
     categories,
     products: DEMO_PRODUCTS.map((product, index) => ({
       productId: fixedUuid('8000', index),

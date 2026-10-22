@@ -2,13 +2,15 @@
 // Each handler follows the spec section named next to it; status codes and problem
 // details match ../docs/design/services-specs/. Every JSON answer is checked with
 // `satisfies` against the types generated from the services' OpenAPI documents.
-import { http, HttpResponse, type HttpHandler } from 'msw';
+import { delay, http, HttpResponse, type HttpHandler } from 'msw';
 import type { Role } from '../api/auth';
 import type { ProductStatus } from '../api/catalog';
 import { PROBLEM_TYPE_PREFIX } from '../api/errors';
 import type { components as AuthComponents } from '../api/generated/auth';
 import type { components as CatalogComponents } from '../api/generated/catalog';
 import type { components as CustomerComponents } from '../api/generated/customer';
+import type { components as OrderComponents } from '../api/generated/order';
+import type { Received } from '../api/contract';
 import type { CartItem } from '../api/customer';
 import {
   addItem,
@@ -22,7 +24,7 @@ import {
   checkCart,
   type RuleResult,
 } from '../features/cart/cart-rules';
-import { db, type MockUser } from './db';
+import { db, type MockOrder, type MockUser } from './db';
 import { createMockToken, readMockToken, type MockClaims } from './tokens';
 
 const api = (path: string) => `*/api${path}`;
@@ -45,10 +47,12 @@ type CustomerSchemas = CustomerComponents['schemas'];
 const KINDS: Record<number, [string, string]> = {
   400: ['validation', 'Bad Request'],
   401: ['unauthorized', 'Unauthorized'],
+  402: ['payment-declined', 'Payment Required'],
   403: ['forbidden', 'Forbidden'],
   404: ['not-found', 'Not Found'],
   409: ['conflict', 'Conflict'],
   422: ['unprocessable-entity', 'Unprocessable Entity'],
+  503: ['service-unavailable', 'Service Unavailable'],
 };
 
 /**
@@ -61,6 +65,7 @@ export function problem(
   extra: Record<string, unknown> = {},
   service = 'mock',
   kind?: string,
+  headers: Record<string, string> = {},
 ) {
   const [defaultKind, title] = KINDS[status] ?? ['internal-error', 'Internal Server Error'];
   const body = {
@@ -73,7 +78,7 @@ export function problem(
   } satisfies CatalogSchemas['Problem'];
   return HttpResponse.json(
     { ...body, ...extra },
-    { status, headers: { 'Content-Type': 'application/problem+json' } },
+    { status, headers: { ...headers, 'Content-Type': 'application/problem+json' } },
   );
 }
 
@@ -308,8 +313,422 @@ const cartHandlers: HttpHandler[] = [
   }),
 ];
 
+// Customer spec EP-CUST-01/02: the profile.
+const PHONE = /^\+[1-9]\d{7,14}$/;
+
+const profileHandlers: HttpHandler[] = [
+  http.get(api('/customers/me/profile'), ({ request }) => {
+    const { claims, denied } = authenticate(request, CUSTOMER_ONLY);
+    if (denied) return denied;
+    const profile = db.profiles.get(claims!.sub);
+    return HttpResponse.json({
+      firstName: profile?.firstName ?? null,
+      lastName: profile?.lastName ?? null,
+      phone: profile?.phone ?? null,
+      defaultAddress: profile?.defaultAddress ?? null,
+    } satisfies Received<CustomerSchemas['ProfileResponse']>);
+  }),
+
+  http.put(api('/customers/me/profile'), async ({ request }) => {
+    const { claims, denied } = authenticate(request, CUSTOMER_ONLY);
+    if (denied) return denied;
+    const body = await readJson(request);
+    if (!body) return problem(400, 'Malformed JSON request', {}, 'customer-service');
+    const errors: Record<string, string[]> = {};
+    for (const field of ['firstName', 'lastName'] as const) {
+      const value = body[field];
+      if (typeof value !== 'string' || !value.trim()) errors[field] = ['must not be blank'];
+      else if (value.length > 100) errors[field] = ['size must be between 0 and 100'];
+    }
+    if (typeof body.phone !== 'string' || !PHONE.test(body.phone)) {
+      errors.phone = ['must match "^\\+[1-9]\\d{7,14}$"'];
+    }
+    const address = body.defaultAddress;
+    if (address != null && (typeof address !== 'string' || address.length > 500)) {
+      errors.defaultAddress = ['size must be between 0 and 500'];
+    }
+    if (Object.keys(errors).length > 0) {
+      return problem(400, 'Validation failed', { errors }, 'customer-service');
+    }
+    const profile = {
+      firstName: String(body.firstName),
+      lastName: String(body.lastName),
+      phone: String(body.phone),
+      defaultAddress: (address as string | null | undefined) ?? null,
+    } satisfies Received<CustomerSchemas['ProfileResponse']>;
+    db.profiles.set(claims!.sub, profile);
+    return HttpResponse.json(profile);
+  }),
+];
+
+// Order spec (change customer-checkout-orders, design D10).
+type OrderSchemas = OrderComponents['schemas'];
+const ORDER = 'order-service';
+const PAYMENT_WINDOW_MS = 15 * 60_000;
+const EXPIRY_GRACE_MS = 30_000;
+const TTN_AFTER_MS = 3_000;
+const MAX_TOTAL = 9_999_999_999.99;
+const CARRIERS = ['NOVA_POSHTA'];
+
+/** Mock knobs; tests set `paymentDelayMs` to 0 for the `…5000` card. */
+export const mockSettings = { paymentDelayMs: 2_500 };
+
+function setStock(productId: string, change: number) {
+  const product = db.products.find((p) => p.productId === productId);
+  if (!product) return;
+  product.available += change;
+  product.stockStatus = product.available > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK';
+}
+
+const release = (order: MockOrder) =>
+  order.items.forEach((item) => setStock(item.productId, item.quantity));
+
+/** Background work of Order and Delivery, applied lazily when an order is read. */
+function progress(order: MockOrder, now = Date.now()): MockOrder {
+  const expires = Date.parse(order.reservationExpiresAt);
+  if (order.status === 'PENDING_PAYMENT' && now > expires + EXPIRY_GRACE_MS) {
+    order.status = 'EXPIRED';
+    release(order);
+  }
+  if (order.status === 'PAID' && now - Date.parse(order.paidAt!) >= TTN_AFTER_MS) {
+    order.status = 'PENDING_SHIPPING';
+    order.ttn = `2045${order.orderId.replace(/\D/g, '').padEnd(10, '0').slice(0, 10)}`;
+    order.deliveryStatus = 'TTN_GENERATED';
+  }
+  return order;
+}
+
+function ownOrder(claims: MockClaims, id: string): MockOrder | undefined {
+  const order = db.orders.find((o) => o.orderId === id && o.customerId === claims.sub);
+  return order && progress(order);
+}
+
+const orderState = (order: MockOrder, detail: string) =>
+  problem(409, detail, { orderStatus: order.status }, ORDER, 'conflict');
+
+/** EP-ORD-01/02 items: 1–100, UUID, quantity 1–10, no duplicates. */
+function itemErrors(items: unknown, errors: Record<string, string[]>): CartItem[] | undefined {
+  if (!Array.isArray(items) || items.length < 1 || items.length > 100) {
+    errors.items = ['size must be between 1 and 100'];
+    return undefined;
+  }
+  items.forEach((item: unknown, index) => {
+    const entry = (item ?? {}) as Record<string, unknown>;
+    productIdErrors(entry.productId, `items[${index}].productId`, errors);
+    quantityErrors(entry.quantity, `items[${index}].quantity`, errors);
+    if (typeof entry.quantity === 'number' && entry.quantity > 10) {
+      errors[`items[${index}].quantity`] = ['must be less than or equal to 10'];
+    }
+  });
+  if (duplicateProducts(items as CartItem[]).length > 0)
+    errors.items = ['must not repeat a product'];
+  return Object.keys(errors).length > 0 ? undefined : (items as CartItem[]);
+}
+
+function ineligible(items: CartItem[], checkStock: boolean): OrderSchemas['IneligibleItem'][] {
+  return items.flatMap<OrderSchemas['IneligibleItem']>(({ productId }) => {
+    const product = db.products.find((p) => p.productId === productId);
+    if (!product || product.status !== 'ACTIVE') return [{ productId, reason: 'NOT_ACTIVE' }];
+    if (checkStock && product.stockStatus === 'OUT_OF_STOCK') {
+      return [{ productId, reason: 'INSUFFICIENT_STOCK' }];
+    }
+    return [];
+  });
+}
+
+function cardErrors(card: Record<string, unknown> | undefined, now = new Date()) {
+  const errors: Record<string, string[]> = {};
+  const number = card?.number;
+  if (typeof number !== 'string' || !/^\d{13,19}$/.test(number)) {
+    errors['cardDetails.number'] = ['must be 13 to 19 digits'];
+  }
+  const month = card?.expiryMonth;
+  const year = card?.expiryYear;
+  if (!Number.isInteger(month) || (month as number) < 1 || (month as number) > 12) {
+    errors['cardDetails.expiryMonth'] = ['must be between 1 and 12'];
+  }
+  if (!Number.isInteger(year) || (year as number) < 2000 || (year as number) > 2099) {
+    errors['cardDetails.expiryYear'] = ['must be between 2000 and 2099'];
+  } else if (
+    !errors['cardDetails.expiryMonth'] &&
+    (year as number) * 12 + (month as number) < now.getFullYear() * 12 + now.getMonth() + 1
+  ) {
+    errors['cardDetails.expiryYear'] = ['card has expired'];
+  }
+  if (typeof card?.cvv !== 'string' || !/^\d{3,4}$/.test(card.cvv)) {
+    errors['cardDetails.cvv'] = ['must be 3 or 4 digits'];
+  }
+  return errors;
+}
+
+function placedAnswer(order: MockOrder, replayed: boolean) {
+  return HttpResponse.json(
+    {
+      orderId: order.orderId,
+      status: order.status,
+      totalAmount: order.totalAmount,
+      currency: 'UAH',
+      reservationExpiresAt: order.reservationExpiresAt,
+    } satisfies OrderSchemas['PlacedOrderResponse'],
+    {
+      status: 201,
+      headers: {
+        Location: `/orders/${order.orderId}`,
+        ...(replayed ? { 'Idempotent-Replayed': 'true' } : {}),
+      },
+    },
+  );
+}
+
+const orderHandlers: HttpHandler[] = [
+  // EP-ORD-01: soft check.
+  http.post(api('/orders/validate'), async ({ request }) => {
+    const { denied } = authenticate(request, CUSTOMER_ONLY);
+    if (denied) return denied;
+    const errors: Record<string, string[]> = {};
+    const items = itemErrors((await readJson(request))?.items, errors);
+    if (!items) return problem(400, 'Validation failed', { errors }, ORDER);
+    const ineligibleItems = ineligible(items, true);
+    if (ineligibleItems.length > 0) {
+      return problem(
+        422,
+        'Some items cannot be ordered',
+        { ineligibleItems } satisfies Partial<OrderSchemas['IneligibleItemsProblem']>,
+        ORDER,
+        'ineligible-items',
+      );
+    }
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // EP-ORD-02: place an order with an optional Idempotency-Key (BL-07).
+  http.post(api('/orders'), async ({ request }) => {
+    const { claims, denied } = authenticate(request, CUSTOMER_ONLY);
+    if (denied) return denied;
+    const body = await readJson(request);
+    const errors: Record<string, string[]> = {};
+    const items = itemErrors(body?.items, errors);
+    const delivery = (body?.deliveryDetails ?? {}) as Record<string, unknown>;
+    for (const field of ['name', 'phone', 'address', 'carrier']) {
+      const value = delivery[field];
+      if (typeof value !== 'string' || !value.trim()) {
+        errors[`deliveryDetails.${field}`] = ['must not be blank'];
+      }
+    }
+    if (!errors['deliveryDetails.phone'] && !PHONE.test(String(delivery.phone))) {
+      errors['deliveryDetails.phone'] = ['must be in international format'];
+    }
+    if (!errors['deliveryDetails.carrier'] && !CARRIERS.includes(String(delivery.carrier))) {
+      errors['deliveryDetails.carrier'] = ['must be one of NOVA_POSHTA'];
+    }
+    const key = request.headers.get('Idempotency-Key');
+    if (key !== null && !UUID.test(key)) errors['Idempotency-Key'] = ['must be a UUID'];
+    if (!items || Object.keys(errors).length > 0) {
+      return problem(400, 'Validation failed', { errors }, ORDER);
+    }
+    const deliveryDetails = {
+      name: String(delivery.name),
+      phone: String(delivery.phone),
+      address: String(delivery.address),
+      carrier: String(delivery.carrier),
+    };
+    const lines = items.map(({ productId, quantity }) => ({ productId, quantity }));
+
+    const keyId = key && `${claims!.sub} ${key}`;
+    const hash = JSON.stringify({ lines, deliveryDetails });
+    const known = keyId ? db.idempotencyKeys.get(keyId) : undefined;
+    if (known) {
+      if (known.hash !== hash) {
+        return problem(
+          422,
+          'Idempotency-Key was used for another request',
+          {},
+          ORDER,
+          'idempotency-key-mismatch',
+        );
+      }
+      return placedAnswer(progress(db.orders.find((o) => o.orderId === known.orderId)!), true);
+    }
+
+    const ineligibleItems = ineligible(lines, false);
+    if (ineligibleItems.length > 0) {
+      return problem(
+        422,
+        'Some items cannot be ordered',
+        { ineligibleItems },
+        ORDER,
+        'ineligible-items',
+      );
+    }
+    const products = lines.map((line) => db.products.find((p) => p.productId === line.productId)!);
+    const insufficientItems = lines
+      .map((line, index) => ({ ...line, available: products[index]!.available }))
+      .filter((line) => line.quantity > line.available)
+      .map(({ productId, quantity, available }) => ({ productId, requested: quantity, available }));
+    if (insufficientItems.length > 0) {
+      return problem(
+        422,
+        'Not enough stock',
+        { insufficientItems } satisfies Partial<OrderSchemas['InsufficientStockProblem']>,
+        ORDER,
+        'insufficient-stock',
+      );
+    }
+    const kopecks = lines.reduce(
+      (sum, line, index) => sum + Math.round(products[index]!.basePrice * 100) * line.quantity,
+      0,
+    );
+    if (kopecks / 100 > MAX_TOTAL) {
+      return problem(
+        422,
+        'Order total too large',
+        { maxTotal: MAX_TOTAL },
+        ORDER,
+        'order-total-too-large',
+      );
+    }
+
+    lines.forEach((line) => setStock(line.productId, -line.quantity));
+    const now = Date.now();
+    const order: MockOrder = {
+      orderId: crypto.randomUUID(),
+      customerId: claims!.sub,
+      status: 'PENDING_PAYMENT',
+      items: lines.map((line, index) => ({
+        productId: line.productId,
+        productTitle: products[index]!.title,
+        unitPriceAtOrder: products[index]!.basePrice,
+        quantity: line.quantity,
+      })),
+      deliveryDetails,
+      totalAmount: kopecks / 100,
+      placedAt: new Date(now).toISOString(),
+      reservationExpiresAt: new Date(now + PAYMENT_WINDOW_MS).toISOString(),
+    };
+    db.orders.push(order);
+    if (keyId) db.idempotencyKeys.set(keyId, { hash, orderId: order.orderId });
+    return placedAnswer(order, false);
+  }),
+
+  // EP-ORD-03: pay, by the demo payment provider's test cards.
+  http.post(api('/orders/:orderId/pay'), async ({ request, params }) => {
+    const { claims, denied } = authenticate(request, CUSTOMER_ONLY);
+    if (denied) return denied;
+    const card = (await readJson(request))?.cardDetails as Record<string, unknown> | undefined;
+    const errors = cardErrors(card);
+    if (Object.keys(errors).length > 0) return problem(400, 'Validation failed', { errors }, ORDER);
+    const order = ownOrder(claims!, String(params.orderId));
+    if (!order) return problem(404, 'Order not found', {}, ORDER);
+    if (order.status !== 'PENDING_PAYMENT')
+      return orderState(order, 'Order is not awaiting payment');
+    if (Date.parse(order.reservationExpiresAt) <= Date.now()) {
+      return problem(409, 'Payment window expired', {}, ORDER, 'payment-window-expired');
+    }
+    const last4 = String(card!.number).slice(-4);
+    if (last4 === '5000') await delay(mockSettings.paymentDelayMs);
+    else if (last4 !== '4242') {
+      const reason = last4 === '0002' ? 'insufficient_funds' : 'card_declined';
+      return problem(
+        402,
+        'Payment declined',
+        { reason } satisfies Partial<OrderSchemas['PaymentDeclinedProblem']>,
+        ORDER,
+        'payment-declined',
+      );
+    }
+    order.status = 'PAID';
+    order.paidAt = new Date().toISOString();
+    // Customer EP-CUST-EVT-01: the ordered products leave the cart.
+    const ordered = new Set(order.items.map((item) => item.productId));
+    const cart = db.carts.get(order.customerId);
+    if (cart)
+      db.carts.set(
+        order.customerId,
+        cart.filter((line) => !ordered.has(line.productId)),
+      );
+    return HttpResponse.json({
+      orderId: order.orderId,
+      status: order.status,
+    } satisfies OrderSchemas['PaidOrderResponse']);
+  }),
+
+  // EP-ORD-04: history, newest first.
+  http.get(api('/orders'), ({ request }) => {
+    const { claims, denied } = authenticate(request, CUSTOMER_ONLY);
+    if (denied) return denied;
+    const params = new URL(request.url).searchParams;
+    const page = intParam(params.get('page'), 0);
+    const size = intParam(params.get('size'), 20);
+    if (page === undefined || size === undefined || size < 1 || size > 100) {
+      return problem(400, 'Invalid request parameters', {}, ORDER);
+    }
+    const own = db.orders
+      .filter((o) => o.customerId === claims!.sub)
+      .map((o) => progress(o))
+      .sort((a, b) => b.placedAt.localeCompare(a.placedAt));
+    return HttpResponse.json({
+      content: own.slice(page * size, page * size + size).map((o) => ({
+        orderId: o.orderId,
+        status: o.status,
+        totalAmount: o.totalAmount,
+        currency: 'UAH',
+        placedAt: o.placedAt,
+      })),
+      page,
+      size,
+      totalElements: own.length,
+    } satisfies OrderSchemas['PageResponseOrderSummaryResponse']);
+  }),
+
+  // EP-ORD-05: details; `404` for another customer's order.
+  http.get(api('/orders/:orderId'), ({ request, params }) => {
+    const { claims, denied } = authenticate(request, CUSTOMER_ONLY);
+    if (denied) return denied;
+    const order = ownOrder(claims!, String(params.orderId));
+    if (!order) return problem(404, 'Order not found', {}, ORDER);
+    return HttpResponse.json({
+      orderId: order.orderId,
+      status: order.status,
+      items: order.items,
+      deliveryDetails: order.deliveryDetails,
+      totalAmount: order.totalAmount,
+      currency: 'UAH',
+      placedAt: order.placedAt,
+      reservationExpiresAt: order.reservationExpiresAt,
+      ...(order.paidAt ? { paidAt: order.paidAt } : {}),
+      ...(order.ttn ? { ttn: order.ttn } : {}),
+      ...(order.deliveryStatus ? { deliveryStatus: order.deliveryStatus } : {}),
+    } satisfies OrderSchemas['OrderDetailsResponse']);
+  }),
+
+  // EP-ORD-06: cancel; the saga finishes at once in the mock.
+  http.delete(api('/orders/:orderId'), ({ request, params }) => {
+    const { claims, denied } = authenticate(request, CUSTOMER_ONLY);
+    if (denied) return denied;
+    const order = ownOrder(claims!, String(params.orderId));
+    if (!order) return problem(404, 'Order not found', {}, ORDER);
+    if (order.status === 'CANCELLATION_REQUESTED') {
+      return orderState(order, 'Cancellation already in progress');
+    }
+    if (!['PENDING_PAYMENT', 'PAID', 'PENDING_SHIPPING'].includes(order.status)) {
+      return orderState(order, 'Order cannot be cancelled in its current state');
+    }
+    release(order);
+    order.status = 'CANCELLED';
+    return HttpResponse.json(
+      {
+        orderId: order.orderId,
+        status: order.status,
+      } satisfies OrderSchemas['CancellationResponse'],
+      { status: 202 },
+    );
+  }),
+];
+
 export const handlers: HttpHandler[] = [
   ...cartHandlers,
+  ...profileHandlers,
+  ...orderHandlers,
 
   // Auth spec EP-AUTH-01: register a customer.
   http.post(api('/user/register'), async ({ request }) => {
