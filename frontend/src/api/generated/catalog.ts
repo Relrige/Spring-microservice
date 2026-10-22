@@ -62,7 +62,7 @@ export interface paths {
         };
         /**
          * Search products (EP-CAT-04)
-         * @description Role: none or CATALOG_MANAGER. Anonymous callers and every role except CATALOG_MANAGER see only ACTIVE products, and `status` is ignored for them. A CATALOG_MANAGER sees ACTIVE and NOT_ACTIVE products and may filter by `status`.
+         * @description Role: none, or CATALOG_MANAGER or INVENTORY_WORKER. Anonymous callers and every other role see only ACTIVE products, and `status` is ignored for them. A CATALOG_MANAGER or INVENTORY_WORKER sees ACTIVE and NOT_ACTIVE products and may filter by `status`.
          */
         get: operations["browseProducts"];
         put?: never;
@@ -85,13 +85,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get an active product (EP-CAT-05)
-         * @description Public. A NOT_ACTIVE product answers the same 404 as a missing one.
+         * Get a product (EP-CAT-05)
+         * @description Role: none, or CATALOG_MANAGER or INVENTORY_WORKER. These two roles see products of any status; for every other caller a NOT_ACTIVE product answers the same 404 as a missing one.
          */
         get: operations["getProduct"];
         /**
          * Update a product (EP-CAT-02)
-         * @description Role: CATALOG_MANAGER. Status and stock status are not editable here.
+         * @description Role: CATALOG_MANAGER. Status and stock status are not editable here. Stores a `ProductUpdated` event.
          */
         put: operations["updateProduct"];
         post?: never;
@@ -116,7 +116,7 @@ export interface paths {
         head?: never;
         /**
          * Activate or deactivate a product (EP-CAT-03)
-         * @description Role: CATALOG_MANAGER. Activation first asks Inventory whether the product is ready (stock item and packaging data exist).
+         * @description Role: CATALOG_MANAGER. Activation first asks Inventory whether the product is ready (stock item and packaging data exist). Stores a `ProductUpdated` event when the status changes.
          */
         patch: operations["changeStatus"];
         trace?: never;
@@ -188,17 +188,6 @@ export interface components {
              * @description Error kind: `https://voltstore.com/errors/<kind>`
              */
             type: string;
-        };
-        ProductDetailsResponse: {
-            basePrice: number;
-            /** Format: uuid */
-            categoryId: string;
-            description: string;
-            /** Format: uuid */
-            productId: string;
-            /** @enum {string} */
-            stockStatus: "IN_STOCK" | "OUT_OF_STOCK";
-            title: string;
         };
         ProductRequest: {
             basePrice: number;
@@ -535,6 +524,8 @@ export interface operations {
             query?: {
                 search?: string;
                 categoryId?: string;
+                /** @description Comma-separated product IDs, at most 100 distinct. Only these products are returned (still filtered by visibility and the other parameters); paging is unchanged, so send `size=100` to get up to 100 products in one page. */
+                ids?: string[];
                 minPrice?: number;
                 maxPrice?: number;
                 /**
@@ -542,7 +533,7 @@ export interface operations {
                  * @example basePrice,desc
                  */
                 sortBy?: string;
-                /** @description Applied for CATALOG_MANAGER only */
+                /** @description Applied for CATALOG_MANAGER and INVENTORY_WORKER only */
                 status?: "ACTIVE" | "NOT_ACTIVE";
                 /** @description Zero-based page number, default 0 */
                 page?: number;
@@ -670,7 +661,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProductDetailsResponse"];
+                    "application/json": components["schemas"]["ProductResponse"];
                 };
             };
             /** @description Malformed request or invalid fields */
@@ -682,7 +673,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ValidationProblem"];
                 };
             };
-            /** @description No active product with this ID */
+            /** @description No product with this ID that the caller may see */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -762,6 +753,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            /** @description The product was changed by someone else at the same time */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             /** @description The category does not exist */
             422: {
                 headers: {
@@ -833,6 +833,15 @@ export interface operations {
             };
             /** @description No product with this ID */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The product was changed by someone else at the same time */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

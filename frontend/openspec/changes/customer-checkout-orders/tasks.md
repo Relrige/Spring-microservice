@@ -4,7 +4,7 @@ Apply on a branch that contains `customer-cart` and the backend's Catalog tasks 
 
 ## 1. Contracts and mock backend
 
-- [ ] 1.1 Run `npm run gen:api`, review the Catalog diff, point `ProductDetails` at `ProductResponse` and adapt the EP-CAT-05 mock handler (design D1); verify `npm run check` passes again and the product and cart page tests are unchanged
+- [x] 1.1 Run `npm run gen:api`, review the Catalog diff, point `ProductDetails` at `ProductResponse` and adapt the EP-CAT-05 mock handler (design D1); verify `npm run check` passes again and the product and cart page tests are unchanged
 - [ ] 1.2 Write `src/api/order.ts` (six calls by operationId, aliases, `orderProblem`) and add `getProfile`/`saveProfile` to `src/api/customer.ts`, with the optional `headers` option of `request()` (design D2); verify with type tests for the aliases and request bodies, unit tests that `orderProblem` tells every kind apart (both `conflict` cases included), and an http test that `Idempotency-Key` is sent
 - [ ] 1.3 Add `formatDateTime`, `formatTime`, `ShortId` and the `ORDER_STATUS`/`DELIVERY_STATUS` tables (design D8); verify with unit tests for `18 Oct 2026, 14:05` and a type test that the tables cover every generated status value
 - [ ] 1.4 Add mock profiles, orders and idempotency keys with the handlers of design D10 (validate, place with key replay and mismatch, pay by test-card digits with the `5000` delay, history, details with lazy expiry and TTN, cancel with stock release, cart clearing on payment) and the profile handlers; verify with handler tests through the API calls for every status code and problem `type`, including `401`/`403`

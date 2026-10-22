@@ -382,13 +382,19 @@ export const handlers: HttpHandler[] = [
     if (status !== null && status !== 'ACTIVE' && status !== 'NOT_ACTIVE') {
       errors.status = ['must be ACTIVE or NOT_ACTIVE'];
     }
+    // Catalog task 28: `ids` filter, at most 100 distinct UUIDs.
+    const ids = params.get('ids') ? new Set(params.get('ids')!.split(',')) : undefined;
+    if (ids && (ids.size > 100 || [...ids].some((id) => !UUID.test(id)))) {
+      errors.ids = ['must be at most 100 product IDs'];
+    }
     if (Object.keys(errors).length > 0)
       return problem(400, 'Invalid request parameters', { errors });
     if (typeof minPrice === 'number' && typeof maxPrice === 'number' && minPrice > maxPrice) {
       return problem(400, 'minPrice must not be greater than maxPrice', {}, 'catalog-service');
     }
 
-    const isManager = claims?.role === 'CATALOG_MANAGER';
+    // Catalog task 27: managers and inventory workers see every status.
+    const isManager = claims?.role === 'CATALOG_MANAGER' || claims?.role === 'INVENTORY_WORKER';
     const search = params.get('search')?.trim().toLowerCase();
     const categoryId = params.get('categoryId');
     const field = sortMatch![1] as 'title' | 'basePrice';
@@ -405,6 +411,7 @@ export const handlers: HttpHandler[] = [
           p.description.toLowerCase().includes(search),
       )
       .filter((p) => !categoryId || p.categoryId === categoryId)
+      .filter((p) => !ids || ids.has(p.productId))
       .filter((p) => typeof minPrice !== 'number' || p.basePrice >= minPrice)
       .filter((p) => typeof maxPrice !== 'number' || p.basePrice <= maxPrice)
       .sort((a, b) => {
@@ -440,8 +447,9 @@ export const handlers: HttpHandler[] = [
       description: product.description,
       categoryId: product.categoryId,
       basePrice: product.basePrice,
+      status: product.status,
       stockStatus: product.stockStatus,
-    } satisfies CatalogSchemas['ProductDetailsResponse']);
+    } satisfies CatalogSchemas['ProductResponse']);
   }),
 
   // Catalog spec EP-CAT-10: categories ordered by name (gateway: Public).
