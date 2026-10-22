@@ -7,6 +7,7 @@ import { CheckoutPage } from '../features/checkout/CheckoutPage';
 import { PaymentPage } from '../features/checkout/PaymentPage';
 import { OrderHistoryPage } from '../features/orders/OrderHistoryPage';
 import { OrderPage } from '../features/orders/OrderPage';
+import { StaffAccountsPage } from '../features/admin/StaffAccountsPage';
 import { ProfilePage } from '../features/profile/ProfilePage';
 import { QueuePage } from '../features/warehouse/QueuePage';
 import { StockPage } from '../features/warehouse/StockPage';
@@ -91,15 +92,17 @@ export const routes: RouteObject[] = [
         ],
       },
       {
-        path: 'admin/*',
+        // Admin page (change admin-staff-accounts, design D1).
+        path: 'admin',
         element: (
           <RequireRole allow="ADMIN">
-            <AreaPlaceholderPage
-              title="Administration"
-              arrives="Creating staff and admin accounts arrives in iteration 6 (admin-staff-accounts)."
-            />
+            <Outlet />
           </RequireRole>
         ),
+        children: [
+          { index: true, element: <StaffAccountsPage /> },
+          { path: '*', element: <NotFoundPage /> },
+        ],
       },
       { path: '*', element: <NotFoundPage /> },
     ],

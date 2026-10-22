@@ -46,10 +46,10 @@ describe('Protected pages need a login', () => {
   });
 
   it('shows the placeholder landing page of a staff area without screens yet', async () => {
-    loginAs('ADMIN');
-    renderApp('/admin');
-    expect(await screen.findByRole('heading', { name: 'Administration' })).toBeInTheDocument();
-    expect(screen.getByText(/iteration 6/)).toBeInTheDocument();
+    loginAs('CATALOG_MANAGER');
+    renderApp('/manage');
+    expect(await screen.findByRole('heading', { name: 'Catalog console' })).toBeInTheDocument();
+    expect(screen.getByText(/iteration 4/)).toBeInTheDocument();
   });
 
   it("worker's landing: /warehouse is the stock page", async () => {

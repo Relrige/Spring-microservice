@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { login, register } from '../api/auth';
+import { createNonCustomer, login, register } from '../api/auth';
 import { getProduct, listCategories, listProducts } from '../api/catalog';
 import {
   addCartItem,
@@ -309,5 +309,41 @@ describe('mock cart', () => {
     expect((await failure(getCart('none'))).status).toBe(401);
     expect((await failure(getCart(worker))).status).toBe(403);
     expect((await failure(clearCart(worker))).status).toBe(403);
+  });
+});
+
+describe('mock staff accounts (EP-AUTH-03)', () => {
+  const tokenOf = (role: 'ADMIN' | 'CATALOG_MANAGER') => ({
+    token: createMockToken(db.users.find((u) => u.role === role)!),
+  });
+  const body = {
+    email: 'new.worker@voltstore.com',
+    password: 'secret',
+    role: 'INVENTORY_WORKER' as const,
+  };
+
+  it('creates a staff account that can log in, and answers 409 for a used email', async () => {
+    const created = await createNonCustomer(body, tokenOf('ADMIN'));
+    expect(created.userId).toMatch(/[0-9a-f-]{36}/);
+    const { token } = await login({ email: body.email, password: body.password });
+    expect(readMockToken(token)?.role).toBe('INVENTORY_WORKER');
+    expect((await failure(createNonCustomer(body, tokenOf('ADMIN')))).status).toBe(409);
+  });
+
+  it('answers 400 with errors.role for CUSTOMER', async () => {
+    const error = await failure(
+      request('/user/non-customer', {
+        method: 'POST',
+        body: { ...body, role: 'CUSTOMER' },
+        auth: tokenOf('ADMIN'),
+      }),
+    );
+    expect(error.status).toBe(400);
+    expect(error.problem?.errors).toHaveProperty('role');
+  });
+
+  it('answers 401 without a token and 403 for a non-admin', async () => {
+    expect((await failure(createNonCustomer(body, 'session'))).status).toBe(401);
+    expect((await failure(createNonCustomer(body, tokenOf('CATALOG_MANAGER')))).status).toBe(403);
   });
 });

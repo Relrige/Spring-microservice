@@ -83,7 +83,12 @@ Result of the last live run: see *Live verification* below.
 
 ## Live verification
 
-Last run: 2026-10-22, branch `inventory-worker-console` (change `inventory-worker-console`), Compose stack of the repository root with the inventory, delivery and gateway images rebuilt from main (Inventory tasks 22–24, gateway task 12).
+Last run: 2026-10-22, branch `admin-staff-accounts` (change `admin-staff-accounts`), the same Compose stack as the previous run (no service changed).
+
+- `npm run test:e2e:live`: 11 of 11 journeys passed (about 55 s), including the admin journey: the admin created an inventory worker through `POST /user/non-customer`, and the new worker logged in and landed on the stock page. Each run leaves one `e2e-worker-…@example.com` account (accounts cannot be removed, BL-09). `npm run check:e2e` against the mock: 11 of 11.
+- No mismatch between the mock and Auth Service.
+
+Previous run: 2026-10-22, branch `inventory-worker-console` (change `inventory-worker-console`), Compose stack of the repository root with the inventory, delivery and gateway images rebuilt from main (Inventory tasks 22–24, gateway task 12).
 
 - Inventory applied migration V5 (product data copy); its backfill filled the title and status of all 45 stock rows about a minute after startup (BL-02).
 - `npm run seed`: `Result: seeded.` (stock adjusted back to the fixture targets for 2 products after earlier journeys).

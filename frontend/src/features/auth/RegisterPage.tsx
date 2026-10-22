@@ -10,7 +10,7 @@ import { InvalidTokenError, useSession } from '../../session/SessionProvider';
 import { AuthCard } from './AuthCard';
 
 export const EMAIL_TAKEN = 'An account with this email already exists';
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** `/register`: customer registration, then automatic login (spec user-session). */
 export function RegisterPage() {
