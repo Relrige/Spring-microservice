@@ -11,8 +11,8 @@ Apply after `api-contract-types`: `src/api/generated/customer.ts`, `src/api/cont
 
 ## 2. Cart state (spec `shopping-cart`)
 
-- [ ] 2.1 Implement the guest store `guest-cart.ts` (design D2): `voltstore.guestCart` with version and validation, subscribe and notify, `storage` sync; verify with unit tests for *Reload keeps the guest cart*, *Change in another tab* and *Unreadable stored cart*
-- [ ] 2.2 Add `source` (`login | stored | other-tab`) to `SessionProvider` (design D6); verify with session tests that login, reload and a login in another tab report the right source, and that the existing session tests still pass
+- [x] 2.1 Implement the guest store `guest-cart.ts` (design D2): `voltstore.guestCart` with version and validation, subscribe and notify, `storage` sync; verify with unit tests for *Reload keeps the guest cart*, *Change in another tab* and *Unreadable stored cart*
+- [x] 2.2 Add `source` (`login | stored | other-tab`) to `SessionProvider` (design D6); verify with session tests that login, reload and a login in another tab report the right source, and that the existing session tests still pass
 - [ ] 2.3 Implement `CartProvider` with the owner by role, the guest source and the server source (query `['cart']` with refetch on mount and focus, mutations in scope `cart` writing the answer into the query, per-line pending state, error handling of design D4), and mount it inside `SessionProvider`; verify with tests for *Visitor adds a product*, *Customer adds a product*, *Staff login keeps the guest cart*, *Server rejects a change*, *Line removed on another device* and *Customer Service unavailable*
 
 ## 3. Cart page, header and product page

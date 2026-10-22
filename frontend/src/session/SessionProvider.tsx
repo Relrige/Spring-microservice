@@ -29,8 +29,16 @@ export class InvalidTokenError extends Error {
   }
 }
 
+/**
+ * How the current session started (change customer-cart, design D6): `login` in
+ * this tab (login or registration), `stored` when the app loaded, `other-tab`
+ * when another tab logged in. Only `login` and `stored` carry a guest cart into the account.
+ */
+export type SessionSource = 'login' | 'stored' | 'other-tab';
+
 interface SessionContextValue {
   session: Session | null;
+  source: SessionSource;
   /** True while logout or expiry navigates away from the current page. */
   ending: boolean;
   /** Starts a session; throws InvalidTokenError for an unreadable token or unknown role. */
@@ -70,6 +78,7 @@ function writeStoredToken(token: string | null): void {
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(readStoredSession);
+  const [source, setSource] = useState<SessionSource>('stored');
   const sessionRef = useRef(session);
   useLayoutEffect(() => {
     sessionRef.current = session;
@@ -146,6 +155,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       else {
         queryClient.clear();
         sessionRef.current = next;
+        setSource('other-tab');
         setSession(next);
       }
     };
@@ -160,6 +170,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       writeStoredToken(token);
       queryClient.clear();
       sessionRef.current = result.session;
+      setSource('login');
       setSession(result.session);
       return result.session;
     },
@@ -177,8 +188,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const ending = endingAt !== null && endingAt === location.key;
 
   const value = useMemo(
-    () => ({ session, ending, startSession, logout }),
-    [session, ending, startSession, logout],
+    () => ({ session, source, ending, startSession, logout }),
+    [session, source, ending, startSession, logout],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

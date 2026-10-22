@@ -4,7 +4,11 @@ import { describe, expect, it } from 'vitest';
 import { DEMO_CUSTOMER, DEMO_STAFF } from '../fixtures/demo-data';
 import { currentUrl, loginAs, renderApp } from '../test/render';
 import { currentUserText } from '../test/ui';
-import { SESSION_STORAGE_KEY } from './SessionProvider';
+import { createMemoryRouter, RouterProvider } from 'react-router';
+import { db } from '../mocks/db';
+import { createMockToken } from '../mocks/tokens';
+import { renderWithProviders } from '../test/render';
+import { SESSION_STORAGE_KEY, SessionProvider, useSession } from './SessionProvider';
 
 const manager = DEMO_STAFF.find((a) => a.role === 'CATALOG_MANAGER')!;
 
@@ -74,5 +78,48 @@ describe('Logout', () => {
     expect(window.localStorage.getItem(SESSION_STORAGE_KEY)).toBeNull();
     expect(queryClient.getQueryData(['private'])).toBeUndefined();
     expect(screen.getByRole('link', { name: 'Log in' })).toBeInTheDocument();
+  });
+});
+
+describe('Session source', () => {
+  let current: ReturnType<typeof useSession>;
+  function Probe() {
+    current = useSession();
+    return null;
+  }
+  const renderProbe = () =>
+    renderWithProviders(
+      <RouterProvider
+        router={createMemoryRouter([
+          {
+            path: '*',
+            element: (
+              <SessionProvider>
+                <Probe />
+              </SessionProvider>
+            ),
+          },
+        ])}
+      />,
+    );
+
+  it('reports stored on reload, login after a login in this tab, other-tab after a login elsewhere', async () => {
+    loginAs('CUSTOMER');
+    renderProbe();
+    expect(current.source).toBe('stored');
+
+    const worker = db.users.find((u) => u.role === 'INVENTORY_WORKER')!;
+    act(() => {
+      window.localStorage.setItem(SESSION_STORAGE_KEY, createMockToken(worker));
+      window.dispatchEvent(new StorageEvent('storage', { key: SESSION_STORAGE_KEY }));
+    });
+    await waitFor(() => expect(current.session?.role).toBe('INVENTORY_WORKER'));
+    expect(current.source).toBe('other-tab');
+
+    act(() => {
+      current.startSession(createMockToken(db.users.find((u) => u.role === 'CUSTOMER')!));
+    });
+    expect(current.source).toBe('login');
+    expect(current.session?.role).toBe('CUSTOMER');
   });
 });
