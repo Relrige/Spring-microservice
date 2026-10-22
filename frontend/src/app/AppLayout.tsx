@@ -5,6 +5,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import type { Role } from '../api/auth';
 import { ColorSchemeToggle } from '../components/ColorSchemeToggle';
 import { Wordmark } from '../components/Wordmark';
+import { CartButton } from '../features/cart/CartButton';
 import { SearchForm } from '../features/catalog/SearchForm';
 import { ROLE_LABELS } from '../session/roles';
 import { useSession } from '../session/SessionProvider';
@@ -105,6 +106,7 @@ export function AppLayout() {
               </Group>
               {isStorefront(pathname) ? <SearchForm /> : <Box style={{ flex: 1 }} />}
               <Group gap="sm" wrap="nowrap">
+                <CartButton />
                 {session ? (
                   <>
                     <Text size="sm" c="dimmed" data-testid="current-user">
@@ -129,7 +131,8 @@ export function AppLayout() {
             </>
           )}
           {!isDesktop && (
-            <Group ml="auto">
+            <Group ml="auto" gap="xs" wrap="nowrap">
+              <CartButton />
               <ColorSchemeToggle />
             </Group>
           )}

@@ -34,7 +34,7 @@ export const routes: RouteObject[] = [
           <RequireRole allow="CUSTOMER">
             <AreaPlaceholderPage
               title="Your account"
-              arrives="Your cart arrives in iteration 2 (customer-cart); orders and your profile in iteration 3 (customer-checkout-orders)."
+              arrives="Your orders and your profile arrive in iteration 3 (customer-checkout-orders)."
             />
           </RequireRole>
         ),

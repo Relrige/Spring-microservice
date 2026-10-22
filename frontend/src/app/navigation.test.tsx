@@ -1,7 +1,9 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { DEMO_CUSTOMER, DEMO_STAFF } from '../fixtures/demo-data';
+import { writeGuestCart } from '../features/cart/guest-cart';
+import { db } from '../mocks/db';
 import { recordCartRequests } from '../test/cart';
 import { currentUrl, loginAs, renderApp } from '../test/render';
 import { currentUserText, submitLogin } from '../test/ui';
@@ -59,10 +61,12 @@ describe('Not-found page', () => {
 });
 
 describe('Role-aware navigation', () => {
-  it('Visitor header: catalog, Log in and Register, no protected areas', async () => {
+  it('Visitor header: catalog, the cart, Log in and Register, no protected areas', async () => {
     renderApp('/');
     const nav = await screen.findByRole('navigation', { name: 'Main' });
     expect(within(nav).getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Cart' })).toHaveAttribute('href', '/cart');
+    expect(screen.queryByTestId('cart-count')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Log in' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Register' })).toBeInTheDocument();
     for (const name of ['Catalog console', 'Warehouse', 'Admin']) {
@@ -79,9 +83,26 @@ describe('Role-aware navigation', () => {
     );
     expect(currentUserText()).toBe(`${manager.email} · Catalog manager`);
     expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument();
-    for (const name of ['Warehouse', 'Admin', 'Log in', 'Register']) {
+    for (const name of ['Warehouse', 'Admin', 'Log in', 'Register', /^Cart/]) {
       expect(screen.queryByRole('link', { name })).not.toBeInTheDocument();
     }
+  });
+
+  it('Count after adding: the badge shows the quantity a visitor added', async () => {
+    renderApp('/');
+    await screen.findByRole('link', { name: 'Cart' });
+    act(() => writeGuestCart([{ productId: db.products[0]!.productId, quantity: 2 }]));
+    expect(await screen.findByRole('link', { name: 'Cart, 2 items' })).toBeInTheDocument();
+    expect(screen.getByTestId('cart-count')).toHaveTextContent('2');
+  });
+
+  it('Customer header on a phone: the cart with its count is visible without the menu', async () => {
+    window.innerWidth = 375;
+    loginAs('CUSTOMER');
+    renderApp('/');
+    expect(await screen.findByRole('link', { name: 'Cart, 4 items' })).toBeInTheDocument();
+    expect(screen.getByTestId('cart-count')).toHaveTextContent('4');
+    expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument();
   });
 
   it('Phone width: the navigation is reachable through a menu button', async () => {
