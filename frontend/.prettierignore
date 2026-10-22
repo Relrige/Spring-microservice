@@ -10,3 +10,4 @@ docs
 .gemini
 package-lock.json
 *.md
+src/api/generated
