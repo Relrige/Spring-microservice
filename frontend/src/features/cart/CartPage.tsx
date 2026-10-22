@@ -126,7 +126,6 @@ function CartLine({ line, view, categoryName, busy, last, onQuantity, onRemove }
         ...ROW,
         borderBottom: last ? undefined : '1px solid var(--vs-line)',
         background: unavailable ? 'var(--vs-surface)' : undefined,
-        borderRadius: last ? '0 0 10px 10px' : undefined,
       }}
     >
       <ProductImage categoryName={view.kind === 'gone' ? null : categoryName} size={72} />
@@ -255,6 +254,7 @@ export function CartPage() {
             background: 'var(--vs-surface-raised)',
             border: '1px solid var(--vs-line)',
             borderRadius: 10,
+            overflow: 'hidden',
           }}
         >
           {cart.lines.map((line, index) => {

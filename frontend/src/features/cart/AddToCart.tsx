@@ -56,6 +56,7 @@ export function AddToCart({
       <Group align="flex-end" gap="md" wrap="wrap">
         <NumberInput
           label="Quantity"
+          styles={{ label: { fontSize: 13, fontWeight: 400, color: 'var(--vs-ink-muted)' } }}
           size="md"
           w={120}
           min={1}
