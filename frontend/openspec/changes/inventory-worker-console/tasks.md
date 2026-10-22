@@ -14,9 +14,9 @@ Apply on `inventory-worker-console`, branched from main after PR #27 (Catalog ta
 
 ## 3. Stock page
 
-- [ ] 3.1 Build the stock page: rows, untitled rows, URL filters, search, sort, paging, empty and error states (design D4); verify with tests for *Stock rows shown*, *Title not copied yet*, *Packaging missing*, *Search by title* and *No matching stock*
-- [ ] 3.2 Add the adjust dialog (design D5); verify with tests for *Restock* and *Write-off below zero*, and that a `503` shows the unavailable message
-- [ ] 3.3 Add the packaging dialog (design D6); verify with tests for *Packaging saved* and *Missing value*
+- [x] 3.1 Build the stock page: rows, untitled rows, URL filters, search, sort, paging, empty and error states (design D4); verify with tests for *Stock rows shown*, *Title not copied yet*, *Packaging missing*, *Search by title* and *No matching stock*
+- [x] 3.2 Add the adjust dialog (design D5); verify with tests for *Restock* and *Write-off below zero*, and that a `503` shows the unavailable message
+- [x] 3.3 Add the packaging dialog (design D6); verify with tests for *Packaging saved* and *Missing value*
 
 ## 4. Fulfillment queue
 
