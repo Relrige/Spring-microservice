@@ -1,6 +1,9 @@
 // Route tree (design D6): storefront, four role areas behind RequireRole, not-found.
 import type { RouteObject } from 'react-router';
 import { LoginPage } from '../features/auth/LoginPage';
+import { CartPage } from '../features/cart/CartPage';
+import { CartProvider } from '../features/cart/CartProvider';
+import { GuestCartResolver } from '../features/cart/GuestCartResolver';
 import { RegisterPage } from '../features/auth/RegisterPage';
 import { ProductDetailsPage } from '../features/catalog/ProductDetailsPage';
 import { ProductListPage } from '../features/catalog/ProductListPage';
@@ -14,7 +17,10 @@ export const routes: RouteObject[] = [
   {
     element: (
       <SessionProvider>
-        <AppLayout />
+        <CartProvider>
+          <AppLayout />
+          <GuestCartResolver />
+        </CartProvider>
       </SessionProvider>
     ),
     children: [
@@ -22,13 +28,15 @@ export const routes: RouteObject[] = [
       { path: 'products/:productId', element: <ProductDetailsPage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
+      // Open to visitors and customers; CartPage denies staff (change customer-cart, design D7).
+      { path: 'cart', element: <CartPage /> },
       {
         path: 'account/*',
         element: (
           <RequireRole allow="CUSTOMER">
             <AreaPlaceholderPage
               title="Your account"
-              arrives="Your cart arrives in iteration 2 (customer-cart); orders and your profile in iteration 3 (customer-checkout-orders)."
+              arrives="Your orders and your profile arrive in iteration 3 (customer-checkout-orders)."
             />
           </RequireRole>
         ),

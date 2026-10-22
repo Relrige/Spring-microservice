@@ -51,6 +51,8 @@ The mock backend and `npm run seed` use the same fixtures ([`src/fixtures/demo-d
 | Inventory worker | `worker@voltstore.com` | `worker-demo` |
 | Admin | `admin@voltstore.com` | mock: `admin-demo`; live: the stack's admin password (below) |
 
+The demo customer also has a demo cart (`DEMO_CART`): 1 × Sony WH-1000XM5 headphones, 2 × Anker 737 power bank and 1 × the inactive Xiaomi 14T, which the cart page shows as unavailable. A visitor who adds products and then logs in as the demo customer meets the replace/keep/merge choice at once. The mock starts every page load with this cart; `npm run seed` sets it only while the demo customer's cart is empty, and the live journeys put it back before each cart journey.
+
 The mock keeps its data in memory: a reload of the page starts again from the fixtures (registered users are lost; sessions survive because mock tokens are self-contained).
 
 ## Seeding a live stack
@@ -79,7 +81,15 @@ Result of the last live run: see *Live verification* below.
 
 ## Live verification
 
-Last run: 2026-10-22, branch `frontend/openapi` (change `api-contract-types`), Compose stack of the repository root rebuilt after the springdoc merge; only the gateway, Auth, Catalog, Inventory and Customer with their databases and Kafka were started.
+Last run: 2026-10-22, branch `customer-cart` (change `customer-cart`), Compose stack of the repository root rebuilt from the current sources.
+
+- `npm run seed`, first run: `Result: seeded.` with `demo cart: set` (3 lines); second run: `Result: unchanged`, `demo cart: kept`. Storefront: 42 active products with the expected stock status.
+- `npm run test:e2e:live`: 7 of 7 journeys passed (about 25 s), including the guest cart with reload and the login as the demo customer with "Merge both", whose cart page shows the demo cart's two available lines and its unavailable line. `npm run check:e2e` against the mock: 7 of 7.
+- Cart contract: no mismatch between the mock and Customer Service (status codes, `422` cart-rule problems, cart order by `productId`).
+- The live database holds categories left by earlier backend tests (e.g. `Phones 1791620167199`), so the browse journey now selects the category radio by exact name.
+- Stack setup needed on that machine (local, gitignored files and volumes only): `.env` of `api-gateway`, `customer-service` and `notification-service` created from their examples; missing keys added to the `.env` of `inventory-service` and `delivery-service` from their examples. The inventory database volume held an older V1 schema (Flyway V2 failed), so it was deleted and recreated. A parallel `docker compose up --build` failed with a BuildKit `lease not found` error and left the catalog, auth, order and delivery images stale (Catalog answered without `size`, tokens without `email`); building those images one by one fixed it. `order-service` still did not start (its database volume holds an older schema); this iteration does not use it.
+
+Previous run: 2026-10-22, branch `frontend/openapi` (change `api-contract-types`), Compose stack of the repository root rebuilt after the springdoc merge; only the gateway, Auth, Catalog, Inventory and Customer with their databases and Kafka were started.
 
 - Catalog lists answer the paging envelope with `size` (`GET /catalog/products?size=1` → `"page":0,"size":1`), and `basePrice` is a JSON number, as the generated types say.
 - `npm run seed` through the modules rebuilt on the generated types: `Result: unchanged`, storefront 42 active products with the expected stock status.

@@ -528,3 +528,20 @@ export const DEMO_PRODUCTS: DemoProduct[] = [
     active: false,
   },
 ];
+
+export interface DemoCartLine {
+  /** A fixture product title; the mock and the seed resolve it to the product id. */
+  title: string;
+  quantity: number;
+}
+
+/**
+ * The demo customer's cart (change customer-cart, design D10): two in-stock lines
+ * and one inactive product, so the cart page shows an unavailable line and a
+ * guest who logs in as the demo customer is asked to replace, keep or merge.
+ */
+export const DEMO_CART: DemoCartLine[] = [
+  { title: 'Sony WH-1000XM5 headphones', quantity: 1 },
+  { title: 'Anker 737 power bank, 24,000 mAh', quantity: 2 },
+  { title: 'Xiaomi 14T, 512 GB', quantity: 1 },
+];

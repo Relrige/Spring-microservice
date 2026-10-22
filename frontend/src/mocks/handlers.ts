@@ -8,6 +8,20 @@ import type { ProductStatus } from '../api/catalog';
 import { PROBLEM_TYPE_PREFIX } from '../api/errors';
 import type { components as AuthComponents } from '../api/generated/auth';
 import type { components as CatalogComponents } from '../api/generated/catalog';
+import type { components as CustomerComponents } from '../api/generated/customer';
+import type { CartItem } from '../api/customer';
+import {
+  addItem,
+  CART_MESSAGES,
+  duplicateProducts,
+  mergeItems,
+  MAX_PRODUCTS,
+  MAX_QUANTITY,
+  removeItem,
+  setItemQuantity,
+  checkCart,
+  type RuleResult,
+} from '../features/cart/cart-rules';
 import { db, type MockUser } from './db';
 import { createMockToken, readMockToken, type MockClaims } from './tokens';
 
@@ -25,6 +39,7 @@ export function compareText(a: string, b: string): number {
 
 type AuthSchemas = AuthComponents['schemas'];
 type CatalogSchemas = CatalogComponents['schemas'];
+type CustomerSchemas = CustomerComponents['schemas'];
 
 /** Default `type` kind and title per status, as the services' exception handlers write them. */
 const KINDS: Record<number, [string, string]> = {
@@ -127,7 +142,175 @@ function priceParam(value: string | null): number | null | undefined {
   return Number.isFinite(number) ? number : undefined;
 }
 
+// Customer spec, Cart Aggregate: every answer is the whole cart, ordered by productId.
+const CUSTOMER_ONLY: AuthMode = { required: ['CUSTOMER'] };
+
+function cartAnswer(items: CartItem[]) {
+  return HttpResponse.json(items satisfies CustomerSchemas['CartItemResponse'][]);
+}
+
+/** Applies a rule result: the new cart, or the `422` cart-rule problem with the cart unchanged. */
+function applyCart(userId: string, result: RuleResult) {
+  if (!result.ok) {
+    const { ok: _ok, ...details } = result;
+    const extra = {
+      ...details,
+      ...(result.violation === 'TOO_MANY_PRODUCTS' ? { maxProducts: MAX_PRODUCTS } : {}),
+      ...(result.violation === 'QUANTITY_LIMIT_EXCEEDED' ? { maxQuantity: MAX_QUANTITY } : {}),
+    } satisfies Partial<CustomerSchemas['CartRuleProblem']>;
+    return problem(
+      422,
+      CART_MESSAGES[result.violation],
+      extra,
+      'customer-service',
+      'cart-rule-violation',
+    );
+  }
+  db.carts.set(userId, result.items);
+  return cartAnswer(result.items);
+}
+
+const cartOf = (userId: string) => db.carts.get(userId) ?? [];
+
+function quantityErrors(value: unknown, field: string, errors: Record<string, string[]>) {
+  if (value === undefined || value === null) errors[field] = ['must not be null'];
+  else if (typeof value !== 'number' || !Number.isInteger(value))
+    errors[field] = ['must be an integer'];
+  else if (value < 1) errors[field] = ['must be greater than or equal to 1'];
+}
+
+function productIdErrors(value: unknown, field: string, errors: Record<string, string[]>) {
+  if (value === undefined || value === null) errors[field] = ['must not be null'];
+  else if (typeof value !== 'string' || !UUID.test(value)) errors[field] = ['must be a valid UUID'];
+}
+
+/** EP-CUST-07/08 body: `items` non-null, every item well-formed; `undefined` = 400 errors. */
+function readItems(body: Record<string, unknown> | undefined, errors: Record<string, string[]>) {
+  if (!Array.isArray(body?.items)) {
+    errors.items = ['must not be null'];
+    return undefined;
+  }
+  body.items.forEach((item: unknown, index) => {
+    const entry = (item ?? undefined) as Record<string, unknown> | undefined;
+    if (!entry) errors[`items[${index}]`] = ['must not be null'];
+    else {
+      productIdErrors(entry.productId, `items[${index}].productId`, errors);
+      quantityErrors(entry.quantity, `items[${index}].quantity`, errors);
+    }
+  });
+  return Object.keys(errors).length > 0 ? undefined : (body.items as CartItem[]);
+}
+
+const cartHandlers: HttpHandler[] = [
+  // EP-CUST-03: get my cart.
+  http.get(api('/customers/cart'), ({ request }) => {
+    const { claims, denied } = authenticate(request, CUSTOMER_ONLY);
+    if (denied) return denied;
+    return cartAnswer(cartOf(claims!.sub));
+  }),
+
+  // EP-CUST-04: add an item.
+  http.post(api('/customers/cart/items'), async ({ request }) => {
+    const { claims, denied } = authenticate(request, CUSTOMER_ONLY);
+    if (denied) return denied;
+    const body = await readJson(request);
+    if (!body) return problem(400, 'Malformed JSON request', {}, 'customer-service');
+    const errors: Record<string, string[]> = {};
+    productIdErrors(body.productId, 'productId', errors);
+    quantityErrors(body.quantity, 'quantity', errors);
+    if (Object.keys(errors).length > 0) {
+      return problem(400, 'Validation failed', { errors }, 'customer-service');
+    }
+    const userId = claims!.sub;
+    return applyCart(
+      userId,
+      addItem(cartOf(userId), String(body.productId), Number(body.quantity)),
+    );
+  }),
+
+  // EP-CUST-05: set a quantity; 404 when the line is not in the cart.
+  http.patch(api('/customers/cart/items/:productId'), async ({ request, params }) => {
+    const { claims, denied } = authenticate(request, CUSTOMER_ONLY);
+    if (denied) return denied;
+    const productId = String(params.productId);
+    if (!UUID.test(productId))
+      return problem(404, 'No route matches the request.', {}, 'api-gateway');
+    const body = await readJson(request);
+    if (!body) return problem(400, 'Malformed JSON request', {}, 'customer-service');
+    const errors: Record<string, string[]> = {};
+    quantityErrors(body.quantity, 'quantity', errors);
+    if (Object.keys(errors).length > 0) {
+      return problem(400, 'Validation failed', { errors }, 'customer-service');
+    }
+    const userId = claims!.sub;
+    const cart = cartOf(userId);
+    if (!cart.some((item) => item.productId === productId)) {
+      return problem(404, 'Product is not in the cart', {}, 'customer-service');
+    }
+    return applyCart(userId, setItemQuantity(cart, productId, Number(body.quantity)));
+  }),
+
+  // EP-CUST-06: remove an item; idempotent.
+  http.delete(api('/customers/cart/items/:productId'), ({ request, params }) => {
+    const { claims, denied } = authenticate(request, CUSTOMER_ONLY);
+    if (denied) return denied;
+    const productId = String(params.productId);
+    if (!UUID.test(productId))
+      return problem(404, 'No route matches the request.', {}, 'api-gateway');
+    const userId = claims!.sub;
+    return applyCart(userId, removeItem(cartOf(userId), productId));
+  }),
+
+  // EP-CUST-07: replace the cart; duplicates are rejected before the rules.
+  http.put(api('/customers/cart'), async ({ request }) => {
+    const { claims, denied } = authenticate(request, CUSTOMER_ONLY);
+    if (denied) return denied;
+    const errors: Record<string, string[]> = {};
+    const items = readItems(await readJson(request), errors);
+    if (!items) return problem(400, 'Validation failed', { errors }, 'customer-service');
+    const duplicates = duplicateProducts(items);
+    if (duplicates.length > 0) {
+      return applyCart(claims!.sub, {
+        ok: false,
+        violation: 'DUPLICATE_PRODUCT',
+        productIds: duplicates,
+      });
+    }
+    const clean = items.map(({ productId, quantity }) => ({ productId, quantity }));
+    return applyCart(claims!.sub, checkCart(clean));
+  }),
+
+  // EP-CUST-08: merge items; an empty list answers the cart as it is.
+  http.post(api('/customers/cart/merge'), async ({ request }) => {
+    const { claims, denied } = authenticate(request, CUSTOMER_ONLY);
+    if (denied) return denied;
+    const errors: Record<string, string[]> = {};
+    const items = readItems(await readJson(request), errors);
+    if (!items) return problem(400, 'Validation failed', { errors }, 'customer-service');
+    const duplicates = duplicateProducts(items);
+    const userId = claims!.sub;
+    if (duplicates.length > 0) {
+      return applyCart(userId, {
+        ok: false,
+        violation: 'DUPLICATE_PRODUCT',
+        productIds: duplicates,
+      });
+    }
+    if (items.length === 0) return cartAnswer(cartOf(userId));
+    return applyCart(userId, mergeItems(cartOf(userId), items));
+  }),
+
+  // EP-CUST-09: clear the cart; idempotent.
+  http.delete(api('/customers/cart'), ({ request }) => {
+    const { claims, denied } = authenticate(request, CUSTOMER_ONLY);
+    if (denied) return denied;
+    return applyCart(claims!.sub, { ok: true, items: [] });
+  }),
+];
+
 export const handlers: HttpHandler[] = [
+  ...cartHandlers,
+
   // Auth spec EP-AUTH-01: register a customer.
   http.post(api('/user/register'), async ({ request }) => {
     const body = await readJson(request);

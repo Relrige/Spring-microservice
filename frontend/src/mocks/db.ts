@@ -1,9 +1,12 @@
 // In-memory database of the mock backend, started from the shared demo fixtures (design D10, D14).
 import type { Role } from '../api/auth';
 import type { Category, ProductStatus, StockStatus } from '../api/catalog';
+import type { CartItem } from '../api/customer';
 import {
   DEMO_ACCOUNTS,
+  DEMO_CART,
   DEMO_CATEGORIES,
+  DEMO_CUSTOMER,
   DEMO_PRODUCTS,
   type DemoPackaging,
 } from '../fixtures/demo-data';
@@ -32,6 +35,8 @@ export interface MockDb {
   users: MockUser[];
   categories: Category[];
   products: MockProduct[];
+  /** Customer Service carts by user id, ordered by `productId`. */
+  carts: Map<string, CartItem[]>;
 }
 
 function fixedUuid(group: string, index: number): string {
@@ -44,13 +49,24 @@ export function createDb(): MockDb {
     name,
   }));
   const categoryId = new Map(categories.map((c) => [c.name, c.categoryId]));
+  const users = DEMO_ACCOUNTS.map((account, index) => ({
+    id: fixedUuid('b000', index),
+    email: account.email,
+    password: account.password,
+    role: account.role,
+  }));
+  const productId = (title: string) =>
+    fixedUuid(
+      '8000',
+      DEMO_PRODUCTS.findIndex((p) => p.title === title),
+    );
+  const demoCart = DEMO_CART.map((line) => ({
+    productId: productId(line.title),
+    quantity: line.quantity,
+  })).sort((a, b) => (a.productId < b.productId ? -1 : 1));
   return {
-    users: DEMO_ACCOUNTS.map((account, index) => ({
-      id: fixedUuid('b000', index),
-      email: account.email,
-      password: account.password,
-      role: account.role,
-    })),
+    users,
+    carts: new Map([[users.find((u) => u.email === DEMO_CUSTOMER.email)!.id, demoCart]]),
     categories,
     products: DEMO_PRODUCTS.map((product, index) => ({
       productId: fixedUuid('8000', index),

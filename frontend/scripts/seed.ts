@@ -18,8 +18,10 @@ import {
 } from '../src/api/catalog';
 import { ApiError } from '../src/api/errors';
 import { configureHttp } from '../src/api/http';
+import { getCart, replaceCart } from '../src/api/customer';
 import { adjustStock, listStock, setPackaging, type StockItem } from '../src/api/inventory';
 import {
+  DEMO_CART,
   DEMO_CATEGORIES,
   DEMO_CUSTOMER,
   DEMO_PRODUCTS,
@@ -43,6 +45,7 @@ const summary = {
   stockAdjusted: 0,
   activated: 0,
   deactivated: 0,
+  demoCart: 'kept' as 'set' | 'kept',
 };
 
 class SeedError extends Error {
@@ -236,6 +239,29 @@ async function setStatuses(manager: Token, products: Map<DemoProduct, ProductSum
   log(`  activated: ${summary.activated}, deactivated: ${summary.deactivated}`);
 }
 
+/**
+ * Gives the demo customer DEMO_CART when their cart is empty (change customer-cart,
+ * design D10); a cart they changed is kept. Customer Service does not check
+ * products, so the inactive line can be stored.
+ */
+async function ensureDemoCart(customer: Token, products: Map<DemoProduct, ProductSummary>) {
+  const current = await withRetry('read the demo cart', () => getCart(customer));
+  if (current.length > 0) {
+    log(`  the demo customer's cart has ${current.length} lines; kept`);
+    return;
+  }
+  const idByTitle = new Map(
+    [...products].map(([fixture, product]) => [fixture.title, product.productId]),
+  );
+  const items = DEMO_CART.map((line) => ({
+    productId: idByTitle.get(line.title)!,
+    quantity: line.quantity,
+  }));
+  await withRetry('set the demo cart', () => replaceCart({ items }, customer));
+  summary.demoCart = 'set';
+  log(`  demo cart set: ${items.length} lines`);
+}
+
 /** Polls the storefront until stock statuses match (they arrive through Kafka events). */
 async function waitForStorefront(products: Map<DemoProduct, ProductSummary>): Promise<string[]> {
   const expected = new Map(
@@ -286,7 +312,7 @@ async function main() {
     DEMO_STAFF.find((a) => a.role === 'INVENTORY_WORKER')!,
     'worker',
   );
-  await loginAs(DEMO_CUSTOMER, 'customer');
+  const customer = await loginAs(DEMO_CUSTOMER, 'customer');
 
   log('2. Categories and products (manager)');
   const categoryIds = await ensureCategories(manager);
@@ -299,7 +325,10 @@ async function main() {
   log('4. Activation (manager)');
   await setStatuses(manager, products);
 
-  log(`5. Waiting for the storefront (up to ${CONVERGE_SECONDS} s)`);
+  log('5. Demo cart (customer)');
+  await ensureDemoCart(customer, products);
+
+  log(`6. Waiting for the storefront (up to ${CONVERGE_SECONDS} s)`);
   const pending = await waitForStorefront(products);
 
   const changed =
@@ -309,13 +338,15 @@ async function main() {
     summary.packagingSet +
     summary.stockAdjusted +
     summary.activated +
-    summary.deactivated;
+    summary.deactivated +
+    (summary.demoCart === 'set' ? 1 : 0);
   log('');
   log(changed === 0 ? 'Result: unchanged (everything was already seeded).' : 'Result: seeded.');
   log(
     `  accounts created: ${summary.accountsCreated.length}, categories created: ${summary.categoriesCreated}, ` +
       `products created: ${summary.productsCreated}, packaging set: ${summary.packagingSet}, ` +
-      `stock adjusted: ${summary.stockAdjusted}, activated: ${summary.activated}, deactivated: ${summary.deactivated}`,
+      `stock adjusted: ${summary.stockAdjusted}, activated: ${summary.activated}, deactivated: ${summary.deactivated}, ` +
+      `demo cart: ${summary.demoCart}`,
   );
   log('  Demo accounts:');
   log(`    ${ADMIN_EMAIL} (Admin, password from SEED_ADMIN_PASSWORD)`);

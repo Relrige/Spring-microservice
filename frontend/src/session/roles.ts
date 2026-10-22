@@ -66,6 +66,8 @@ export function landingAfterLogin(role: Role, returnTo: string | null | undefine
   if (!safe) return roleHome(role);
   const path = pathOf(safe);
   if (path === '/login' || path === '/register') return roleHome(role);
+  // The cart is open to visitors but is a customer page after login (change customer-cart, design D7).
+  if (path === '/cart' && role !== 'CUSTOMER') return roleHome(role);
   const required = requiredRole(safe);
   if (required === undefined || required === role) return safe;
   return roleHome(role);
