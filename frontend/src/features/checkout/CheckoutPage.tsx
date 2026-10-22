@@ -37,7 +37,7 @@ import {
 import { attemptFor, splitRecipient, type Attempt } from './attempt';
 
 // BL-11: carriers hardcoded until Order lists them.
-const CARRIERS = [{ value: 'NOVA_POSHTA', label: 'Nova Poshta' }];
+export const CARRIERS = [{ value: 'NOVA_POSHTA', label: 'Nova Poshta' }];
 
 const required = (message: string) => (value: string) => (value.trim() ? null : message);
 const wait = (seconds: number) => new Promise((resolve) => setTimeout(resolve, seconds * 1000));

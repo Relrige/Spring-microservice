@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import { notifications } from '@mantine/notifications';
 import { cleanup } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll } from 'vitest';
 import { resetDb } from '../mocks/db';
@@ -49,6 +50,8 @@ beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 
 afterEach(() => {
   cleanup();
+  // Mantine keeps notifications in a global store; one test's notice must not reach the next.
+  notifications.clean();
   server.resetHandlers();
   server.events.removeAllListeners();
   resetDb();
