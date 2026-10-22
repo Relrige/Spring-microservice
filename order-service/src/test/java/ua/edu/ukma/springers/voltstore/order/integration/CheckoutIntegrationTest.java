@@ -25,7 +25,10 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import ua.edu.ukma.springers.voltstore.order.KafkaTestContainerConfig;
 import ua.edu.ukma.springers.voltstore.order.TestcontainersConfiguration;
+import ua.edu.ukma.springers.voltstore.order.dto.PlaceOrderRequest;
+import ua.edu.ukma.springers.voltstore.order.jobs.IdempotencyKeyPurgeJob;
 import ua.edu.ukma.springers.voltstore.order.jobs.OrphanReservationJob;
+import ua.edu.ukma.springers.voltstore.order.services.IdempotencyKeys;
 import ua.edu.ukma.springers.voltstore.order.support.TopicProbe;
 import ua.edu.ukma.springers.voltstore.order.support.TrustedHeaders;
 
@@ -108,6 +111,12 @@ class CheckoutIntegrationTest {
 
     @Autowired
     private OrphanReservationJob orphanReservationJob;
+
+    @Autowired
+    private IdempotencyKeyPurgeJob idempotencyKeyPurgeJob;
+
+    @Autowired
+    private IdempotencyKeys idempotencyKeys;
 
     @Value("${order.kafka.topics.order-events}")
     private String topic;
@@ -393,6 +402,32 @@ class CheckoutIntegrationTest {
                 .andExpect(header().string("Idempotent-Replayed", "true"))
                 .andExpect(header().string("Location", "/orders/" + orderId))
                 .andExpect(jsonPath("$.status").value("PAID"));
+    }
+
+    // ---- EP-ORD-JOB-05 (task 20) ----
+
+    @Test
+    void aStrandedClaim_blocksItsKey_untilThePurgeJobRemovesIt() throws Exception {
+        catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
+        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(noContent()));
+        UUID key = UUID.randomUUID();
+        // Left by an instance that died mid-request, with this request's hash, older than the settle time
+        jdbc.update("INSERT INTO idempotency_keys (customer_id, idempotency_key, request_hash, status, created_at) "
+                        + "VALUES (?, ?, ?, 'IN_PROGRESS', ?)", CUSTOMER, key,
+                idempotencyKeys.hash(JSON.readValue(placeBody(), PlaceOrderRequest.class)),
+                java.sql.Timestamp.from(java.time.Instant.now().minus(Duration.ofMinutes(3))));
+
+        placeWithKey(CUSTOMER, key, placeBody())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/request-in-progress"));
+        wireMock.verify(0, postRequestedFor(urlEqualTo(RESERVE)));
+
+        idempotencyKeyPurgeJob.purge();
+
+        placeWithKey(CUSTOMER, key, placeBody())
+                .andExpect(status().isCreated())
+                .andExpect(header().doesNotExist("Idempotent-Replayed"));
+        assertThat(count("orders")).isEqualTo(1);
     }
 
     private ResultActions placeWithKey(UUID customer, UUID key, String body) throws Exception {

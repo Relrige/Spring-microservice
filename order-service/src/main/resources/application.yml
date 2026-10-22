@@ -57,11 +57,15 @@ order:
     grace: ${ORDER_EXPIRY_GRACE:30s}
     batch-size: 100
   recovery:
-    # Jobs releasing orphan reservations and repeating refunds owed after a lost payment race
+    # Jobs releasing orphan reservations, repeating refunds owed after a lost payment race and purging
+    # Idempotency-Keys
     interval: ${ORDER_RECOVERY_INTERVAL:1m}
     # A reservation attempt older than this without an order is released; far longer than a reservation call
-    # (Inventory read timeout 3 s x 3 attempts), so a late answer has arrived by then
+    # (Inventory read timeout 3 s x 3 attempts), so a late answer has arrived by then. An Idempotency-Key claim
+    # still IN_PROGRESS after this long belongs to a request whose instance died, and is purged
     reservation-settle: 2m
+    # A completed Idempotency-Key is forgotten after this long; a later request with it places a new order
+    idempotency-key-ttl: ${ORDER_IDEMPOTENCY_KEY_TTL:24h}
     batch-size: 100
   cancellation:
     # Interrupted cancellations (decision D3): the job runs this often and looks at this many orders per run

@@ -37,4 +37,10 @@ public interface IdempotencyKeyRepository extends JpaRepository<IdempotencyKey, 
             + "WHERE customer_id = :customerId AND idempotency_key = :key AND status = 'IN_PROGRESS'",
             nativeQuery = true)
     int release(@Param("customerId") UUID customerId, @Param("key") UUID key);
+
+    /** EP-ORD-JOB-05: rows of one status created before {@code createdBefore}; served by the (status, created_at) index. */
+    @Modifying
+    @Query(value = "DELETE FROM idempotency_keys WHERE status = :status AND created_at < :createdBefore",
+            nativeQuery = true)
+    int deleteByStatusCreatedBefore(@Param("status") String status, @Param("createdBefore") Instant createdBefore);
 }

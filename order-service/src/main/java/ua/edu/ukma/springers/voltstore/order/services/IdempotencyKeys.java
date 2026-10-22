@@ -84,7 +84,7 @@ public class IdempotencyKeys {
      * D9: SHA-256 hex of the parsed request, serialised as JSON with the items sorted by product, so the item order
      * and the client's JSON formatting do not matter. Record components serialise in declaration order.
      */
-    String hash(PlaceOrderRequest request) {
+    public String hash(PlaceOrderRequest request) {
         PlaceOrderRequest canonical = new PlaceOrderRequest(request.items().stream()
                 .sorted(Comparator.comparing(OrderItemRequest::productId))
                 .toList(), request.deliveryDetails());
