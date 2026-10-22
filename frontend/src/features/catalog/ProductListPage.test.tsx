@@ -85,7 +85,7 @@ describe('Product list', () => {
         calls += 1;
         return calls <= 2
           ? new HttpResponse(null, { status: 502 })
-          : HttpResponse.json({ content: [], page: 0, totalElements: 0 });
+          : HttpResponse.json({ content: [], page: 0, size: 20, totalElements: 0 });
       }),
     );
     renderApp('/');
@@ -198,6 +198,32 @@ describe('Paging', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Next' }));
     await waitFor(() => expect(tileTitles()).toEqual(all.slice(40)));
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+  });
+});
+
+describe('Page count', () => {
+  it('takes the page size from the answer: size 10 of 25 products gives three pages', async () => {
+    server.use(
+      http.get('*/api/catalog/products', () =>
+        HttpResponse.json({
+          content: ACTIVE.slice(0, 10).map((p, index) => ({
+            productId: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+            title: p.title,
+            basePrice: p.price,
+            categoryId: db.categories[0]!.categoryId,
+            status: 'ACTIVE',
+            stockStatus: 'IN_STOCK',
+          })),
+          page: 0,
+          size: 10,
+          totalElements: 25,
+        }),
+      ),
+    );
+    renderApp('/');
+    await tiles();
+    expect(screen.getByRole('button', { name: 'Page 3' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Page 4' })).not.toBeInTheDocument();
   });
 });
 

@@ -35,7 +35,7 @@ describe('Product details page', () => {
     const product = db.products.find((p) => p.status === 'ACTIVE')!;
     server.use(
       http.get('*/api/catalog/categories', () =>
-        HttpResponse.json({ content: [], page: 0, totalElements: 0 }),
+        HttpResponse.json({ content: [], page: 0, size: 20, totalElements: 0 }),
       ),
     );
     renderApp(`/products/${product.productId}`);

@@ -20,7 +20,9 @@ The web app of VoltStore: one React + TypeScript single-page app for customers, 
 | `npm run dev:mock` | Dev server on <http://localhost:5174> with the mock backend (MSW in the browser). No Docker needed. |
 | `npm run build` | Type-check and build to `dist/`. |
 | `npm run preview` | Serve the build on <http://localhost:4173> (no API proxy). |
-| `npm run check` | Types, lint and all unit and component tests (Vitest). Run before every commit. |
+| `npm run check` | `check:api`, types, lint and all unit and component tests (Vitest). Run before every commit. |
+| `npm run gen:api` | Regenerate the API types in `src/api/generated/` from the services' OpenAPI documents (below). |
+| `npm run check:api` | Fail if the generated API types differ from what the current OpenAPI documents produce. |
 | `npm run check:e2e` | Browser journeys (Playwright, project `mock`) against `dev:mock`; starts the server itself. |
 | `npm run test:e2e:live` | The same journeys (project `live`) against the Compose stack through `npm run dev`. Seed first. |
 | `npm run seed` | Fill a running stack with the demo data (below). |
@@ -30,6 +32,13 @@ The web app of VoltStore: one React + TypeScript single-page app for customers, 
 First run of the browser tests on a machine: `npx playwright install chromium`.
 
 The preview pane of the Claude desktop app has two launch entries in [`.claude/launch.json`](.claude/launch.json): `frontend-dev` (5173, live backend) and `frontend-mock` (5174, mock backend).
+
+## API types
+
+The request and response types come from the OpenAPI documents the services commit next to their code: `../<service>-service/openapi/public.json` for Auth, Catalog, Customer, Order, Inventory and Delivery (rules in [`../docs/design/services-requirements/openapi-conventions.md`](../docs/design/services-requirements/openapi-conventions.md)). `npm run gen:api` turns each into `src/api/generated/<service>.ts` with `openapi-typescript`. The generated files are committed, so the build does not need the backend folders, and are never edited by hand. `src/api/<service>.ts` aliases them and makes the calls.
+
+When a service changes its document, `npm run check` fails at `check:api`. Run `npm run gen:api`, review the diff of the generated files (it is the API change), and adapt the code and the mock handlers.
+
 
 ## Demo accounts
 
@@ -70,12 +79,18 @@ Result of the last live run: see *Live verification* below.
 
 ## Live verification
 
-Last run: 2026-10-20, branch `frontend`, Compose stack of the repository root (Docker Desktop, 8 GB).
+Last run: 2026-10-22, branch `frontend/openapi` (change `api-contract-types`), Compose stack of the repository root rebuilt after the springdoc merge; only the gateway, Auth, Catalog, Inventory and Customer with their databases and Kafka were started.
+
+- Catalog lists answer the paging envelope with `size` (`GET /catalog/products?size=1` → `"page":0,"size":1`), and `basePrice` is a JSON number, as the generated types say.
+- `npm run seed` through the modules rebuilt on the generated types: `Result: unchanged`, storefront 42 active products with the expected stock status.
+- `npm run test:e2e:live`: 5 of 5 journeys passed (about 22 s). `npm run check:e2e` against the mock: 5 of 5.
+
+Previous run: 2026-10-20, branch `frontend`, Compose stack of the repository root (Docker Desktop, 8 GB).
 
 - Dev proxy: `/api/catalog/categories` on port 5173 returned the gateway's answer unchanged; an unknown `/api/...` path got the gateway's `404` with the `/api` prefix stripped.
 - `npm run seed`, first run: 3 accounts, 4 categories and 45 products created, packaging set for 45, stock adjusted for 38, 42 activated; the storefront showed the expected stock statuses after about 8 s. Second run: `Result: unchanged`, with the same product count and stock list before and after.
 - `npm run test:e2e:live`: 5 of 5 journeys passed (about 20 s). `npm run check:e2e` against the mock: 5 of 5.
-- Contract findings: Catalog serializes `basePrice` as a JSON number (`79999.00`); the API layer still accepts strings. Catalog orders titles by code point (`ASUS…` before `Acer…`), and the mock now does the same.
+- Contract findings: Catalog serializes `basePrice` as a JSON number (`79999.00`). Catalog orders titles by code point (`ASUS…` before `Acer…`), and the mock now does the same.
 - Stack setup needed on that machine (local, gitignored files only): `customer-service/.env` copied from its `.env.example`; keys that were missing from the local `.env` of `api-gateway`, `catalog-service` and `inventory-service` added from their examples; `GATEWAY_UPSTREAMS_AUTH` corrected to `http://auth-service:8080`. `order-service` and `payment-service` did not start because their database volumes hold an older schema; this iteration does not use them.
 
 The live data may contain products besides the fixtures (earlier tests), so the live journeys check the product total as "at least the fixtures".

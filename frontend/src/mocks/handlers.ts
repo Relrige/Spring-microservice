@@ -1,9 +1,13 @@
 // MSW handlers of the mock backend (design D10). Paths are the gateway's paths behind /api.
 // Each handler follows the spec section named next to it; status codes and problem
-// details match ../docs/design/services-specs/.
+// details match ../docs/design/services-specs/. Every JSON answer is checked with
+// `satisfies` against the types generated from the services' OpenAPI documents.
 import { http, HttpResponse, type HttpHandler } from 'msw';
 import type { Role } from '../api/auth';
 import type { ProductStatus } from '../api/catalog';
+import { PROBLEM_TYPE_PREFIX } from '../api/errors';
+import type { components as AuthComponents } from '../api/generated/auth';
+import type { components as CatalogComponents } from '../api/generated/catalog';
 import { db, type MockUser } from './db';
 import { createMockToken, readMockToken, type MockClaims } from './tokens';
 
@@ -19,32 +23,41 @@ export function compareText(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+type AuthSchemas = AuthComponents['schemas'];
+type CatalogSchemas = CatalogComponents['schemas'];
+
+/** Default `type` kind and title per status, as the services' exception handlers write them. */
 const KINDS: Record<number, [string, string]> = {
   400: ['validation', 'Bad Request'],
   401: ['unauthorized', 'Unauthorized'],
   403: ['forbidden', 'Forbidden'],
   404: ['not-found', 'Not Found'],
   409: ['conflict', 'Conflict'],
-  422: ['unprocessable', 'Unprocessable Entity'],
+  422: ['unprocessable-entity', 'Unprocessable Entity'],
 };
 
+/**
+ * A problem-details answer. `kind` overrides the default `type` kind of the
+ * status, for problems with their own schema (e.g. `cart-rule-violation`).
+ */
 export function problem(
   status: number,
   detail: string,
   extra: Record<string, unknown> = {},
   service = 'mock',
+  kind?: string,
 ) {
-  const [kind, title] = KINDS[status] ?? ['internal-error', 'Internal Server Error'];
+  const [defaultKind, title] = KINDS[status] ?? ['internal-error', 'Internal Server Error'];
+  const body = {
+    type: `${PROBLEM_TYPE_PREFIX}${kind ?? defaultKind}`,
+    title,
+    status,
+    detail,
+    timestamp: new Date().toISOString(),
+    service,
+  } satisfies CatalogSchemas['Problem'];
   return HttpResponse.json(
-    {
-      type: `https://voltstore.com/errors/${kind}`,
-      title,
-      status,
-      detail,
-      timestamp: new Date().toISOString(),
-      service,
-      ...extra,
-    },
+    { ...body, ...extra },
     { status, headers: { 'Content-Type': 'application/problem+json' } },
   );
 }
@@ -123,7 +136,9 @@ export const handlers: HttpHandler[] = [
     if (Object.keys(errors).length > 0) return problem(400, 'Validation failed', { errors });
     const user = createUser(String(body.email), String(body.password), 'CUSTOMER');
     if (!user) return problem(409, 'Email already in use', {}, 'auth-service');
-    return HttpResponse.json({ userId: user.id }, { status: 201 });
+    return HttpResponse.json({ userId: user.id } satisfies AuthSchemas['RegisterUserResponse'], {
+      status: 201,
+    });
   }),
 
   // Auth spec EP-AUTH-02: log in.
@@ -138,7 +153,9 @@ export const handlers: HttpHandler[] = [
     const email = String(body?.email).trim().toLowerCase();
     const user = db.users.find((u) => u.email === email && u.password === body?.password);
     if (!user) return problem(401, 'Invalid credentials', {}, 'auth-service');
-    return HttpResponse.json({ token: createMockToken(user) });
+    return HttpResponse.json({
+      token: createMockToken(user),
+    } satisfies AuthSchemas['LoginResponse']);
   }),
 
   // Auth spec EP-AUTH-03: create a staff or admin account (gateway: Required, ADMIN).
@@ -155,7 +172,9 @@ export const handlers: HttpHandler[] = [
     if (Object.keys(errors).length > 0) return problem(400, 'Validation failed', { errors });
     const user = createUser(String(body?.email), String(body?.password), role as Role);
     if (!user) return problem(409, 'Email already in use', {}, 'auth-service');
-    return HttpResponse.json({ userId: user.id }, { status: 201 });
+    return HttpResponse.json({ userId: user.id } satisfies AuthSchemas['RegisterUserResponse'], {
+      status: 201,
+    });
   }),
 
   // Catalog spec EP-CAT-04: browse products (gateway: Optional).
@@ -221,8 +240,9 @@ export const handlers: HttpHandler[] = [
         stockStatus: p.stockStatus,
       })),
       page: page!,
+      size: size!,
       totalElements: matches.length,
-    });
+    } satisfies CatalogSchemas['PageResponseProductSummaryResponse']);
   }),
 
   // Catalog spec EP-CAT-05: product details (gateway: Public; non-UUID ids have no route).
@@ -238,7 +258,7 @@ export const handlers: HttpHandler[] = [
       categoryId: product.categoryId,
       basePrice: product.basePrice,
       stockStatus: product.stockStatus,
-    });
+    } satisfies CatalogSchemas['ProductDetailsResponse']);
   }),
 
   // Catalog spec EP-CAT-10: categories ordered by name (gateway: Public).
@@ -256,8 +276,9 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json({
       content: matches.slice(page * size, page * size + size),
       page,
+      size,
       totalElements: matches.length,
-    });
+    } satisfies CatalogSchemas['PageResponseCategoryResponse']);
   }),
 
   // Gateway: anything else has no route.

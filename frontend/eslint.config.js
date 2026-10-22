@@ -13,6 +13,7 @@ export default tseslint.config(
       'playwright-report',
       'test-results',
       'public/mockServiceWorker.js',
+      'src/api/generated',
       'openspec',
       'docs',
       '.claude',

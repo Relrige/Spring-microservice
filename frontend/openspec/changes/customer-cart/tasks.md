@@ -1,10 +1,12 @@
 # Tasks
 
+Apply after `api-contract-types`: `src/api/generated/customer.ts`, `src/api/contract.ts` and `problemOf` must exist first.
+
 ## 1. Cart contract and mock backend
 
-- [ ] 1.1 Write `src/api/customer.ts` (design D3): `CartItem`, the seven cart calls of EP-CUST-03…09 each citing its spec section, and `cartViolation(error)`; verify with unit tests that `cartViolation` reads each `violation` code from a `422` problem and returns nothing for other errors
-- [ ] 1.2 Write `src/features/cart/cart-rules.ts` and `CART_MESSAGES` (design D2): add, set and remove with INV-CART-01/02 checked on the result and items ordered by `productId`; verify with unit tests for the 11th product, 8 + 3 of one product, quantity 0 and 11, and adding to an existing line
-- [ ] 1.3 Add mock carts and handlers for the seven routes (design D10): `CUSTOMER` only, `400` field errors, `422` violations from `cart-rules`, `DUPLICATE_PRODUCT` before the rules, `404` only for `PATCH` of a missing line, idempotent deletes, answers ordered by `productId`, mock db reset per test; verify with handler tests through the API calls, including a staff token (`403`) and no token (`401`)
+- [ ] 1.1 Write `src/api/customer.ts` on `generated/customer.ts` (design D3): `CartItem` as `Received<CartItemResponse>`, the seven cart calls of EP-CUST-03…09 typed by operationId with `JsonBody`/`Ok` and `pathFor`, each citing its EP number and operationId, and `cartViolation(error)` on `problemOf` with `cart-rule-violation`; verify with type tests that `CartItem` and the request bodies match the generated types, and unit tests that `cartViolation` reads each `violation` code from a `cart-rule-violation` problem and returns nothing for a `422` with another `type` and for other errors
+- [ ] 1.2 Write `src/features/cart/cart-rules.ts` and `CART_MESSAGES` keyed by the generated `CartViolation` (design D2): add, set and remove with INV-CART-01/02 checked on the result and items ordered by `productId`; verify with unit tests for the 11th product, 8 + 3 of one product, quantity 0 and 11, and adding to an existing line
+- [ ] 1.3 Add mock carts and handlers for the seven routes (design D10): `CUSTOMER` only, `400` field errors, `422` violations from `cart-rules`, `DUPLICATE_PRODUCT` before the rules, `404` only for `PATCH` of a missing line, idempotent deletes, answers ordered by `productId` and typed with `satisfies` against the generated types, `422` problems with the `cart-rule-violation` type, mock db reset per test; verify with handler tests through the API calls, including the `type` URI of a `422`, including a staff token (`403`) and no token (`401`)
 - [ ] 1.4 Add `DEMO_CART` to `src/fixtures/demo-data.ts` (1 and 2 of two in-stock products, 1 of an inactive product, referenced by title) and start the demo customer's mock cart from it; verify with a handler test that the demo customer's `GET /customers/cart` returns the three lines
 
 ## 2. Cart state (spec `shopping-cart`)
@@ -30,7 +32,7 @@
 
 - [ ] 5.1 Add the demo-cart step to `scripts/seed.ts` (design D10: set only when the demo customer's cart is empty; summary `demo cart: set | kept`); verify against the Compose stack that the first run sets the cart, a second run reports `Result: unchanged`, and the demo customer's cart page shows two lines and one unavailable line
 - [ ] 5.2 Write the cart journeys (design D11): guest cart with badge and reload; login as the demo customer with "Merge both" and logout to an empty cart; add the live-mode reset of the demo customer's cart to `e2e/support.ts`; verify `npm run check:e2e` passes
-- [ ] 5.3 Run `npm run test:e2e:live` against the Compose stack after `npm run seed`, fix any mock or type mismatch found in the cart contract, and record the result in the *Live verification* section of `frontend/README.md` together with the demo cart in *Demo accounts*; verify the live run passes
+- [ ] 5.3 Run `npm run test:e2e:live` against the Compose stack after `npm run seed`, fix any mock mismatch found in the cart contract (a generated type that disagrees with the service spec is a backlog item, `AGENTS.md` §3, not a frontend fix), and record the result in the *Live verification* section of `frontend/README.md` together with the demo cart in *Demo accounts*; verify the live run passes
 - [ ] 5.4 Check the finished screens against `Cart.dc.html` and `Product.dc.html` in the preview pane on desktop and at 375 px (light and dark), including the dialog; verify by screenshots that layout, hierarchy and colours match and there is no horizontal scroll
 
 ## Workflow follow-up

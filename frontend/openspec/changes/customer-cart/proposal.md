@@ -17,7 +17,7 @@ The frontend lets visitors browse the catalog, but there is no way to collect pr
   - a summary with item count and estimated subtotal;
   - "Proceed to checkout" leads to login for visitors; for customers it waits for iteration 3.
 - **Header:** a cart button with an item-count badge for visitors and customers; staff see no cart.
-- **Mock backend and demo data:** mock handlers for the seven cart endpoints that follow the spec's status codes and `422` violations. A demo cart for the demo customer is shared with the seed script, so the replace/keep/merge choice can be shown at once. `npm run seed` gives the demo customer that cart when their cart is empty.
+- **Mock backend and demo data:** mock handlers for the seven cart endpoints that follow the spec's status codes and `422` violations, with answers checked against the generated Customer types. A demo cart for the demo customer is shared with the seed script, so the replace/keep/merge choice can be shown at once. `npm run seed` gives the demo customer that cart when their cart is empty.
 - **Browser journeys** for the guest cart, the login choice and the server cart, against the mock and the live stack.
 
 Not in this change: checkout, payment, orders and the customer profile (iteration 3). Customer Service does not check products when they are added; availability is checked again at checkout (EP-ORD-01), also in iteration 3.
@@ -34,6 +34,7 @@ Not in this change: checkout, payment, orders and the customer profile (iteratio
 ## Impact
 
 - Code under `frontend/` only; no service, gateway or spec changes, and no new backlog items are expected.
+- Builds on `api-contract-types` (iteration 1a), which is applied first: `src/api/customer.ts` uses the types generated from `customer-service/openapi/public.json`.
 - New gateway routes used by the app: `GET`, `PUT`, `DELETE /customers/cart`; `POST /customers/cart/items`; `PATCH`, `DELETE /customers/cart/items/{productId}`; `POST /customers/cart/merge`. All need role `CUSTOMER`. Catalog's `GET /catalog/products/{id}` is called once per cart line (at most 10).
 - New code:
   - `src/api/customer.ts`;

@@ -14,7 +14,6 @@ import { useCategoryNames, useProducts } from './queries';
 import { SearchForm } from './SearchForm';
 import {
   DEFAULT_STATE,
-  PAGE_SIZE,
   parseCatalogState,
   serializeCatalogState,
   SORT_OPTIONS,
@@ -46,7 +45,10 @@ export function ProductListPage() {
     ? `Results for “${state.search}”`
     : (categoryName ?? (state.category ? 'Category' : 'All products'));
   const total = products.data?.totalElements;
-  const totalPages = total !== undefined ? Math.max(1, Math.ceil(total / PAGE_SIZE)) : 1;
+  // The page size comes from the answer (paging envelope); there is no totalPages.
+  const totalPages = products.data
+    ? Math.max(1, Math.ceil(products.data.totalElements / products.data.size))
+    : 1;
   const filtered =
     state.search !== '' ||
     state.category !== null ||

@@ -3,7 +3,7 @@
 ## Context
 
 - Iteration 1 (archived `2026-10-20-frontend-foundation`) is in place. Its decisions still hold and are referred to below as *foundation D1–D16*:
-  - one API layer with hand-written types (D4);
+  - one API layer (D4), whose types come from the OpenAPI documents since `api-contract-types` (its design D1–D6, `AGENTS.md` §3);
   - TanStack Query for server state; mutations are never retried (D3);
   - the session in React context with `localStorage` and cross-tab sync (D5);
   - the MSW mock backend shared by every test level (D10);
@@ -15,6 +15,10 @@
   - Merge is **not** idempotent: a retry after a lost answer sums the quantities twice.
   - Products are not checked when added.
   - All routes need role `CUSTOMER` and are routed by the gateway (`api-gateway/src/main/resources/application.yml`).
+- Customer Service OpenAPI document: `../customer-service/openapi/public.json`, generated into `src/api/generated/customer.ts`.
+  - operationIds: `getCart`, `addItem`, `setItemQuantity`, `removeItem`, `replaceCart`, `mergeIntoCart`, `clearCart`. Each answers the whole cart as `CartItemResponse[]`.
+  - `PUT /customers/cart` and `POST /customers/cart/merge` take `CartItemsRequest`, `{ items: [{ productId, quantity }] }`.
+  - `422` answers are `CartRuleProblem`, with `type` `https://voltstore.com/errors/cart-rule-violation`.
 - Catalog has no public batch read (EP-CAT-09 is internal), so the cart reads each line's product with EP-CAT-05. At most 10 lines means at most 10 requests.
 - Mockups: `docs/design/screens/Cart.dc.html` (lines, unavailable line, summary) and `Product.dc.html` (quantity and "Add to cart"). The storefront list mockup (`Main.dc.html`) has no add button on the tiles.
 
@@ -56,12 +60,18 @@ The header, the product page and the cart page use only this interface.
   - Reading validates every entry and drops the whole value if it is not valid.
   - Writing notifies subscribers in this tab; a `storage` listener covers other tabs.
   - The store is read through `useSyncExternalStore`.
+- The violation code is `CartViolation = Schemas['CartRuleProblem']['violation']` from the generated types, and `CART_MESSAGES` is a `Record<CartViolation, string>`: a code added by the backend fails the build until it has a message.
 - One table, `CART_MESSAGES`, maps a violation code to the user message, for both the guest cart and the server's `422` (spec *Cart limits*). `DUPLICATE_PRODUCT` cannot happen from this client, because the guest store holds each product once; it maps to the generic unexpected message.
 - The customer's cart is **not** pre-checked against the cached cart: another device may have changed it, and the server is the authority.
 
 ### D3. API layer: `src/api/customer.ts`
-- Types and calls for EP-CUST-03…09: `getCart`, `addCartItem`, `setCartItemQuantity`, `removeCartItem`, `replaceCart`, `mergeCart`, `clearCart`. All return `CartItem[]`.
-- `cartViolation(error)` reads `violation` from an `ApiError` of kind `unprocessable`.
+Built on `src/api/generated/customer.ts` with the helpers of `src/api/contract.ts`; no hand-written DTO.
+- `CartItem = Received<Schemas['CartItemResponse']>`.
+- Calls for EP-CUST-03…09: `getCart`, `addCartItem`, `setCartItemQuantity`, `removeCartItem`, `replaceCart`, `mergeCart`, `clearCart`. All return `CartItem[]`.
+  - Each one takes its body type with `JsonBody` and its answer type with `Ok`, by operationId.
+  - It builds its path with `pathFor` and goes through `request()`.
+  - It cites its EP number and its operationId.
+- `cartViolation(error)` is `problemOf<CartRuleProblem>(error, 'cart-rule-violation')`. It returns the typed problem, or `undefined` for any other error, including a `422` with another `type`.
 - The profile calls (EP-CUST-01/02) wait for iteration 3.
 
 ### D4. Server cart with TanStack Query
@@ -134,6 +144,7 @@ error    →  guest cart kept; "Try again" restarts at reading
 
 ### D10. Mock backend, fixtures and seed
 - **Mock database.** `MockDb` gains `carts: Map<userId, CartItem[]>`.
+- **Typed answers.** Every cart answer is checked with `satisfies` against the generated types. A `422` is answered with `problem()` using the `cart-rule-violation` type kind, and its body satisfies `CartRuleProblem`.
 - **Handlers.**
   - `src/mocks/handlers.ts` gains the seven routes with `authenticate(request, { required: ['CUSTOMER'] })` (`401`/`403`).
   - Validation follows the spec: `400` with `errors` for a missing or non-UUID `productId` and for a missing, decimal or below-1 `quantity`; a non-UUID path id gets the gateway's `404`.
@@ -156,7 +167,7 @@ error    →  guest cart kept; "Try again" restarts at reading
   - `cart-rules`: each limit, checked on the result;
   - guest store: reading invalid data, `storage` sync;
   - subtotal in kopecks;
-  - `cartViolation`.
+  - `cartViolation`: each `violation` code from a `cart-rule-violation` problem, and `undefined` for a `422` with another `type` and for other errors.
 - **Component tests**, through `renderApp` and the mock handlers, named after the spec scenarios. They cover:
   - the cart page (lines, unavailable lines, summary, stepper, remove, clear, the empty cart, a product that fails to load);
   - the product page add;

@@ -67,6 +67,30 @@ describe('Field validation errors on forms', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('role: must not be null');
   });
+
+  it('Bad request without field errors: detail in the general area, values kept', async () => {
+    server.use(
+      http.post('*/api/demo', () =>
+        HttpResponse.json(
+          {
+            type: 'https://voltstore.com/errors/bad-request',
+            title: 'Bad Request',
+            status: 400,
+            detail: 'Malformed JSON request',
+          },
+          { status: 400, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+      ),
+    );
+    renderWithProviders(<DemoForm />);
+    await userEvent.type(screen.getByLabelText('Email'), 'olena@example.com');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Malformed JSON request');
+    expect(screen.getByLabelText('Email')).toHaveValue('olena@example.com');
+    expect(screen.getByLabelText('Email')).not.toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText('Name')).not.toHaveAttribute('aria-invalid', 'true');
+  });
 });
 
 describe('ErrorState', () => {
