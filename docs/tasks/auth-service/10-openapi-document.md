@@ -45,3 +45,5 @@ Every service with gateway-routed endpoints publishes an OpenAPI 3.1 document. A
 - **Pilot details carried over:** `@Tag` per controller, and the `default-produces-media-type` and `override-with-generic-response` properties (reasons in the Catalog task).
 - **`400` for an unknown `role`.** The task says the `400` includes an invalid `role`. Two cases answer it differently, and both match `ValidationProblem`: the role `CUSTOMER` goes through `InvalidUserRoleException` (`errors.role`); a value outside the enum fails while the JSON is read and gets Spring's default problem (`type: about:blank`, no `errors`, `timestamp` or `service`). This is why those fields are optional in the schema. No behaviour changed.
 - **Code vs. task table:** no other difference.
+
+*Spec sync (2026-10-22):* the framework-built `400` is now part of the Auth spec (*Error Format*); the pilot details are in `openapi-conventions.md` (*Building blocks per service*).
