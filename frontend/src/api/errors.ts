@@ -1,5 +1,7 @@
 // Error model of the API layer (design D4, spec api-access).
 // Every non-2xx answer and every network failure becomes an ApiError.
+import type { Received } from './contract';
+import type { components } from './generated/catalog';
 
 export type ApiErrorKind =
   | 'validation'
@@ -13,16 +15,19 @@ export type ApiErrorKind =
   | 'network'
   | 'unexpected';
 
-/** RFC 9457 problem details as answered by the gateway and every service. */
-export interface ProblemDetail {
-  type?: string;
-  title?: string;
-  status?: number;
-  detail?: string;
-  /** `400` field errors: field name → messages. */
-  errors?: Record<string, string[]>;
+/**
+ * RFC 9457 problem details as answered by the gateway and every service: the
+ * generated `ValidationProblem` (identical in every service's document; Catalog's
+ * copy is used), plus the service-specific extensions read through `problemOf`.
+ * `type`, `title` and `status` stay optional: the gateway or a proxy may answer
+ * with a partial body.
+ */
+export type ProblemDetail = Partial<Received<components['schemas']['ValidationProblem']>> & {
   [extension: string]: unknown;
-}
+};
+
+/** Prefix of every problem `type` URI; the rest is the kind, e.g. `cart-rule-violation`. */
+export const PROBLEM_TYPE_PREFIX = 'https://voltstore.com/errors/';
 
 export class ApiError extends Error {
   readonly kind: ApiErrorKind;
@@ -44,6 +49,18 @@ export class ApiError extends Error {
     this.problem = options.problem;
     this.retryAfter = options.retryAfter;
   }
+}
+
+/**
+ * The problem of `error` typed as schema `S`, when its `type` is
+ * `https://voltstore.com/errors/<kind>`; otherwise `undefined` (spec api-access,
+ * Several problem kinds on one status). Pages never guess the kind from the fields.
+ */
+export function problemOf<S>(error: unknown, kind: string): Received<S> | undefined {
+  if (!(error instanceof ApiError) || error.problem?.type !== `${PROBLEM_TYPE_PREFIX}${kind}`) {
+    return undefined;
+  }
+  return error.problem as unknown as Received<S>;
 }
 
 export function kindForStatus(status: number): ApiErrorKind {
