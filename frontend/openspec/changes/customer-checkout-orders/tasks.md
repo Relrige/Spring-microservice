@@ -24,9 +24,9 @@ Apply on a branch that contains `customer-cart` and the backend's Catalog tasks 
 
 ## 4. Orders
 
-- [ ] 4.1 Build `OrderHistoryPage` (paged list, status chips, empty state, polling of changing rows) (design D8); verify with tests for *Orders listed*, *No orders* and *Status chip*
-- [ ] 4.2 Build `OrderPage` (items, totals, delivery, TTN, pay-now link, missing delivery data, not found) with polling (design D8); verify with tests for *Paid order with a TTN*, *Order of another customer or unknown*, *Delivery data missing*, *Unpaid order*, *TTN arrives* and *Final status* (fake timers)
-- [ ] 4.3 Add cancellation with confirmation on the order page and the payment step (design D9); verify with tests for *Cancel an unpaid order*, *Cancellation still running*, *Cancel not possible any more* and *Shipped order*
+- [x] 4.1 Build `OrderHistoryPage` (paged list, status chips, empty state, polling of changing rows) (design D8); verify with tests for *Orders listed*, *No orders* and *Status chip*
+- [x] 4.2 Build `OrderPage` (items, totals, delivery, TTN, pay-now link, missing delivery data, not found) with polling (design D8); verify with tests for *Paid order with a TTN*, *Order of another customer or unknown*, *Delivery data missing*, *Unpaid order*, *TTN arrives* and *Final status* (fake timers)
+- [x] 4.3 Add cancellation with confirmation on the order page and the payment step (design D9); verify with tests for *Cancel an unpaid order*, *Cancellation still running*, *Cancel not possible any more* and *Shipped order*
 
 ## 5. Demo data, journeys and docs
 

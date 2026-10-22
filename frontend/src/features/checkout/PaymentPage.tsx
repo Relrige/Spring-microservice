@@ -14,6 +14,7 @@ import { Loading } from '../../components/Loading';
 import { formatPrice } from '../../components/Price';
 import { cartQueryKey } from '../cart/CartProvider';
 import { lineKopecks } from '../cart/subtotal';
+import { CancelOrder } from '../orders/CancelOrder';
 import { orderKeys, useOrder } from '../orders/queries';
 import { ORDER_STATUS } from '../orders/status';
 import { cardNumberError, cvvError, expiryError, toCardDetails } from './card';
@@ -52,7 +53,7 @@ function Notice({ children }: { children: ReactNode }) {
   );
 }
 
-function Summary({ order }: { order: OrderDetails }) {
+function Summary({ order, children }: { order: OrderDetails; children?: ReactNode }) {
   return (
     <Stack
       component="aside"
@@ -81,6 +82,7 @@ function Summary({ order }: { order: OrderDetails }) {
       <Text fz={13} c="dimmed">
         Prices were fixed when the order was placed.
       </Text>
+      {children}
     </Stack>
   );
 }
@@ -303,7 +305,9 @@ export function PaymentPage() {
             </Stack>
             {payment}
           </Stack>
-          <Summary order={data} />
+          <Summary order={data}>
+            <CancelOrder order={data} onCancelled={() => navigate(`/account/orders/${orderId}`)} />
+          </Summary>
         </Group>
       </Stack>
     );
