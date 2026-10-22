@@ -33,8 +33,29 @@ Frontend work is planned and delivered as OpenSpec changes in [`openspec/`](open
 Rules:
 - Requirements come from the backend contracts: [`../docs/design/services-specs/`](../docs/design/services-specs/) and [`../docs/design/services-requirements/api-contracts.md`](../docs/design/services-requirements/api-contracts.md). When the frontend and a service spec disagree, the service spec wins; if the spec looks wrong, that is a backlog item, not a frontend decision.
 - Read a change's `design.md` before implementing it; decisions there are binding unless a person changes them.
-- API types in `src/api/<service>.ts` are hand-written from the service specs and each cites its spec section. When a service spec changes, re-check the matching file and the mock handlers. They are replaced by generated types once BL-04 is done.
+- API types come from the services' OpenAPI documents, never written by hand (set up by iteration 1a, `api-contract-types`). See *API types from OpenAPI* below.
 - A `Blocker` backlog item must be `Done` before the iteration it blocks is proposed.
+
+### API types from OpenAPI
+
+Each routed service commits its contract as `../<service>-service/openapi/public.json` (Auth, Catalog, Customer, Order, Inventory, Delivery). The rules behind those documents are in [`../docs/design/services-requirements/openapi-conventions.md`](../docs/design/services-requirements/openapi-conventions.md).
+
+- **Generated, committed, never edited.** `npm run gen:api` writes `src/api/generated/<service>.ts` from the `public.json` files. Never read `internal.json` (not reachable through the gateway) and never call `/v3/api-docs`.
+- **Service modules only alias and call.** `src/api/<service>.ts` exports the calls and short aliases of the generated types, using the helpers in `src/api/contract.ts`. A new call:
+  - takes its types by `operationId`: `JsonBody`, `Query`, `PathParams`, `Ok`;
+  - builds its path with `pathFor`;
+  - wraps its response type in `Received<…>`;
+  - goes through the existing `request()` in `src/api/http.ts`;
+  - cites the spec EP number and the `operationId`.
+- **Never hand-write a DTO.** A hand-written type is allowed only where the app needs something narrower than the document, for example a runtime list of roles or the four sort options. Pin it to the generated type with a type test.
+- **Optional means "missing or `null`".** A property not in the schema's `required` list may be absent or `null`. Handle both alike (`??`, `== null`), never `=== undefined`.
+- **Errors by `type`.** Where one status can carry several problem schemas (`oneOf`), tell them apart with `problemOf(error, '<kind>')` on the `type` URI, not by which fields are present. A `400` may come without `errors`.
+- **When `npm run check:api` fails,** a `public.json` changed:
+  1. run `npm run gen:api` and review the diff of the generated files: it is the API change;
+  2. fix the compile errors;
+  3. re-check the mock handlers against the new types;
+  4. commit the regenerated files with the adaptation.
+- **Generated type vs service spec.** If a generated type disagrees with the service spec, that is a backend bug and a backlog item (§4). Do not silently adapt the frontend to it.
 
 ## 4. Workflow: backend backlog
 
@@ -75,6 +96,7 @@ Each iteration is one OpenSpec change. Backend dependencies refer to backlog IDs
 | # | Change | Scope | Backlog dependencies |
 |---|---|---|---|
 | 1 | `frontend-foundation` | tooling, API layer, session, shell, storefront browsing, mock backend, demo seed script | — |
+| 1a | `api-contract-types` | API types generated from the OpenAPI documents, drift check, uniform paging envelope; before iteration 2 | BL-04, BL-05 (delivered) |
 | 2 | `customer-cart` | guest cart, server cart, merge choice on login | — |
 | 3 | `customer-checkout-orders` | profile, checkout, payment, order history and details, cancel | BL-07, BL-11, BL-13 (workarounds) |
 | 4 | `catalog-manager-console` | products and categories management | BL-01 (blocker) |
@@ -86,7 +108,7 @@ Each iteration is one OpenSpec change. Backend dependencies refer to backlog IDs
 
 Before reporting any task as done (all commands run in `frontend/`):
 
-- `npm run check` — `tsc -b`, ESLint and every Vitest test (unit and component tests run against the MSW mock handlers). About 20–30 s. Must pass before every commit (§8).
+- `npm run check` — `check:api` (the generated API types match the committed `public.json` files, §3), `tsc -b`, ESLint and every Vitest test (unit and component tests run against the MSW mock handlers). About 20–30 s. Must pass before every commit (§8).
 - `npm run check:e2e` — Playwright journeys (project `mock`) against `npm run dev:mock` on port 5174, which Playwright starts itself; no Docker. About 20 s. Run it when a change touches pages, routing or the session. First time on a machine: `npx playwright install chromium`.
 - `npm run test:e2e:live` — the same journeys against the Compose stack (`npm run dev` on 5173 → gateway on 8080), when a task says so: start the stack, run `npm run seed` with `SEED_ADMIN_PASSWORD`, then the tests with `E2E_ADMIN_PASSWORD`.
 - To look at the app yourself: `npm run dev:mock` (or the `frontend-mock` entry of `.claude/launch.json` in the preview pane) and the demo accounts in `README.md`.
@@ -94,7 +116,7 @@ Before reporting any task as done (all commands run in `frontend/`):
 Test conventions:
 - Test names contain the spec scenario names, so a failure points at a requirement.
 - Component and page tests render through `renderApp(url)` / `renderWithProviders()` (`src/test/render.tsx`) and use the mock handlers (`src/mocks/`); override single answers with `server.use(...)`. The mock database is reset after each test.
-- A new backend call gets its handler in `src/mocks/handlers.ts`, following the service spec (status codes, problem details), in the same commit.
+- A new backend call gets its handler in `src/mocks/handlers.ts`, following the service spec (status codes, problem details), in the same commit. Its JSON answers are typed with `satisfies` against the generated schemas, and its problems carry the backend's `type` URI.
 
 The exact commands, ports, demo accounts and seed variables are in [`README.md`](README.md).
 

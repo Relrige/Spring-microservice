@@ -22,7 +22,7 @@
 
 ## 5. Conventions for later iterations
 
-- [ ] 5.1 Update `AGENTS.md` (design D7): §3 types come from `src/api/generated/` and are never hand-written, what to do when `check:api` fails, generated-vs-spec disagreements are backlog items; §6 add iteration 1a `api-contract-types` before `customer-cart`; §7 `check` includes `check:api`; verify the three sections name `gen:api`, `check:api` and `src/api/generated/`, and no section still says types are hand-written
+- [x] 5.1 Update `AGENTS.md` (design D7): §3 types come from `src/api/generated/` and are never hand-written, what to do when `check:api` fails, generated-vs-spec disagreements are backlog items; §6 add iteration 1a `api-contract-types` before `customer-cart`; §7 `check` includes `check:api`; verify the three sections name `gen:api`, `check:api` and `src/api/generated/`, and no section still says types are hand-written
 - [ ] 5.2 Update the `customer-cart` change: design D3 builds `src/api/customer.ts` on `generated/customer.ts` (`CartItem` alias, calls by operationId, `cartViolation` on `problemOf` with `cart-rule-violation`); task 1.1 says the same; task 1.3 answers mock `422`s with the `cart-rule-violation` type; verify `openspec validate customer-cart` passes and neither file still plans hand-written cart types
 
 ## 6. Integration
