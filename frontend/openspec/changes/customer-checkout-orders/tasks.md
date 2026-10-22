@@ -33,7 +33,7 @@ Apply on a branch that contains `customer-cart` and the backend's Catalog tasks 
 - [ ] 5.1 Add the demo-profile step to `scripts/seed.ts` (`demo profile: set | kept`, design D11); verify against the Compose stack that the first run sets the profile and a second run reports `Result: unchanged`
 - [x] 5.2 Write the checkout and cancel journeys (design D12); verify `npm run check:e2e` passes
 - [ ] 5.3 With the Order Service database volume reset (ask a person first) and the stack seeded, run `npm run test:e2e:live`; check a repeated submit with the same key answers the first order (replay); fix any mock mismatch (a generated type that disagrees with a service spec is a backlog item, `AGENTS.md` §3); record the result in *Live verification* and the demo profile in *Demo accounts* of `frontend/README.md`; set BL-07 to `Done` in its file and the backlog index; verify the live run passes
-- [ ] 5.4 Check the profile, delivery step, payment step, order history and order page in the preview pane on desktop and at 375 px (light and dark) against `Checkout.dc.html` and the design system README; verify by screenshots that layout and colours match and there is no horizontal scroll
+- [x] 5.4 Check the profile, delivery step, payment step, order history and order page in the preview pane on desktop and at 375 px (light and dark) against `Checkout.dc.html` and the design system README; verify by screenshots that layout and colours match and there is no horizontal scroll
 
 ## Workflow follow-up
 

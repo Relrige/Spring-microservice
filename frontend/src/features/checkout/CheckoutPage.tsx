@@ -294,7 +294,10 @@ export function CheckoutPage() {
                   {'product' in view ? view.product.title : 'Loading…'} × {line.quantity}
                 </Text>
                 {view.kind === 'available' && (
-                  <Text fz={14} className="vs-price">
+                  <Text
+                    fz={14}
+                    style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}
+                  >
                     {formatPrice(lineKopecks(view.product.basePrice, line.quantity) / 100)}
                   </Text>
                 )}

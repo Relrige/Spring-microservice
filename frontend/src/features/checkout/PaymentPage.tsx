@@ -68,7 +68,7 @@ function Summary({ order, children }: { order: OrderDetails; children?: ReactNod
           <Text fz={14}>
             {item.productTitle} × {item.quantity}
           </Text>
-          <Text fz={14} className="vs-price">
+          <Text fz={14} style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
             {formatPrice(lineKopecks(item.unitPriceAtOrder, item.quantity) / 100)}
           </Text>
         </Group>

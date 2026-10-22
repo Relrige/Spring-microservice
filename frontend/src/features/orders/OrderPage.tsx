@@ -13,6 +13,8 @@ import { CancelOrder } from './CancelOrder';
 import { useOrder } from './queries';
 import { DeliveryStatusChip, OrderStatusChip } from './status';
 
+const TABULAR = { fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' } as const;
+
 const block = {
   background: 'var(--vs-surface-raised)',
   border: '1px solid var(--vs-line)',
@@ -107,11 +109,11 @@ export function OrderPage() {
                 {data.items.map((item) => (
                   <Table.Tr key={item.productId}>
                     <Table.Td>{item.productTitle}</Table.Td>
-                    <Table.Td ta="right" className="vs-price">
+                    <Table.Td ta="right" style={TABULAR}>
                       {formatPrice(item.unitPriceAtOrder)}
                     </Table.Td>
                     <Table.Td ta="right">{item.quantity}</Table.Td>
-                    <Table.Td ta="right" className="vs-price">
+                    <Table.Td ta="right" style={TABULAR}>
                       {formatPrice(lineKopecks(item.unitPriceAtOrder, item.quantity) / 100)}
                     </Table.Td>
                   </Table.Tr>
