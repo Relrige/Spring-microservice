@@ -22,7 +22,7 @@ test('browse, filter, page and open a product', async ({ page }) => {
     'page',
   );
 
-  await page.getByRole('radio', { name: 'Phones' }).click();
+  await page.getByRole('radio', { name: 'Phones', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Phones' })).toBeVisible();
   await expect(tiles).toHaveCount(PHONES.length);
   await expect(page).not.toHaveURL(/page=/);
