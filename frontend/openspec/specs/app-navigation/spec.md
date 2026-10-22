@@ -52,7 +52,7 @@ Opening a protected page without a session SHALL take the user to the login page
 - **THEN** the access-denied page is shown with a link back to the storefront
 
 ### Requirement: Role-aware navigation
-The header SHALL show navigation that matches the current user: visitors see the catalog, the cart, "Log in" and "Register"; customers see the catalog, "Orders", "Profile", the cart and "Log out"; each logged-in staff role sees links to the pages of its own area that exist, plus "Log out", and no cart. Links to areas the user cannot open SHALL NOT be shown. The cart control SHALL stay in the header on narrow screens.
+The header SHALL show navigation that matches the current user: visitors see the catalog, the cart, "Log in" and "Register"; customers see the catalog, "Orders", "Profile", the cart and "Log out"; each logged-in staff role sees links to the pages of its own area that exist, plus "Log out", and no cart. An inventory worker's links are "Stock" and "Fulfillment queue", the latter with the number of orders waiting for dispatch. Links to areas the user cannot open SHALL NOT be shown. The cart control SHALL stay in the header on narrow screens.
 
 #### Scenario: Visitor header
 - **WHEN** no one is logged in
@@ -69,6 +69,10 @@ The header SHALL show navigation that matches the current user: visitors see the
 #### Scenario: Customer header
 - **WHEN** a customer is logged in
 - **THEN** the header shows the catalog, "Orders" linking to `/account/orders`, "Profile" linking to `/account/profile`, the cart and "Log out"
+
+#### Scenario: Worker header
+- **WHEN** an inventory worker is logged in and 2 orders wait for dispatch
+- **THEN** the header shows "Stock" linking to `/warehouse` and "Fulfillment queue" linking to `/warehouse/queue` with the count 2, and no cart
 
 ### Requirement: Not-found page
 Any URL that matches no page SHALL show a not-found page with a link to the storefront, keeping the header and navigation.
