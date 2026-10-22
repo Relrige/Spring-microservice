@@ -122,7 +122,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   );
 
   // The API layer reads the token from here and reports 401s on token-carrying requests.
-  useEffect(() => {
+  // A layout effect, so it is in place before queries of child components (the cart) fetch.
+  useLayoutEffect(() => {
     configureHttp({
       getToken: () => sessionRef.current?.token ?? null,
       onSessionExpired: () => expire('always'),

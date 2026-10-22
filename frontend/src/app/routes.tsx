@@ -1,6 +1,7 @@
 // Route tree (design D6): storefront, four role areas behind RequireRole, not-found.
 import type { RouteObject } from 'react-router';
 import { LoginPage } from '../features/auth/LoginPage';
+import { CartProvider } from '../features/cart/CartProvider';
 import { RegisterPage } from '../features/auth/RegisterPage';
 import { ProductDetailsPage } from '../features/catalog/ProductDetailsPage';
 import { ProductListPage } from '../features/catalog/ProductListPage';
@@ -14,7 +15,9 @@ export const routes: RouteObject[] = [
   {
     element: (
       <SessionProvider>
-        <AppLayout />
+        <CartProvider>
+          <AppLayout />
+        </CartProvider>
       </SessionProvider>
     ),
     children: [

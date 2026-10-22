@@ -44,6 +44,7 @@ beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => {
   cleanup();
   server.resetHandlers();
+  server.events.removeAllListeners();
   resetDb();
   window.localStorage.clear();
   window.innerWidth = 1024;
