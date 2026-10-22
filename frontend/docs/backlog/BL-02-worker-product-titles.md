@@ -62,7 +62,13 @@ Backend tasks: Catalog [27](../../../docs/tasks/catalog-service/27-staff-product
   - `GET /catalog/products/{id}` gives workers inactive products too (but see BL-01: the gateway route is not `OPTIONAL` yet);
   - Catalog now publishes full-state `ProductCreated` and `ProductUpdated` events, which Inventory will use for its copy of titles.
 - **Usable through the gateway as soon as the PR is merged:** the list with `ids` and the worker's visibility (route `catalog-browse-products` is already `OPTIONAL`). That replaces the "one request per title" workaround (`BL-02` comments in the code).
-- **Still open:** Inventory tasks 22–24 (`title`, `productStatus`, `search`, `sortBy=title` on `GET /inventory/stock`). The item stays `In progress` until they are done and verified from the frontend.
+- **Done in Inventory** (tasks 22–24, [PR #25](https://github.com/Relrige/Spring-microservice/pull/25), stacked on PR #22, not merged yet):
+  - each row of `GET /inventory/stock` adds `title` and `productStatus` (`ACTIVE`/`NOT_ACTIVE`). Both are optional in `inventory-service/openapi/public.json` and are missing or `null` until copied, so `npm run gen:api` adds them as optional fields;
+  - new query parameters `search` (case-insensitive part of the title; `%` and `_` match literally; blank means no filter) and `productStatus`; both combine with `packagingConfigured` and paging;
+  - `sortBy=title` (and `title,desc`) puts rows without a title last;
+  - an invalid `productStatus` (and now also an invalid `packagingConfigured`) → `400` with `errors.<parameter>`;
+  - the copy comes from Catalog's product events and a backfill job, so a rename shows up a moment later (eventually consistent). Rows show no title until Catalog's PR #22 is deployed too.
+- **Next:** once both PRs are merged, the worker console can take titles from the stock list itself and drop the per-title lookups (`BL-02` comments in the code). The item stays `In progress` until the frontend has verified this.
 
 ## Notes
 
