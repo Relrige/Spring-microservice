@@ -31,3 +31,5 @@ Catalog's list endpoints answer `{ content, page, totalElements }`, while Order 
 
 ## Deviations from spec / task
 - **Where the default `20` is tested.** The task asks for the "without `size` → 20" case in the controller tests too. The controller tests mock the service, so the value they see is whatever the mock returns; asserting `20` there would only test the mock. The default is therefore checked where it is computed, in `CategoryServiceTest` and in the integration test for both endpoints, and the controller tests check only that `size` is serialized. Alternative considered: a controller test with a real `Paging` call through a spy — rejected as more setup for no extra coverage.
+
+*Spec sync (2026-10-22):* no spec change needed; the Catalog spec and `api-contracts.md` already describe the envelope with `size`.

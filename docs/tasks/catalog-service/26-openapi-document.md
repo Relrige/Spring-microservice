@@ -80,3 +80,5 @@ Catalog is the **pilot**: this task creates the building blocks (config, problem
 - **Route-coverage test unchanged.** `RouteSecurityRulesTest` only walks `@RestController` handlers in `ua.edu.ukma.*`, and springdoc's endpoints are not mapped in the `@WebMvcTest` slice, so it needs no exception for the new rule. `OpenApiDisabledByDefaultTest` covers the rule instead (full context, springdoc off, `404`).
 - **`400` on path-only operations** (`GET /catalog/products/{id}`, `DELETE /catalog/categories/{id}`): the customizer adds it although the table lists none for them; see *Decisions*.
 - **Code vs. task table:** no difference found. Malformed JSON and non-UUID path values answer a `bad-request` problem without `errors`, which the optional `errors` of `ValidationProblem` covers.
+
+*Spec sync (2026-10-22):* now part of `openapi-conventions.md` (D1 version, D6 `oneOf` and path-only `400`, D7 `@OptionalAuthentication`, *Building blocks per service*: `ErrorResponsesCustomizer`, the two extra properties, controllers and `@Tag`, the route-coverage test) and of the Catalog spec (*Revisions*, 2026-10-21 entry).
