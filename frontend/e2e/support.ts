@@ -3,6 +3,7 @@ import {
   DEMO_ADMIN,
   DEMO_CART,
   DEMO_CUSTOMER,
+  DEMO_PROFILE,
   DEMO_STAFF,
   type DemoAccount,
 } from '../src/fixtures/demo-data';
@@ -86,4 +87,34 @@ export async function resetDemoCart(request: APIRequestContext) {
     data: { items },
   });
   expect(answer.ok(), 'reset the demo cart').toBe(true);
+}
+
+/** Logs in as the demo customer and goes from the cart to the payment step of a new order. */
+export async function placeOrder(page: Page): Promise<string> {
+  await page.goto('/login');
+  await logIn(page, DEMO_CUSTOMER.email, DEMO_CUSTOMER.password);
+  await expect(page.getByTestId('current-user')).toContainText(DEMO_CUSTOMER.email);
+
+  await page.getByRole('link', { name: /^Cart, \d+ items?$/ }).click();
+  const gone = page.getByTestId('cart-line').filter({ hasText: 'Product no longer available' });
+  await expect(gone).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Proceed to checkout' })).toBeDisabled();
+  await gone.getByRole('button', { name: 'Remove' }).click();
+  await expect(gone).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Proceed to checkout' }).click();
+  await expect(page).toHaveURL(/\/checkout$/);
+  await expect(page.getByLabel('Recipient')).toHaveValue(
+    `${DEMO_PROFILE.firstName} ${DEMO_PROFILE.lastName}`,
+  );
+  await page.getByRole('button', { name: 'Place order' }).click();
+  await expect(page).toHaveURL(/\/checkout\/[0-9a-f-]{36}$/);
+  return page.url().split('/').pop()!;
+}
+
+export async function pay(page: Page, number: string) {
+  await page.getByLabel('Card number').fill(number);
+  await page.getByLabel('Expiry (MM/YY)').fill('12/30');
+  await page.getByLabel('CVV').fill('123');
+  await page.getByRole('button', { name: /^Pay UAH/ }).click();
 }
