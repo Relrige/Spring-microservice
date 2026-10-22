@@ -8,7 +8,7 @@ Root files (`docker-compose.yml`, `k8s/`, `k8s.txt`) are edited under the except
 
 ## 2. Compose
 
-- [ ] 2.1 Add the `frontend` service to the root `docker-compose.yml` (design D3) and let the Playwright `live` project take `E2E_BASE_URL` (design D5); verify on the seeded Compose stack that `/api/catalog/products?size=1` through port 3000 answers the gateway's JSON, `/api/no/such/route` the gateway's `404` problem, and `E2E_BASE_URL=http://localhost:3000 npm run test:e2e:live` passes (*Journeys against Compose*)
+- [x] 2.1 Add the `frontend` service to the root `docker-compose.yml` (design D3) and let the Playwright `live` project take `E2E_BASE_URL` (design D5); verify on the seeded Compose stack that `/api/catalog/products?size=1` through port 3000 answers the gateway's JSON, `/api/no/such/route` the gateway's `404` problem, and `E2E_BASE_URL=http://localhost:3000 npm run test:e2e:live` passes (*Journeys against Compose*)
 
 ## 3. Kubernetes
 
