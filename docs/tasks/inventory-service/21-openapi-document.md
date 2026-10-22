@@ -51,3 +51,5 @@ Every service with gateway-routed endpoints publishes an OpenAPI 3.1 document. A
 - **`400` on the internal path-only operations** (readiness, packaging `GET`, release): the table lists none, but the spec cards say a non-UUID path value answers `400`; the customizer adds it, as agreed in the pilot.
 - **`size` without a minimum in the document.** `listStock` binds `page` and `size` as plain `int` parameters and `PageableParser` checks the range by hand, so the document cannot show `minimum`/`maximum` as it does for Catalog's Bean-Validated query object. The limit is in the parameter description instead. Moving the checks to Bean Validation would change code paths beyond this task.
 - **Code vs. task table:** no other difference.
+
+*Spec sync (2026-10-22):* the hand-checked paging limits are now a known trade-off in `openapi-conventions.md`; the pilot details are in its *Building blocks per service*.

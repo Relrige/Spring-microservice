@@ -84,5 +84,6 @@ Copied per service, like the `security` package ([security model](security-model
 
 - The documents describe the implementation, not the design (D9). A wrong implementation produces a wrong document, which only review against the spec catches.
 - Optional fields (D5) become `field?: T` in the generated TypeScript, although the service may send `null`. Frontend code must treat `undefined` and `null` alike (for example `??`, not `=== undefined`).
+- Query parameters that a service checks by hand (Inventory's and Order's `page`/`size`, checked by their paging parsers) show their limits only in the parameter description, not as `minimum`/`maximum`; Bean-Validated query objects (Catalog's) show them as constraints.
 - Required roles appear as description text, not as a machine-readable field: OpenAPI has no standard field for roles, and `SecurityConfig` stays the place where they are enforced.
 - `@ApiResponse` annotations repeat the statuses that `GlobalExceptionHandler` and `SecurityConfig` decide. Nothing checks them automatically, so they can drift; the review of the committed document diff is the check.
