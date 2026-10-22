@@ -4,7 +4,7 @@ Root files (`docker-compose.yml`, `k8s/`, `k8s.txt`) are edited under the except
 
 ## 1. Image
 
-- [ ] 1.1 Add `frontend/Dockerfile`, `frontend/.dockerignore` and `frontend/deploy/nginx.conf` (design D1–D2); verify `docker build -t voltstore/frontend:latest frontend` succeeds and, run alone with a stub upstream, `/healthz` answers 200, `/account/orders` answers `index.html` with `Cache-Control: no-cache` and an `/assets/` file answers with `max-age=31536000, immutable`
+- [x] 1.1 Add `frontend/Dockerfile`, `frontend/.dockerignore` and `frontend/deploy/nginx.conf` (design D1–D2); verify `docker build -t voltstore/frontend:latest frontend` succeeds and, run alone with a stub upstream, `/healthz` answers 200, `/account/orders` answers `index.html` with `Cache-Control: no-cache` and an `/assets/` file answers with `max-age=31536000, immutable`
 
 ## 2. Compose
 
