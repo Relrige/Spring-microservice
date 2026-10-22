@@ -1,9 +1,25 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { login, register } from '../api/auth';
 import { getProduct, listCategories, listProducts } from '../api/catalog';
+import {
+  addCartItem,
+  cartViolation,
+  clearCart,
+  getCart,
+  mergeCart,
+  removeCartItem,
+  replaceCart,
+  setCartItemQuantity,
+} from '../api/customer';
 import { ApiError } from '../api/errors';
 import { request } from '../api/http';
-import { DEMO_CATEGORIES, DEMO_CUSTOMER, DEMO_PRODUCTS, DEMO_STAFF } from '../fixtures/demo-data';
+import {
+  DEMO_CART,
+  DEMO_CATEGORIES,
+  DEMO_CUSTOMER,
+  DEMO_PRODUCTS,
+  DEMO_STAFF,
+} from '../fixtures/demo-data';
 import { db, resetDb } from './db';
 import { compareText, problem } from './handlers';
 import { createMockToken, readMockToken } from './tokens';
@@ -140,5 +156,143 @@ describe('mock problems', () => {
     });
     const plain = await problem(422, 'Not processable').json();
     expect(plain.type).toBe('https://voltstore.com/errors/unprocessable-entity');
+  });
+});
+
+describe('mock cart', () => {
+  const customer = () => ({ token: createMockToken(db.users.find((u) => u.role === 'CUSTOMER')!) });
+  const productId = (title: string) => db.products.find((p) => p.title === title)!.productId;
+  const active = () => db.products.filter((p) => p.status === 'ACTIVE');
+
+  async function emptyCustomer() {
+    await register({ email: 'cart@example.com', password: 'secret' });
+    return { token: (await login({ email: 'cart@example.com', password: 'secret' })).token };
+  }
+
+  it('starts the demo customer from DEMO_CART: three lines ordered by productId', async () => {
+    const cart = await getCart(customer());
+    expect(cart).toEqual(
+      DEMO_CART.map((line) => ({ productId: productId(line.title), quantity: line.quantity })).sort(
+        (a, b) => compareText(a.productId, b.productId),
+      ),
+    );
+    expect(cart).toHaveLength(3);
+  });
+
+  it('adds, sets, removes and clears; a new customer starts with []', async () => {
+    const auth = await emptyCustomer();
+    expect(await getCart(auth)).toEqual([]);
+    const [a, b] = active();
+    await addCartItem({ productId: b!.productId, quantity: 1 }, auth);
+    expect(await addCartItem({ productId: a!.productId, quantity: 2 }, auth)).toEqual(
+      [
+        { productId: a!.productId, quantity: 2 },
+        { productId: b!.productId, quantity: 1 },
+      ].sort((x, y) => compareText(x.productId, y.productId)),
+    );
+    expect(await addCartItem({ productId: a!.productId, quantity: 3 }, auth)).toContainEqual({
+      productId: a!.productId,
+      quantity: 5,
+    });
+    expect(await setCartItemQuantity(a!.productId, 1, auth)).toContainEqual({
+      productId: a!.productId,
+      quantity: 1,
+    });
+    expect(await removeCartItem(a!.productId, auth)).toEqual([
+      { productId: b!.productId, quantity: 1 },
+    ]);
+    expect(await removeCartItem(a!.productId, auth)).toHaveLength(1);
+    expect(await clearCart(auth)).toEqual([]);
+    expect(await clearCart(auth)).toEqual([]);
+  });
+
+  it('answers 422 cart-rule-violation with the violation and leaves the cart unchanged', async () => {
+    const auth = await emptyCustomer();
+    const ten = active()
+      .slice(0, 10)
+      .map((p) => ({ productId: p.productId, quantity: 1 }));
+    await replaceCart({ items: ten }, auth);
+    const tooMany = await failure(
+      addCartItem({ productId: active()[10]!.productId, quantity: 1 }, auth),
+    );
+    expect(tooMany.status).toBe(422);
+    expect(tooMany.problem?.type).toBe('https://voltstore.com/errors/cart-rule-violation');
+    expect(cartViolation(tooMany)).toMatchObject({
+      violation: 'TOO_MANY_PRODUCTS',
+      resultingProductCount: 11,
+      maxProducts: 10,
+    });
+
+    const first = ten[0]!.productId;
+    const over = await failure(addCartItem({ productId: first, quantity: 10 }, auth));
+    expect(cartViolation(over)).toMatchObject({
+      violation: 'QUANTITY_LIMIT_EXCEEDED',
+      productIds: [first],
+      maxQuantity: 10,
+    });
+    expect(cartViolation(await failure(setCartItemQuantity(first, 11, auth)))?.violation).toBe(
+      'QUANTITY_LIMIT_EXCEEDED',
+    );
+    expect(
+      cartViolation(await failure(mergeCart({ items: [{ productId: first, quantity: 10 }] }, auth)))
+        ?.violation,
+    ).toBe('QUANTITY_LIMIT_EXCEEDED');
+    expect(await getCart(auth)).toHaveLength(10);
+  });
+
+  it('checks DUPLICATE_PRODUCT before the rules and merges by summing', async () => {
+    const auth = await emptyCustomer();
+    const [a, b] = active();
+    const twice = [
+      { productId: a!.productId, quantity: 9 },
+      { productId: a!.productId, quantity: 9 },
+    ];
+    for (const call of [replaceCart, mergeCart]) {
+      const error = await failure(call({ items: twice }, auth));
+      expect(cartViolation(error)).toMatchObject({
+        violation: 'DUPLICATE_PRODUCT',
+        productIds: [a!.productId],
+      });
+    }
+    await addCartItem({ productId: a!.productId, quantity: 1 }, auth);
+    expect(await mergeCart({ items: [] }, auth)).toEqual([
+      { productId: a!.productId, quantity: 1 },
+    ]);
+    const merged = await mergeCart(
+      {
+        items: [
+          { productId: a!.productId, quantity: 2 },
+          { productId: b!.productId, quantity: 1 },
+        ],
+      },
+      auth,
+    );
+    expect(merged).toContainEqual({ productId: a!.productId, quantity: 3 });
+    expect(merged).toContainEqual({ productId: b!.productId, quantity: 1 });
+  });
+
+  it('answers 404 only for PATCH of a missing line, and 400 with field errors', async () => {
+    const auth = await emptyCustomer();
+    const missing = await failure(setCartItemQuantity(active()[0]!.productId, 2, auth));
+    expect(missing.status).toBe(404);
+    const bad = await failure(addCartItem({ productId: 'nope', quantity: 1.5 }, auth));
+    expect(bad.status).toBe(400);
+    expect(bad.problem?.errors).toEqual({
+      productId: ['must be a valid UUID'],
+      quantity: ['must be an integer'],
+    });
+    const zero = await failure(
+      replaceCart({ items: [{ productId: active()[0]!.productId, quantity: 0 }] }, auth),
+    );
+    expect(zero.problem?.errors).toEqual({
+      'items[0].quantity': ['must be greater than or equal to 1'],
+    });
+  });
+
+  it('answers 401 without a token and 403 for a staff token', async () => {
+    const worker = { token: createMockToken(db.users.find((u) => u.role === 'INVENTORY_WORKER')!) };
+    expect((await failure(getCart('none'))).status).toBe(401);
+    expect((await failure(getCart(worker))).status).toBe(403);
+    expect((await failure(clearCart(worker))).status).toBe(403);
   });
 });
