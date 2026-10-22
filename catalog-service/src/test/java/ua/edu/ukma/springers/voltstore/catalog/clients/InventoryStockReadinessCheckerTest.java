@@ -26,11 +26,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * The adapter against a fake Inventory (WireMock), without a Spring context: the client is built exactly as in
- * production, with short timeouts and one retry so the tests stay fast.
+ * production, with one retry so the tests stay fast.
  */
 class InventoryStockReadinessCheckerTest {
     private static final String TOKEN = "internal-token-internal-token-1234567";
-    private static final Duration READ_TIMEOUT = Duration.ofMillis(500);
+    // Only the timeout test uses a short read timeout. The others use a generous one: on a busy machine (e.g. a
+    // Compose stack running alongside) a 500 ms timeout made a 404 time out, get retried and fail its "not retried"
+    // assertion.
+    private static final Duration SHORT_READ_TIMEOUT = Duration.ofMillis(500);
+    private static final Duration TIMEOUT = Duration.ofSeconds(5);
 
     @RegisterExtension
     static WireMockExtension inventory = WireMockExtension.newInstance()
@@ -102,13 +106,13 @@ class InventoryStockReadinessCheckerTest {
     @Test
     void slowResponse_timesOutAndIsUnavailable() {
         inventory.stubFor(get(path).willReturn(aResponse().withStatus(204)
-                .withFixedDelay((int) READ_TIMEOUT.toMillis() * 3)));
+                .withFixedDelay((int) SHORT_READ_TIMEOUT.toMillis() * 3)));
 
         long start = System.nanoTime();
-        assertThatThrownBy(() -> checker(inventory.baseUrl()).check(productId))
+        assertThatThrownBy(() -> checker(inventory.baseUrl(), SHORT_READ_TIMEOUT).check(productId))
                 .isInstanceOf(InventoryUnavailableException.class);
         // Two attempts bounded by the read timeout, not by the slow response
-        assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(READ_TIMEOUT.multipliedBy(5));
+        assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(SHORT_READ_TIMEOUT.multipliedBy(5));
         inventory.verify(2, getRequestedFor(urlEqualTo(path)));
     }
 
@@ -160,8 +164,12 @@ class InventoryStockReadinessCheckerTest {
     }
 
     private static InventoryStockReadinessChecker checker(String baseUrl) {
-        InventoryClientProperties properties = new InventoryClientProperties(baseUrl, Duration.ofMillis(500),
-                READ_TIMEOUT, 1, Duration.ofMillis(10));
+        return checker(baseUrl, TIMEOUT);
+    }
+
+    private static InventoryStockReadinessChecker checker(String baseUrl, Duration readTimeout) {
+        InventoryClientProperties properties = new InventoryClientProperties(baseUrl, TIMEOUT, readTimeout, 1,
+                Duration.ofMillis(10));
         return new InventoryStockReadinessChecker(ClientsConfiguration.createInventoryClient(properties, TOKEN),
                 properties);
     }
