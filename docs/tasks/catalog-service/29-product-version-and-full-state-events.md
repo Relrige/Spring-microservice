@@ -51,7 +51,7 @@ Order across services: do this before Inventory tasks [22](../inventory-service/
 ## Implementation Notes (2026-10-22)
 - **Version.** Flyway `V4__add_product_version.sql` adds `products.version BIGINT NOT NULL DEFAULT 0`. `Product.version` is a primitive `long` with `@Version`; `@DynamicUpdate` was already on `Product` (task 14), so only its comment changed. `ProductRepository.updateStockStatus` is untouched: a JPQL bulk update without `versioned` does not change `version`.
 - **409.** `GlobalExceptionHandler` maps `ObjectOptimisticLockingFailureException` to `409` with type `conflict` and the detail from the task, and logs it at `INFO`. PUT and PATCH document the `409`.
-- **One event record.** `ProductCreatedEvent` was renamed to `events/ProductEvent` (`git mv`, so the history stays): `{ eventId, productId, title, categoryId, basePrice, status, version, timestamp }`, constants `CREATED = "ProductCreated"` and `UPDATED = "ProductUpdated"`, and a factory `ProductEvent.of(Product)`. `ProductService.appendEvent(type, product)` builds it and appends it with aggregate type `Product`, topic `KafkaTopics.PRODUCT_EVENTS` and key `productId`, as before.
+- **One event record.** `ProductCreatedEvent` was replaced by `events/ProductEvent`: `{ eventId, productId, title, categoryId, basePrice, status, version, timestamp }`, constants `CREATED = "ProductCreated"` and `UPDATED = "ProductUpdated"`, and a factory `ProductEvent.of(Product)`. `ProductService.appendEvent(type, product)` builds it and appends it with aggregate type `Product`, topic `KafkaTopics.PRODUCT_EVENTS` and key `productId`, as before.
 - **When events are stored.**
   - EP-CAT-01: after `saveAndFlush`, so the event carries `version: 0`.
   - EP-CAT-02: after `saveAndFlush`, in the same transaction, after every successful update; a conflict fails at the flush, before the append.
@@ -90,3 +90,5 @@ Order across services: do this before Inventory tasks [22](../inventory-service/
 - **EP-CAT-03 skips the write when nothing changes.** Before, it always assigned the status, which with `@DynamicUpdate` already issued no `UPDATE`. Now it returns early, which makes "no event when the status didn't change" explicit and avoids a pointless flush. Behaviour for the caller is unchanged (`200`).
 - **`ProductCreatedEvent` was renamed rather than extended**, because one record now serves two event types; `ProductCreatedEvent` would be a misleading name for `ProductUpdated`. The wire format of `ProductCreated` only grows (additive).
 - **Catalog's own test "deserialization ignores unknown properties"** was dropped with the old record: Catalog doesn't consume product events, and the consumer-side tolerance is Inventory's to test (task 22).
+
+*Spec sync (2026-10-22):* now part of the Catalog spec (revision 2026-10-22, implementation note: `ProductEvent`, early return in EP-CAT-03, the `conflict` type, V4).

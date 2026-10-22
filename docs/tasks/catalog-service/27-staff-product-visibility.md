@@ -25,7 +25,7 @@ Order across services: independent of gateway [task 12](../api-getaway/12-option
   - unit tests for `visibleStatus` cover every role and anonymous;
   - `ProductControllerTest` checks the EP-CAT-05 JSON, including `status`;
   - the integration test (`CatalogReadAndStatusIntegrationTest` or a new one) covers EP-CAT-04 and EP-CAT-05 for anonymous, `CUSTOMER`, `CATALOG_MANAGER`, `INVENTORY_WORKER` and `ADMIN`, with an active and an inactive product.
-- [ ] The Catalog spec's implementation note for the 2026-10-22 revision names this task as implemented.
+- [x] The Catalog spec's implementation note for the 2026-10-22 revision names this task as implemented.
 
 ## Technical Notes / Constraints
 - **Settled (D1):** staff = `CATALOG_MANAGER` and `INVENTORY_WORKER`, on both endpoints. `ADMIN` is not staff. Visibility is business logic in the service, not a Spring Security rule: `SecurityConfig` keeps `permitAll` for `GET /catalog/products/*`.
@@ -51,3 +51,5 @@ Settled before implementation (autopilot run for Catalog tasks 27–29; the user
 
 ## Deviations from spec / task
 - None in behaviour. One detail decided here: `visibleStatus` stayed the single place of the rule, and EP-CAT-05 calls it with no requested status rather than getting its own role check. Alternative: a separate `canSee(product, role)` predicate; rejected because two predicates for one rule can drift apart.
+
+*Spec sync (2026-10-22):* now part of the Catalog spec (revision 2026-10-22, implementation note).

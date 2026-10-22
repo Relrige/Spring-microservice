@@ -41,3 +41,5 @@ Builds on [task 27](27-staff-product-visibility.md) (the visibility rule the fil
 ## Deviations from spec / task
 - **Empty element in the list** (`ids=a,,b`) also answers `400`, as it already did for EP-CAT-09; the task lists only empty, malformed and too many. Treating it as the same case as "malformed" keeps both endpoints identical.
 - **OpenAPI style.** Springdoc documents `ids` as an array with the default `form` style and `explode: true` (repeated parameters), although the description says comma-separated. Both forms bind, so a generated client works either way; overriding the style (`explode = false`) was not worth a custom annotation.
+
+*Spec sync (2026-10-22):* now part of the Catalog spec (EP-CAT-04 errors: the empty element; revision 2026-10-22, implementation note).

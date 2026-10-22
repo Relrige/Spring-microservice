@@ -170,7 +170,7 @@ The stock-status update from Inventory's events (EP-CAT-EVT-01/02) is a bulk JPQ
 - A non-staff caller sends `status` → the parameter is ignored (only `ACTIVE` products are returned)
 - `categoryId` not found → return empty result (not a 404; a non-existent category simply matches nothing)
 - No products match the filters → return `200 OK` with empty `content` array
-- `ids` empty, containing a malformed UUID, or with more than 100 distinct IDs → `400 Bad Request` (`errors.ids`)
+- `ids` empty, containing a malformed UUID or an empty element (`a,,b`), or with more than 100 distinct IDs → `400 Bad Request` (`errors.ids`); the same checks as EP-CAT-09
 - `ids` with duplicates → each product appears once; unknown IDs, and inactive products for a non-staff caller, are simply absent
 - `ids` does not change paging: a caller who wants all of up to 100 products in one page sends `size=100`
 
@@ -402,6 +402,12 @@ Prompted by the frontend backlog items BL-01 (catalog managers cannot load an in
 Tasks: [27](../../tasks/catalog-service/27-staff-product-visibility.md) (D1, D2), [28](../../tasks/catalog-service/28-browse-products-ids-filter.md) (D4), [29](../../tasks/catalog-service/29-product-version-and-full-state-events.md) (D5–D7); gateway [task 12](../../tasks/api-getaway/12-optional-product-details-route.md) (D3).
 
 **Other documents updated with this revision (2026-10-22):** `api-contracts.md` (EP-CAT-04, EP-CAT-05, EP-CAT-09, EP-INV-01), `events-catalogue.md` (`ProductCreated` payload, new `ProductUpdated`), `entities.md` (`Product.version`, the copied product fields of `StockItem`), the API Gateway spec (route table), the Inventory spec (copy of product data, D8–D10), and the frontend backlog items BL-01 and BL-02 (backend decision notes).
+
+*Implemented 2026-10-22 in Catalog (tasks 27–29); gateway task 12 (D3) and Inventory tasks 22–24 (D8–D10) are still open.* Implementation details worth knowing:
+- The visibility rule is `ProductService.visibleStatus`; EP-CAT-05 calls it with no requested status, so both endpoints share one rule. EP-CAT-05 carries `@OptionalAuthentication` in `public.json`.
+- EP-CAT-04 and EP-CAT-09 validate `ids` with the same helper (`ProductService.distinctIds`).
+- Both product events use one payload record, `events/ProductEvent` (constants `CREATED`, `UPDATED`); the service flushes before building it. EP-CAT-03 returns without a write when the product already has the requested status.
+- `409` uses the problem type `conflict`. Flyway `V4__add_product_version.sql` adds the column with default `0` for existing products.
 
 ### 2026-10-21: Paging envelope and OpenAPI document
 
