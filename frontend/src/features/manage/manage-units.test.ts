@@ -1,6 +1,15 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import type { ProductQuery, ProductStatus } from '../../api/catalog';
+import type { ProductInput, ProductQuery, ProductStatus } from '../../api/catalog';
 import { ApiError, PROBLEM_TYPE_PREFIX } from '../../api/errors';
+import {
+  categoryError,
+  categoryNameError,
+  descriptionError,
+  priceError,
+  titleError,
+  toProductInput,
+  type ProductFormValues,
+} from './field-rules';
 import { activationMessage, OVERLAP_MESSAGE, statusErrorMessage } from './messages';
 import {
   DEFAULT_CATEGORIES_STATE,
@@ -123,5 +132,39 @@ describe('activation reasons', () => {
     expect(
       statusErrorMessage(new ApiError('unavailable', { status: 503, retryAfter: 5 })).message,
     ).toBe('This service is temporarily unavailable. Try again in 5 seconds.');
+  });
+});
+
+describe('product and category field rules', () => {
+  it('title and description: required, not blank, limited after trimming', () => {
+    expect(titleError('   ')).toBe('Enter a title');
+    expect(titleError(` ${'a'.repeat(200)} `)).toBeNull();
+    expect(titleError('a'.repeat(201))).toBe('Use at most 200 characters');
+    expect(descriptionError('')).toBe('Enter a description');
+    expect(descriptionError('a'.repeat(5001))).toBe('Use at most 5000 characters');
+  });
+
+  it('price: greater than 0 with at most two decimals', () => {
+    expect(priceError('')).toBe('Enter a price');
+    expect(priceError(0)).toBe('The price must be greater than 0');
+    expect(priceError(-1)).toBe('The price must be greater than 0');
+    expect(priceError(0.01)).toBeNull();
+    expect(priceError(1299.99)).toBeNull();
+    expect(priceError(1.234)).toBe('Use at most two decimals');
+  });
+
+  it('category: chosen; category name: not blank, at most 100 characters', () => {
+    expect(categoryError(null)).toBe('Choose a category');
+    expect(categoryError('id')).toBeNull();
+    expect(categoryNameError('  ')).toBe('Enter a name');
+    expect(categoryNameError('a'.repeat(101))).toBe('Use at most 100 characters');
+    expect(categoryNameError('Tablets')).toBeNull();
+  });
+
+  it('the form fields are the ProductInput fields, sent trimmed', () => {
+    expectTypeOf<keyof ProductFormValues>().toEqualTypeOf<keyof ProductInput>();
+    expect(
+      toProductInput({ title: ' A ', description: ' B ', categoryId: 'c', basePrice: 5 }),
+    ).toEqual({ title: 'A', description: 'B', categoryId: 'c', basePrice: 5 });
   });
 });

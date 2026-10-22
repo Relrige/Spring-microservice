@@ -9,6 +9,8 @@ export default defineConfig((env) =>
       include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.ts'],
       css: false,
       restoreMocks: true,
+      // Form tests type through whole forms; under a parallel run 5 s was too tight.
+      testTimeout: 15_000,
     },
   }),
 );

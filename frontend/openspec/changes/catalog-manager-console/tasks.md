@@ -42,11 +42,11 @@ Apply on a branch that contains `customer-checkout-orders`, Catalog tasks 27–2
 ## 3. Products
 
 - [x] 3.1 Build `ProductListPage` (design D5): the staff table with chips and row actions, the toolbar (search, category, status, sort), paging, URL state, skeleton loading, the failure state with "Try again", and the empty state. Verify with component tests for *Inactive products are listed* (the request carries the token), *Row actions follow the status*, *Unknown category in a row*, *Only inactive products*, *List state restored from the URL*, *Nothing matches* and *Catalog unavailable*.
-- [ ] 3.2 Build `ProductForm` and `ProductCreatePage` (design D6): client rules, trimmed values, server field errors, the `422` category handling, and the redirect to the edit page with the one-time "Product created…" notice. Verify with tests for *Product created*, *Category removed meanwhile*, *Blank description*, *Price of zero*, and a `400` with `errors.title` shown at the title field.
-- [ ] 3.3 Build `ProductEditPage` (design D6, D8): load with the token, the status panel, the save with "Changes saved", the `409` alert with "Reload product", and the form reset only on first data and on reload. Verify with tests for:
+- [x] 3.2 Build `ProductForm` and `ProductCreatePage` (design D6): client rules, trimmed values, server field errors, the `422` category handling, and the redirect to the edit page with the one-time "Product created…" notice. Verify with tests for *Product created*, *Category removed meanwhile*, *Blank description*, *Price of zero*, and a `400` with `errors.title` shown at the title field.
+- [x] 3.3 Build `ProductEditPage` (design D6, D8): load with the token, the status panel, the save with "Changes saved", the `409` alert with "Reload product", and the form reset only on first data and on reload. Verify with tests for:
   - *Inactive product opens for editing*, *Unknown product*, *New price saved*, *Two saves overlap* and *Reload after a conflict*;
   - a background refetch (window focus) that leaves typed values in place.
-- [ ] 3.4 Build `ProductStatusControl` (design D7) and use it on the list and the edit page, with the D3 invalidation after each write. Verify with tests for:
+- [x] 3.4 Build `ProductStatusControl` (design D7) and use it on the list and the edit page, with the D3 invalidation after each write. Verify with tests for:
   - *Product activated*, *Packaging missing*, *No stock record yet*, *Unknown reason*, *Inventory down* (exactly one request sent), *Product deactivated* and *Deactivation cancelled*;
   - a `409` on the list that refetches it;
   - *Deactivated product leaves the storefront* and *Staff list does not leak into the storefront*.
