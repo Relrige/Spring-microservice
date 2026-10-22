@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { DEMO_CUSTOMER, DEMO_STAFF } from '../fixtures/demo-data';
+import { recordCartRequests } from '../test/cart';
 import { currentUrl, loginAs, renderApp } from '../test/render';
 import { currentUserText, submitLogin } from '../test/ui';
 
@@ -91,5 +92,27 @@ describe('Role-aware navigation', () => {
     const nav = await screen.findByRole('navigation', { name: 'Main' });
     expect(within(nav).getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
     expect(within(nav).getByRole('link', { name: 'Log in' })).toBeInTheDocument();
+  });
+});
+
+describe('Cart area', () => {
+  it('Manager opens the cart: access denied and no cart request', async () => {
+    loginAs('CATALOG_MANAGER');
+    const calls = recordCartRequests();
+    renderApp('/cart');
+    expect(await screen.findByText('You do not have access to this page')).toBeInTheDocument();
+    expect(calls).toEqual([]);
+  });
+
+  it('Visitor opens the cart: the cart page without a login', async () => {
+    const { router } = renderApp('/cart');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Cart' })).toBeInTheDocument();
+    expect(currentUrl(router)).toBe('/cart');
+  });
+
+  it('a staff login with returnTo=/cart lands in the staff area', async () => {
+    const { router } = renderApp('/login?returnTo=%2Fcart');
+    await submitLogin(manager.email, manager.password);
+    await waitFor(() => expect(currentUrl(router)).toBe('/manage'));
   });
 });

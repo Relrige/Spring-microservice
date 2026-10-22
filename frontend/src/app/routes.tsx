@@ -1,6 +1,7 @@
 // Route tree (design D6): storefront, four role areas behind RequireRole, not-found.
 import type { RouteObject } from 'react-router';
 import { LoginPage } from '../features/auth/LoginPage';
+import { CartPage } from '../features/cart/CartPage';
 import { CartProvider } from '../features/cart/CartProvider';
 import { RegisterPage } from '../features/auth/RegisterPage';
 import { ProductDetailsPage } from '../features/catalog/ProductDetailsPage';
@@ -25,6 +26,8 @@ export const routes: RouteObject[] = [
       { path: 'products/:productId', element: <ProductDetailsPage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
+      // Open to visitors and customers; CartPage denies staff (change customer-cart, design D7).
+      { path: 'cart', element: <CartPage /> },
       {
         path: 'account/*',
         element: (
