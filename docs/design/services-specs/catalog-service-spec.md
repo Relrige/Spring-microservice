@@ -403,7 +403,7 @@ Tasks: [27](../../tasks/catalog-service/27-staff-product-visibility.md) (D1, D2)
 
 **Other documents updated with this revision (2026-10-22):** `api-contracts.md` (EP-CAT-04, EP-CAT-05, EP-CAT-09, EP-INV-01), `events-catalogue.md` (`ProductCreated` payload, new `ProductUpdated`), `entities.md` (`Product.version`, the copied product fields of `StockItem`), the API Gateway spec (route table), the Inventory spec (copy of product data, D8–D10), and the frontend backlog items BL-01 and BL-02 (backend decision notes).
 
-*Implemented 2026-10-22 in Catalog (tasks 27–29); gateway task 12 (D3) and Inventory tasks 22–24 (D8–D10) are still open.* Implementation details worth knowing:
+*Implemented 2026-10-22 in Catalog (tasks 27–29), the gateway (task 12, D3) and Inventory (tasks 22–24, D8–D10).* Implementation details worth knowing:
 - The visibility rule is `ProductService.visibleStatus`; EP-CAT-05 calls it with no requested status, so both endpoints share one rule. EP-CAT-05 carries `@OptionalAuthentication` in `public.json`.
 - EP-CAT-04 and EP-CAT-09 validate `ids` with the same helper (`ProductService.distinctIds`).
 - Both product events use one payload record, `events/ProductEvent` (constants `CREATED`, `UPDATED`); the service flushes before building it. EP-CAT-03 returns without a write when the product already has the requested status.
