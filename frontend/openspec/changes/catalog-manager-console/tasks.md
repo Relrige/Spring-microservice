@@ -11,7 +11,7 @@ Apply on a branch that contains `customer-checkout-orders`, Catalog tasks 27–2
 
   Record the result in *Live verification* of `README.md`, and set BL-01 to `Done` in its file and in the index row. If any check fails, stop and report: BL-01 stays a `Blocker`, and group 3 and the journeys of group 5 wait for a person.
 - [x] 1.2 Run `npm run gen:api`, review the Inventory diff (additive: `title`, `productStatus`, `search`, `sortBy=title`) and commit the regenerated `src/api/generated/inventory.ts`; verify `npm run check` passes
-- [ ] 1.3 In `src/api/catalog.ts` (design D2):
+- [x] 1.3 In `src/api/catalog.ts` (design D2):
   - add the `auth` option to `getProduct`, with the default `'none'`;
   - add `updateProduct`, `renameCategory` and `deleteCategory`, typed by operationId and citing EP-CAT-02/07/08;
   - export the `ActivationRejected` alias.
