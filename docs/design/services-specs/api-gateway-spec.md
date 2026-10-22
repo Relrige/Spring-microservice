@@ -101,8 +101,8 @@ Derived from the [API Contracts](../services-requirements/api-contracts.md). Row
 | `POST` | `/customers/cart/items` | customer-service | Required | `CUSTOMER` |
 | `PATCH`, `DELETE` | `/customers/cart/items/{productId}` | customer-service | Required | `CUSTOMER` |
 | `POST` | `/customers/cart/merge` | customer-service | Required | `CUSTOMER` |
-| `GET` | `/catalog/products` | catalog-service | Optional | — (managers get extra filters) |
-| `GET` | `/catalog/products/{id}` | catalog-service | Public | — |
+| `GET` | `/catalog/products` | catalog-service | Optional | — (staff also see inactive products) |
+| `GET` | `/catalog/products/{id}` | catalog-service | Optional | — (staff also see inactive products; `Public` until 2026-10-22, [task 12](../../tasks/api-getaway/12-optional-product-details-route.md)) |
 | `POST` | `/catalog/products` | catalog-service | Required | `CATALOG_MANAGER` |
 | `PUT` | `/catalog/products/{id}` | catalog-service | Required | `CATALOG_MANAGER` |
 | `PATCH` | `/catalog/products/{id}/status` | catalog-service | Required | `CATALOG_MANAGER` |

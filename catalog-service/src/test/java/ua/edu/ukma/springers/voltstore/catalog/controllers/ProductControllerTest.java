@@ -6,16 +6,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import ua.edu.ukma.springers.voltstore.catalog.dto.BatchProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.CreateProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.PageResponse;
-import ua.edu.ukma.springers.voltstore.catalog.dto.ProductDetailsResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductSearchQuery;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductStatusRequest;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductSummaryResponse;
+import ua.edu.ukma.springers.voltstore.catalog.entities.Product;
 import ua.edu.ukma.springers.voltstore.catalog.entities.ProductStatus;
 import ua.edu.ukma.springers.voltstore.catalog.entities.StockStatus;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.CategoryNotFoundForProductException;
@@ -53,6 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asInternalService;
 import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asManager;
+import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asUser;
 import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asUser;
 
 @WebMvcTest(ProductController.class)
@@ -160,6 +162,30 @@ class ProductControllerTest {
 
         mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json("Phone", "A phone", CATEGORY_ID, "10")))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void update_overlappingSave_returns409() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(productService.updateProduct(eq(id), any()))
+                .thenThrow(new ObjectOptimisticLockingFailureException(Product.class, id));
+
+        mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json("Phone", "A phone", CATEGORY_ID, "10")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/conflict"))
+                .andExpect(jsonPath("$.detail").value("The product was changed by someone else. Reload it and try again."));
+    }
+
+    @Test
+    void changeStatus_overlappingSave_returns409() throws Exception {
+        UUID id = UUID.randomUUID();
+        doThrow(new ObjectOptimisticLockingFailureException(Product.class, id))
+                .when(productService).changeStatus(eq(id), any());
+
+        mockMvc.perform(patch(URL + "/" + id + "/status").headers(asManager())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"NOT_ACTIVE\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/conflict"));
     }
 
     @Test
@@ -277,24 +303,37 @@ class ProductControllerTest {
     // --- EP-CAT-05: product details ---
 
     @Test
-    void getProduct_anonymous_returnsCustomerViewWithoutStatus() throws Exception {
+    void getProduct_anonymous_returnsFullViewWithStatus() throws Exception {
         UUID id = UUID.randomUUID();
-        when(productService.getActiveProduct(id)).thenReturn(new ProductDetailsResponse(id, "Phone", "A phone",
-                CATEGORY_ID, new BigDecimal("10.00"), StockStatus.IN_STOCK));
+        when(productService.getProduct(id, null)).thenReturn(new ProductResponse(id, "Phone", "A phone",
+                CATEGORY_ID, new BigDecimal("10.00"), ProductStatus.ACTIVE, StockStatus.IN_STOCK));
 
         mockMvc.perform(get(URL + "/" + id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.productId").value(id.toString()))
+                .andExpect(jsonPath("$.title").value("Phone"))
                 .andExpect(jsonPath("$.description").value("A phone"))
                 .andExpect(jsonPath("$.categoryId").value(CATEGORY_ID.toString()))
-                .andExpect(jsonPath("$.stockStatus").value("IN_STOCK"))
-                .andExpect(jsonPath("$.status").doesNotExist());
+                .andExpect(jsonPath("$.basePrice").value(10.00))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.stockStatus").value("IN_STOCK"));
+    }
+
+    @Test
+    void getProduct_passesTheCallersRole() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(productService.getProduct(id, UserRole.INVENTORY_WORKER)).thenReturn(new ProductResponse(id, "Phone",
+                "A phone", CATEGORY_ID, new BigDecimal("10.00"), ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK));
+
+        mockMvc.perform(get(URL + "/" + id).headers(asUser("INVENTORY_WORKER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("NOT_ACTIVE"));
     }
 
     @Test
     void getProduct_notFound_returns404() throws Exception {
         UUID id = UUID.randomUUID();
-        when(productService.getActiveProduct(id)).thenThrow(new ProductNotFoundException(id));
+        when(productService.getProduct(id, null)).thenThrow(new ProductNotFoundException(id));
 
         mockMvc.perform(get(URL + "/" + id))
                 .andExpect(status().isNotFound())
@@ -402,7 +441,7 @@ class ProductControllerTest {
         UUID second = UUID.randomUUID();
         when(productService.batchGetProducts(List.of(first, second))).thenReturn(List.of(
                 new BatchProductResponse(first, "Phone", new BigDecimal("10.00"), ProductStatus.NOT_ACTIVE,
-                        StockStatus.OUT_OF_STOCK)));
+                        StockStatus.OUT_OF_STOCK, 4L)));
 
         mockMvc.perform(get(URL + "/batch-get").headers(asInternalService()).param("ids", first + "," + second))
                 .andExpect(status().isOk())
@@ -410,6 +449,7 @@ class ProductControllerTest {
                 .andExpect(jsonPath("$[0].title").value("Phone"))
                 .andExpect(jsonPath("$[0].basePrice").value(10.00))
                 .andExpect(jsonPath("$[0].status").value("NOT_ACTIVE"))
+                .andExpect(jsonPath("$[0].version").value(4))
                 .andExpect(jsonPath("$[0].stockStatus").value("OUT_OF_STOCK"))
                 .andExpect(jsonPath("$.length()").value(1));
     }
@@ -422,7 +462,7 @@ class ProductControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]"));
 
-        verify(productService, never()).getActiveProduct(any());
+        verify(productService, never()).getProduct(any(), any());
     }
 
     @Test

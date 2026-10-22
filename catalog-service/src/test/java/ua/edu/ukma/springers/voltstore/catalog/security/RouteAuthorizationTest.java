@@ -122,7 +122,7 @@ class RouteAuthorizationTest {
     @MethodSource("internalRoute")
     void batchGet_anonymous_returns401(Route route) throws Exception {
         mockMvc.perform(call(route, new HttpHeaders())).andExpect(status().isUnauthorized());
-        verify(productService, never()).getActiveProduct(any());
+        verify(productService, never()).getProduct(any(), any());
     }
 
     @ParameterizedTest(name = "{0}")

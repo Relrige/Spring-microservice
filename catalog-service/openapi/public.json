@@ -347,7 +347,7 @@
     },
     "/catalog/products" : {
       "get" : {
-        "description" : "Role: none or CATALOG_MANAGER. Anonymous callers and every role except CATALOG_MANAGER see only ACTIVE products, and `status` is ignored for them. A CATALOG_MANAGER sees ACTIVE and NOT_ACTIVE products and may filter by `status`.",
+        "description" : "Role: none, or CATALOG_MANAGER or INVENTORY_WORKER. Anonymous callers and every other role see only ACTIVE products, and `status` is ignored for them. A CATALOG_MANAGER or INVENTORY_WORKER sees ACTIVE and NOT_ACTIVE products and may filter by `status`.",
         "operationId" : "browseProducts",
         "parameters" : [ {
           "in" : "query",
@@ -363,6 +363,18 @@
           "schema" : {
             "type" : "string",
             "format" : "uuid"
+          }
+        }, {
+          "description" : "Comma-separated product IDs, at most 100 distinct. Only these products are returned (still filtered by visibility and the other parameters); paging is unchanged, so send `size=100` to get up to 100 products in one page.",
+          "in" : "query",
+          "name" : "ids",
+          "required" : false,
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
           }
         }, {
           "in" : "query",
@@ -390,7 +402,7 @@
             "type" : "string"
           }
         }, {
-          "description" : "Applied for CATALOG_MANAGER only",
+          "description" : "Applied for CATALOG_MANAGER and INVENTORY_WORKER only",
           "in" : "query",
           "name" : "status",
           "required" : false,
@@ -543,7 +555,7 @@
     },
     "/catalog/products/{id}" : {
       "get" : {
-        "description" : "Public. A NOT_ACTIVE product answers the same 404 as a missing one.",
+        "description" : "Role: none, or CATALOG_MANAGER or INVENTORY_WORKER. These two roles see products of any status; for every other caller a NOT_ACTIVE product answers the same 404 as a missing one.",
         "operationId" : "getProduct",
         "parameters" : [ {
           "in" : "path",
@@ -559,7 +571,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ProductDetailsResponse"
+                  "$ref" : "#/components/schemas/ProductResponse"
                 }
               }
             },
@@ -583,7 +595,7 @@
                 }
               }
             },
-            "description" : "No active product with this ID"
+            "description" : "No product with this ID that the caller may see"
           },
           "500" : {
             "content" : {
@@ -596,11 +608,14 @@
             "description" : "Unexpected error"
           }
         },
-        "summary" : "Get an active product (EP-CAT-05)",
+        "security" : [ {
+          "bearerAuth" : [ ]
+        }, { } ],
+        "summary" : "Get a product (EP-CAT-05)",
         "tags" : [ "Products" ]
       },
       "put" : {
-        "description" : "Role: CATALOG_MANAGER. Status and stock status are not editable here.",
+        "description" : "Role: CATALOG_MANAGER. Status and stock status are not editable here. Stores a `ProductUpdated` event.",
         "operationId" : "updateProduct",
         "parameters" : [ {
           "in" : "path",
@@ -672,6 +687,16 @@
             },
             "description" : "No product with this ID"
           },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "The product was changed by someone else at the same time"
+          },
           "422" : {
             "content" : {
               "application/problem+json" : {
@@ -702,7 +727,7 @@
     },
     "/catalog/products/{id}/status" : {
       "patch" : {
-        "description" : "Role: CATALOG_MANAGER. Activation first asks Inventory whether the product is ready (stock item and packaging data exist).",
+        "description" : "Role: CATALOG_MANAGER. Activation first asks Inventory whether the product is ready (stock item and packaging data exist). Stores a `ProductUpdated` event when the status changes.",
         "operationId" : "changeStatus",
         "parameters" : [ {
           "in" : "path",
@@ -766,6 +791,16 @@
               }
             },
             "description" : "No product with this ID"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "The product was changed by someone else at the same time"
           },
           "422" : {
             "content" : {
@@ -968,33 +1003,6 @@
           }
         },
         "required" : [ "status", "title", "type" ]
-      },
-      "ProductDetailsResponse" : {
-        "type" : "object",
-        "properties" : {
-          "basePrice" : {
-            "type" : "number"
-          },
-          "categoryId" : {
-            "type" : "string",
-            "format" : "uuid"
-          },
-          "description" : {
-            "type" : "string"
-          },
-          "productId" : {
-            "type" : "string",
-            "format" : "uuid"
-          },
-          "stockStatus" : {
-            "type" : "string",
-            "enum" : [ "IN_STOCK", "OUT_OF_STOCK" ]
-          },
-          "title" : {
-            "type" : "string"
-          }
-        },
-        "required" : [ "basePrice", "categoryId", "description", "productId", "stockStatus", "title" ]
       },
       "ProductRequest" : {
         "type" : "object",

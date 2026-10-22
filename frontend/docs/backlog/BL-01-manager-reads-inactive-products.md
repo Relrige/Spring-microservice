@@ -1,7 +1,7 @@
 ---
 id: BL-01
 title: Catalog managers can read any product by id
-status: Open
+status: In progress
 importance: Blocker
 services: [catalog-service, api-gateway]
 blocks: iteration 4 (catalog-manager-console)
@@ -32,9 +32,9 @@ Rejected: a separate back-office path such as `GET /catalog/manage/products/{id}
 
 ## Requirements
 
-- [ ] `GET /catalog/products/{id}` with role `CATALOG_MANAGER` returns `200` with the full view for an `ACTIVE` and for a `NOT_ACTIVE` product
-- [ ] Without a token, or with any other role, a `NOT_ACTIVE` product still answers `404`, and an active one `200`
-- [ ] Response includes `status` for every caller; `description` is present
+- [x] `GET /catalog/products/{id}` with role `CATALOG_MANAGER` returns `200` with the full view for an `ACTIVE` and for a `NOT_ACTIVE` product
+- [x] Without a token, or with any other role, a `NOT_ACTIVE` product still answers `404`, and an active one `200`
+- [x] Response includes `status` for every caller; `description` is present
 - [ ] Gateway route `catalog-get-product` is `OPTIONAL`; an invalid token on it now answers `401` (behaviour of `OPTIONAL` mode)
 - [ ] Updated: catalog spec EP-CAT-05 (caller, steps, response), `api-contracts.md`, gateway spec route table and the gateway route test
 
@@ -42,6 +42,20 @@ Rejected: a separate back-office path such as `GET /catalog/manage/products/{id}
 
 - Until done: the manager console (iteration 4) cannot be delivered properly; editing an inactive product would start with an empty description and overwrite it on save. The storefront is unaffected because it sends no token on catalog reads.
 - After: the edit form loads the product by id with the manager's token.
+
+## Backend decision (2026-10-22)
+
+Accepted as proposed (option A), and generalized together with BL-02: **staff** (`CATALOG_MANAGER` and `INVENTORY_WORKER`) see `NOT_ACTIVE` products on both `GET /catalog/products` and `GET /catalog/products/{id}`; `ADMIN` is not staff. EP-CAT-05 answers the full view `{ productId, title, description, categoryId, basePrice, status, stockStatus }` to everyone (the generated type `ProductDetailsResponse` disappears in favour of `ProductResponse`), and the route becomes `Optional`. Recorded as D1–D3 in the [Catalog spec](../../../docs/design/services-specs/catalog-service-spec.md) revision 2026-10-22.
+
+Separate change worth knowing for the edit form: `PUT /catalog/products/{id}` and `PATCH …/status` can now answer `409` when two saves of the same product overlap (D5).
+
+Backend tasks: Catalog [27](../../../docs/tasks/catalog-service/27-staff-product-visibility.md), gateway [12](../../../docs/tasks/api-getaway/12-optional-product-details-route.md).
+
+## Backend progress (2026-10-22)
+
+- **Done in Catalog** (task 27, [PR #22](https://github.com/Relrige/Spring-microservice/pull/22), not merged yet): `GET /catalog/products/{id}` answers `ProductResponse` `{ productId, title, description, categoryId, basePrice, status, stockStatus }` to every caller. `CATALOG_MANAGER` and `INVENTORY_WORKER` get `200` for inactive products too; everyone else gets the same `404` as for a missing product. In `catalog-service/openapi/public.json` the operation is documented as optional authentication, and the `ProductDetailsResponse` schema is gone, so `npm run gen:api` changes the generated types.
+- **Also in that PR** (task 29): `PUT /catalog/products/{id}` and `PATCH …/status` can answer `409` (type `conflict`) when two saves of the same product overlap.
+- **Still open:** gateway task 12. Until the route `catalog-get-product` is `OPTIONAL`, the gateway forwards no role on this path, so through the gateway a manager still gets `404` for an inactive product. The item stays `In progress` until that task is done and the frontend has verified it.
 
 ## Notes
 

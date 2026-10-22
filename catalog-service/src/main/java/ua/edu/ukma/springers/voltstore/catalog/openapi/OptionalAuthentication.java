@@ -9,7 +9,8 @@ import java.lang.annotation.Target;
 /**
  * Documentation only: the gateway routes this operation as {@code OPTIONAL}, so it is documented with
  * {@code security: [{bearerAuth: []}, {}]}, "with a token or without one" (conventions D7). Springdoc drops an empty
- * {@code @SecurityRequirement}, so the public group sets this pair itself. Only Catalog's product listing needs it.
+ * {@code @SecurityRequirement}, so the public group sets this pair itself. Used by Catalog's product listing and
+ * product details.
  */
 @Documented
 @Target(ElementType.METHOD)

@@ -8,8 +8,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Sort;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import ua.edu.ukma.springers.voltstore.catalog.dto.BatchProductResponse;
-import ua.edu.ukma.springers.voltstore.catalog.dto.ProductDetailsResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductRequest;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductSearchQuery;
@@ -18,7 +18,7 @@ import ua.edu.ukma.springers.voltstore.catalog.security.UserRole;
 import ua.edu.ukma.springers.voltstore.catalog.entities.Product;
 import ua.edu.ukma.springers.voltstore.catalog.entities.ProductStatus;
 import ua.edu.ukma.springers.voltstore.catalog.entities.StockStatus;
-import ua.edu.ukma.springers.voltstore.catalog.events.ProductCreatedEvent;
+import ua.edu.ukma.springers.voltstore.catalog.events.ProductEvent;
 import ua.edu.ukma.springers.voltstore.catalog.dto.CreateProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.outbox.Outbox;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -97,7 +97,7 @@ class ProductServiceTest {
     }
 
     @Test
-    void createProduct_appendsProductCreatedToTheOutbox() {
+    void createProduct_appendsProductCreatedWithTheFullStateToTheOutbox() {
         UUID productId = UUID.randomUUID();
         when(categoryRepository.existsById(CATEGORY_ID)).thenReturn(true);
         assignIdOnSave(productId);
@@ -105,15 +105,13 @@ class ProductServiceTest {
         CreateProductResponse response = productService.createProduct(validRequest());
 
         assertThat(response.getProductId()).isEqualTo(productId);
-        ArgumentCaptor<UUID> eventId = ArgumentCaptor.forClass(UUID.class);
-        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
-        verify(outbox).append(eq("Product"), eq(productId), eq("ProductCreated"), eq("catalog.product-events"),
-                eventId.capture(), payload.capture());
-        assertThat(payload.getValue()).isInstanceOfSatisfying(ProductCreatedEvent.class, event -> {
-            assertThat(event.productId()).isEqualTo(productId);
-            assertThat(event.eventId()).isEqualTo(eventId.getValue());
-            assertThat(event.timestamp()).isNotNull();
-        });
+        ProductEvent event = appendedEvent("ProductCreated", productId);
+        assertThat(event.title()).isEqualTo("Phone");
+        assertThat(event.categoryId()).isEqualTo(CATEGORY_ID);
+        assertThat(event.basePrice()).isEqualByComparingTo("199.99");
+        assertThat(event.status()).isEqualTo(ProductStatus.NOT_ACTIVE);
+        assertThat(event.version()).isZero();
+        assertThat(event.timestamp()).isNotNull();
     }
 
     // --- EP-CAT-EVT-01 / 02: stock status ---
@@ -150,14 +148,43 @@ class ProductServiceTest {
     }
 
     @Test
-    void updateProduct_doesNotPublishEvents() {
+    void updateProduct_appendsProductUpdatedWithTheNewState() {
         UUID id = UUID.randomUUID();
-        when(productRepository.findById(id)).thenReturn(Optional.of(existingProduct()));
+        Product product = withId(existingProduct(), id);
+        ReflectionTestUtils.setField(product, "version", 3L);
+        when(productRepository.findById(id)).thenReturn(Optional.of(product));
         when(categoryRepository.existsById(CATEGORY_ID)).thenReturn(true);
 
-        productService.updateProduct(id, validRequest());
+        productService.updateProduct(id, request("New", "New description", CATEGORY_ID, "20"));
 
+        ProductEvent event = appendedEvent("ProductUpdated", id);
+        assertThat(event.title()).isEqualTo("New");
+        assertThat(event.basePrice()).isEqualByComparingTo("20");
+        assertThat(event.version()).isEqualTo(3L);
+    }
+
+    @Test
+    void updateProduct_overlappingSave_propagatesAndStoresNoEvent() {
+        UUID id = UUID.randomUUID();
+        when(productRepository.findById(id)).thenReturn(Optional.of(withId(existingProduct(), id)));
+        when(categoryRepository.existsById(CATEGORY_ID)).thenReturn(true);
+        when(productRepository.saveAndFlush(any()))
+                .thenThrow(new ObjectOptimisticLockingFailureException(Product.class, id));
+
+        assertThatThrownBy(() -> productService.updateProduct(id, validRequest()))
+                .isInstanceOf(ObjectOptimisticLockingFailureException.class);
         verifyNoInteractions(outbox);
+    }
+
+    private ProductEvent appendedEvent(String eventType, UUID productId) {
+        ArgumentCaptor<UUID> eventId = ArgumentCaptor.forClass(UUID.class);
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(outbox).append(eq("Product"), eq(productId), eq(eventType), eq("catalog.product-events"),
+                eventId.capture(), payload.capture());
+        ProductEvent event = (ProductEvent) payload.getValue();
+        assertThat(event.productId()).isEqualTo(productId);
+        assertThat(event.eventId()).isEqualTo(eventId.getValue());
+        return event;
     }
 
     // Simulates Hibernate generating the ID when the entity is persisted
@@ -175,7 +202,7 @@ class ProductServiceTest {
     void updateProduct_updatesEditableFieldsOnly() {
         UUID id = UUID.randomUUID();
         UUID newCategoryId = UUID.randomUUID();
-        Product product = Product.createNew("Old", "Old description", CATEGORY_ID, new BigDecimal("10"));
+        Product product = withId(Product.createNew("Old", "Old description", CATEGORY_ID, new BigDecimal("10")), id);
         when(productRepository.findById(id)).thenReturn(Optional.of(product));
         when(categoryRepository.existsById(newCategoryId)).thenReturn(true);
 
@@ -229,24 +256,26 @@ class ProductServiceTest {
     // --- EP-CAT-03: change status ---
 
     @Test
-    void changeStatus_deactivate_setsNotActiveAndKeepsStockStatus() {
+    void changeStatus_deactivate_setsNotActiveKeepsStockStatusAndAppendsProductUpdated() {
         UUID id = UUID.randomUUID();
-        Product product = activeProduct();
+        Product product = withId(activeProduct(), id);
         when(productRepository.findById(id)).thenReturn(Optional.of(product));
 
         productService.changeStatus(id, statusRequest(ProductStatus.NOT_ACTIVE));
 
         assertThat(product.getStatus()).isEqualTo(ProductStatus.NOT_ACTIVE);
         assertThat(product.getStockStatus()).isEqualTo(StockStatus.IN_STOCK);
-        verifyNoInteractions(outbox);
+        // Flushed before the event is built, so the event carries the incremented version
+        verify(productRepository).flush();
+        assertThat(appendedEvent("ProductUpdated", id).status()).isEqualTo(ProductStatus.NOT_ACTIVE);
         // Deactivation never calls Inventory
         verifyNoInteractions(stockReadinessChecker);
     }
 
     @Test
-    void changeStatus_activate_whenReady_setsActive() {
+    void changeStatus_activate_whenReady_setsActiveAndAppendsProductUpdated() {
         UUID id = UUID.randomUUID();
-        Product product = existingProduct();
+        Product product = withId(existingProduct(), id);
         when(productRepository.findById(id)).thenReturn(Optional.of(product));
         when(stockReadinessChecker.check(id)).thenReturn(StockReadiness.isReady());
 
@@ -254,6 +283,21 @@ class ProductServiceTest {
 
         assertThat(product.getStatus()).isEqualTo(ProductStatus.ACTIVE);
         assertThat(product.getStockStatus()).isEqualTo(StockStatus.OUT_OF_STOCK);
+        assertThat(appendedEvent("ProductUpdated", id).status()).isEqualTo(ProductStatus.ACTIVE);
+    }
+
+    @Test
+    void changeStatus_sameStatus_storesNoEvent() {
+        UUID inactiveId = UUID.randomUUID();
+        UUID activeId = UUID.randomUUID();
+        when(productRepository.findById(inactiveId)).thenReturn(Optional.of(withId(existingProduct(), inactiveId)));
+        when(productRepository.findById(activeId)).thenReturn(Optional.of(withId(activeProduct(), activeId)));
+        when(stockReadinessChecker.check(activeId)).thenReturn(StockReadiness.isReady());
+
+        productService.changeStatus(inactiveId, statusRequest(ProductStatus.NOT_ACTIVE));
+        productService.changeStatus(activeId, statusRequest(ProductStatus.ACTIVE));
+
+        verify(productRepository, never()).flush();
         verifyNoInteractions(outbox);
     }
 
@@ -268,6 +312,7 @@ class ProductServiceTest {
                 .isInstanceOfSatisfying(ProductActivationRejectedException.class,
                         e -> assertThat(e.getReason()).isEqualTo("packaging_data_missing"));
         assertThat(product.getStatus()).isEqualTo(ProductStatus.NOT_ACTIVE);
+        verifyNoInteractions(outbox);
     }
 
     @Test
@@ -280,6 +325,7 @@ class ProductServiceTest {
         assertThatThrownBy(() -> productService.changeStatus(id, statusRequest(ProductStatus.ACTIVE)))
                 .isInstanceOf(InventoryUnavailableException.class);
         assertThat(product.getStatus()).isEqualTo(ProductStatus.NOT_ACTIVE);
+        verifyNoInteractions(outbox);
     }
 
     @Test
@@ -332,48 +378,67 @@ class ProductServiceTest {
     // --- EP-CAT-05: product details ---
 
     @Test
-    void getActiveProduct_active_returnsCustomerView() {
+    void getProduct_active_returnsFullViewToEveryCaller() {
         UUID id = UUID.randomUUID();
         when(productRepository.findById(id)).thenReturn(Optional.of(activeProduct()));
 
-        ProductDetailsResponse response = productService.getActiveProduct(id);
+        for (UserRole role : new UserRole[]{null, UserRole.CUSTOMER, UserRole.ADMIN, UserRole.CATALOG_MANAGER,
+                UserRole.INVENTORY_WORKER}) {
+            ProductResponse response = productService.getProduct(id, role);
 
-        assertThat(response.getTitle()).isEqualTo("Old");
-        assertThat(response.getStockStatus()).isEqualTo(StockStatus.IN_STOCK);
+            assertThat(response.getTitle()).isEqualTo("Old");
+            assertThat(response.getStatus()).isEqualTo(ProductStatus.ACTIVE);
+            assertThat(response.getStockStatus()).isEqualTo(StockStatus.IN_STOCK);
+        }
     }
 
     @Test
-    void getActiveProduct_missing_throwsNotFound() {
-        UUID id = UUID.randomUUID();
-        when(productRepository.findById(id)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> productService.getActiveProduct(id))
-                .isInstanceOf(ProductNotFoundException.class)
-                .hasMessage("Product with ID " + id + " not found");
-    }
-
-    @Test
-    void getActiveProduct_inactive_throwsTheSameNotFoundAsMissing() {
+    void getProduct_inactive_visibleToStaff() {
         UUID id = UUID.randomUUID();
         when(productRepository.findById(id)).thenReturn(Optional.of(existingProduct()));
 
-        assertThatThrownBy(() -> productService.getActiveProduct(id))
+        for (UserRole role : new UserRole[]{UserRole.CATALOG_MANAGER, UserRole.INVENTORY_WORKER}) {
+            assertThat(productService.getProduct(id, role).getStatus()).isEqualTo(ProductStatus.NOT_ACTIVE);
+        }
+    }
+
+    @Test
+    void getProduct_missing_throwsNotFound() {
+        UUID id = UUID.randomUUID();
+        when(productRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productService.getProduct(id, UserRole.CATALOG_MANAGER))
                 .isInstanceOf(ProductNotFoundException.class)
                 .hasMessage("Product with ID " + id + " not found");
+    }
+
+    @Test
+    void getProduct_inactiveForNonStaff_throwsTheSameNotFoundAsMissing() {
+        UUID id = UUID.randomUUID();
+        when(productRepository.findById(id)).thenReturn(Optional.of(existingProduct()));
+
+        for (UserRole role : new UserRole[]{null, UserRole.CUSTOMER, UserRole.ADMIN}) {
+            assertThatThrownBy(() -> productService.getProduct(id, role))
+                    .isInstanceOf(ProductNotFoundException.class)
+                    .hasMessage("Product with ID " + id + " not found");
+        }
     }
 
     // --- EP-CAT-04: browse ---
 
     @Test
-    void visibleStatus_managerSeesEverythingOrTheRequestedStatus() {
-        assertThat(ProductService.visibleStatus(null, UserRole.CATALOG_MANAGER)).isNull();
-        assertThat(ProductService.visibleStatus(ProductStatus.NOT_ACTIVE, UserRole.CATALOG_MANAGER))
-                .isEqualTo(ProductStatus.NOT_ACTIVE);
+    void visibleStatus_staffSeeEverythingOrTheRequestedStatus() {
+        for (UserRole role : new UserRole[]{UserRole.CATALOG_MANAGER, UserRole.INVENTORY_WORKER}) {
+            assertThat(ProductService.visibleStatus(null, role)).isNull();
+            assertThat(ProductService.visibleStatus(ProductStatus.NOT_ACTIVE, role)).isEqualTo(ProductStatus.NOT_ACTIVE);
+            assertThat(ProductService.visibleStatus(ProductStatus.ACTIVE, role)).isEqualTo(ProductStatus.ACTIVE);
+        }
     }
 
     @Test
     void visibleStatus_everyoneElseSeesOnlyActive_evenWhenAskingForNotActive() {
-        for (UserRole role : new UserRole[]{null, UserRole.CUSTOMER, UserRole.ADMIN, UserRole.INVENTORY_WORKER}) {
+        // null: anonymous, or an internal call without a user
+        for (UserRole role : new UserRole[]{null, UserRole.CUSTOMER, UserRole.ADMIN}) {
             assertThat(ProductService.visibleStatus(null, role)).isEqualTo(ProductStatus.ACTIVE);
             assertThat(ProductService.visibleStatus(ProductStatus.NOT_ACTIVE, role)).isEqualTo(ProductStatus.ACTIVE);
         }

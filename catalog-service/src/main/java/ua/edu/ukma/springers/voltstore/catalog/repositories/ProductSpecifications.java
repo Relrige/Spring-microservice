@@ -6,6 +6,7 @@ import ua.edu.ukma.springers.voltstore.catalog.entities.Product;
 import ua.edu.ukma.springers.voltstore.catalog.entities.ProductStatus;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -22,6 +23,11 @@ public final class ProductSpecifications {
 
     public static Specification<Product> hasStatus(ProductStatus status) {
         return (root, query, cb) -> cb.equal(root.get("status"), status);
+    }
+
+    // At most 100 IDs (the service checks), so a plain IN (...) list is fine
+    public static Specification<Product> idIn(Collection<UUID> ids) {
+        return (root, query, cb) -> root.get("id").in(ids);
     }
 
     public static Specification<Product> inCategory(UUID categoryId) {

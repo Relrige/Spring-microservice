@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -20,7 +21,9 @@ import ua.edu.ukma.springers.voltstore.catalog.entities.StockStatus;
 import ua.edu.ukma.springers.voltstore.catalog.services.StockReadiness;
 import ua.edu.ukma.springers.voltstore.catalog.services.StockReadinessChecker;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -160,32 +163,49 @@ class CatalogReadAndStatusIntegrationTest {
     // --- EP-CAT-05: product details ---
 
     @Test
-    void getProduct_inactiveLooksExactlyLikeMissing_evenForManagers() throws Exception {
+    void getProduct_inactiveLooksExactlyLikeMissing_forNonStaff() throws Exception {
         UUID inactive = insertProduct(jdbc, categoryId, ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK);
         UUID missing = UUID.randomUUID();
 
-        JsonNode inactiveBody = notFoundBody(inactive);
-        JsonNode missingBody = notFoundBody(missing);
+        for (HttpHeaders caller : nonStaffCallers()) {
+            JsonNode inactiveBody = notFoundBody(inactive, caller);
+            JsonNode missingBody = notFoundBody(missing, caller);
 
-        assertThat(inactiveBody.get("title")).isEqualTo(missingBody.get("title"));
-        assertThat(inactiveBody.get("type")).isEqualTo(missingBody.get("type"));
-        assertThat(inactiveBody.get("detail").asString().replace(inactive.toString(), "{id}"))
-                .isEqualTo(missingBody.get("detail").asString().replace(missing.toString(), "{id}"));
+            assertThat(inactiveBody.get("title")).isEqualTo(missingBody.get("title"));
+            assertThat(inactiveBody.get("type")).isEqualTo(missingBody.get("type"));
+            assertThat(inactiveBody.get("detail").asString().replace(inactive.toString(), "{id}"))
+                    .isEqualTo(missingBody.get("detail").asString().replace(missing.toString(), "{id}"));
+        }
     }
 
     @Test
-    void getProduct_activeIsPublic() throws Exception {
+    void getProduct_activeIsVisibleToEveryCaller_withTheFullView() throws Exception {
         UUID id = insertProduct(jdbc, categoryId, ProductStatus.ACTIVE, StockStatus.IN_STOCK);
 
-        mockMvc.perform(get("/catalog/products/" + id))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.productId").value(id.toString()))
-                .andExpect(jsonPath("$.title").value("Laptop"))
-                .andExpect(jsonPath("$.description").value("A laptop"))
-                .andExpect(jsonPath("$.categoryId").value(categoryId.toString()))
-                .andExpect(jsonPath("$.basePrice").value(999.99))
-                .andExpect(jsonPath("$.stockStatus").value("IN_STOCK"))
-                .andExpect(jsonPath("$.status").doesNotExist());
+        for (HttpHeaders caller : allCallers()) {
+            mockMvc.perform(get("/catalog/products/" + id).headers(caller))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.productId").value(id.toString()))
+                    .andExpect(jsonPath("$.title").value("Laptop"))
+                    .andExpect(jsonPath("$.description").value("A laptop"))
+                    .andExpect(jsonPath("$.categoryId").value(categoryId.toString()))
+                    .andExpect(jsonPath("$.basePrice").value(999.99))
+                    .andExpect(jsonPath("$.status").value("ACTIVE"))
+                    .andExpect(jsonPath("$.stockStatus").value("IN_STOCK"));
+        }
+    }
+
+    @Test
+    void getProduct_inactiveIsVisibleToStaff() throws Exception {
+        UUID id = insertProduct(jdbc, categoryId, ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK);
+
+        for (String role : new String[]{"CATALOG_MANAGER", "INVENTORY_WORKER"}) {
+            mockMvc.perform(get("/catalog/products/" + id).headers(asUser(role)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.description").value("A laptop"))
+                    .andExpect(jsonPath("$.status").value("NOT_ACTIVE"))
+                    .andExpect(jsonPath("$.stockStatus").value("OUT_OF_STOCK"));
+        }
     }
 
     // --- EP-CAT-04: browse ---
@@ -195,18 +215,21 @@ class CatalogReadAndStatusIntegrationTest {
         UUID active = insertProduct(jdbc, categoryId, ProductStatus.ACTIVE, StockStatus.IN_STOCK);
         UUID inactive = insertProduct(jdbc, categoryId, ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK);
 
-        mockMvc.perform(get("/catalog/products"))
-                .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(active.toString())));
-        // The status filter is ignored for non-managers: it never exposes NOT_ACTIVE products
-        mockMvc.perform(get("/catalog/products").headers(asUser("CUSTOMER")).param("status", "NOT_ACTIVE"))
-                .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(active.toString())));
-        mockMvc.perform(get("/catalog/products").headers(asUser("ADMIN")))
-                .andExpect(jsonPath("$.totalElements").value(1));
-        mockMvc.perform(get("/catalog/products").headers(asManager()))
-                .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(active.toString(), inactive.toString())));
-        mockMvc.perform(get("/catalog/products").headers(asManager()).param("status", "NOT_ACTIVE"))
-                .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(inactive.toString())))
-                .andExpect(jsonPath("$.content[0].stockStatus").value("OUT_OF_STOCK"));
+        for (HttpHeaders caller : nonStaffCallers()) {
+            mockMvc.perform(get("/catalog/products").headers(caller))
+                    .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(active.toString())));
+            // The status filter is ignored for non-staff: it never exposes NOT_ACTIVE products
+            mockMvc.perform(get("/catalog/products").headers(caller).param("status", "NOT_ACTIVE"))
+                    .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(active.toString())));
+        }
+        for (String role : new String[]{"CATALOG_MANAGER", "INVENTORY_WORKER"}) {
+            mockMvc.perform(get("/catalog/products").headers(asUser(role)))
+                    .andExpect(jsonPath("$.content[*].productId",
+                            containsInAnyOrder(active.toString(), inactive.toString())));
+            mockMvc.perform(get("/catalog/products").headers(asUser(role)).param("status", "NOT_ACTIVE"))
+                    .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(inactive.toString())))
+                    .andExpect(jsonPath("$.content[0].stockStatus").value("OUT_OF_STOCK"));
+        }
     }
 
     @Test
@@ -231,6 +254,59 @@ class CatalogReadAndStatusIntegrationTest {
     }
 
     @Test
+    void browse_idsFilter_combinesWithVisibilityAndOtherFilters() throws Exception {
+        UUID ultrabook = insertActive(categoryId, "Ultrabook", "light laptop", "1500.00");
+        UUID gaming = insertActive(categoryId, "Gaming laptop", "fast", "2500.00");
+        insertActive(categoryId, "Office laptop", "quiet", "700.00");
+        UUID inactive = insertProduct(jdbc, categoryId, ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK);
+        String listed = ultrabook + "," + gaming + "," + inactive + "," + UUID.randomUUID();
+
+        // Anonymous: the inactive and the unknown ID are simply absent, and totalElements counts what is returned
+        mockMvc.perform(get("/catalog/products").param("ids", listed))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(ultrabook.toString(), gaming.toString())))
+                .andExpect(jsonPath("$.totalElements").value(2));
+        // Repeated parameters bind too; duplicates count once
+        mockMvc.perform(get("/catalog/products").param("ids", gaming.toString(), gaming.toString())
+                        .param("ids", gaming.toString()))
+                .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(gaming.toString())))
+                .andExpect(jsonPath("$.totalElements").value(1));
+        // Combined with search, and with paging and sorting
+        mockMvc.perform(get("/catalog/products").param("ids", listed).param("search", "LIGHT"))
+                .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(ultrabook.toString())));
+        mockMvc.perform(get("/catalog/products").param("ids", listed).param("sortBy", "basePrice,desc").param("size", "1"))
+                .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(gaming.toString())))
+                .andExpect(jsonPath("$.totalElements").value(2));
+        // Staff see the inactive one, and the status filter applies on top
+        mockMvc.perform(get("/catalog/products").headers(asUser("INVENTORY_WORKER")).param("ids", listed))
+                .andExpect(jsonPath("$.content[*].productId",
+                        containsInAnyOrder(ultrabook.toString(), gaming.toString(), inactive.toString())));
+        mockMvc.perform(get("/catalog/products").headers(asManager()).param("ids", listed).param("status", "NOT_ACTIVE"))
+                .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(inactive.toString())));
+    }
+
+    @Test
+    void browse_invalidIds_return400() throws Exception {
+        String tooMany = Stream.generate(() -> UUID.randomUUID().toString()).limit(101).collect(Collectors.joining(","));
+
+        mockMvc.perform(get("/catalog/products").param("ids", ""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.ids").isNotEmpty());
+        mockMvc.perform(get("/catalog/products").param("ids", UUID.randomUUID() + ",nope"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.ids").isNotEmpty());
+        mockMvc.perform(get("/catalog/products").param("ids", UUID.randomUUID() + ",," + UUID.randomUUID()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.ids").isNotEmpty());
+        mockMvc.perform(get("/catalog/products").param("ids", tooMany))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.ids").isNotEmpty());
+        // 101 copies of one ID are one distinct ID
+        mockMvc.perform(get("/catalog/products").param("ids", String.join(",", Collections.nCopies(101, UUID.randomUUID().toString()))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void browse_invalidParameters_return400() throws Exception {
         mockMvc.perform(get("/catalog/products").param("minPrice", "500").param("maxPrice", "100"))
                 .andExpect(status().isBadRequest())
@@ -248,6 +324,7 @@ class CatalogReadAndStatusIntegrationTest {
     void batchGet_returnsExistingProductsOfAnyStatusOnce() throws Exception {
         UUID active = insertProduct(jdbc, categoryId, ProductStatus.ACTIVE, StockStatus.IN_STOCK);
         UUID inactive = insertProduct(jdbc, categoryId, ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK);
+        jdbc.update("UPDATE products SET version = 5 WHERE id = ?", inactive);
 
         mockMvc.perform(batchGet(active + "," + UUID.randomUUID() + "," + inactive + "," + active))
                 .andExpect(status().isOk())
@@ -257,8 +334,10 @@ class CatalogReadAndStatusIntegrationTest {
                 .andExpect(jsonPath("$[0].basePrice").value(999.99))
                 .andExpect(jsonPath("$[0].status").value("ACTIVE"))
                 .andExpect(jsonPath("$[0].stockStatus").value("IN_STOCK"))
+                .andExpect(jsonPath("$[0].version").value(0))
                 .andExpect(jsonPath("$[1].status").value("NOT_ACTIVE"))
-                .andExpect(jsonPath("$[1].stockStatus").value("OUT_OF_STOCK"));
+                .andExpect(jsonPath("$[1].stockStatus").value("OUT_OF_STOCK"))
+                .andExpect(jsonPath("$[1].version").value(5));
         mockMvc.perform(batchGet(UUID.randomUUID().toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
@@ -308,8 +387,20 @@ class CatalogReadAndStatusIntegrationTest {
         return get("/catalog/products/batch-get").headers(asInternalService()).param("ids", ids);
     }
 
-    private JsonNode notFoundBody(UUID id) throws Exception {
-        String body = mockMvc.perform(get("/catalog/products/" + id).headers(asManager()))
+    // Anonymous, CUSTOMER and ADMIN: everyone who sees ACTIVE products only
+    private static List<HttpHeaders> nonStaffCallers() {
+        return List.of(new HttpHeaders(), asUser("CUSTOMER"), asUser("ADMIN"));
+    }
+
+    private static List<HttpHeaders> allCallers() {
+        List<HttpHeaders> callers = new ArrayList<>(nonStaffCallers());
+        callers.add(asUser("CATALOG_MANAGER"));
+        callers.add(asUser("INVENTORY_WORKER"));
+        return callers;
+    }
+
+    private JsonNode notFoundBody(UUID id, HttpHeaders caller) throws Exception {
+        String body = mockMvc.perform(get("/catalog/products/" + id).headers(caller))
                 .andExpect(status().isNotFound())
                 .andReturn().getResponse().getContentAsString();
         return JSON.readTree(body);

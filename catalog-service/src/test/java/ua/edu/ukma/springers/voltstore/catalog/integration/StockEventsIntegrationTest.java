@@ -86,9 +86,12 @@ class StockEventsIntegrationTest {
         send(id.toString(), "ProductStockDepleted", payload(id));
         await().atMost(WAIT).until(() -> stockStatus(id).equals("OUT_OF_STOCK"));
 
-        Map<String, Object> row = jdbc.queryForMap("SELECT status, title FROM products WHERE id = ?", id);
+        Map<String, Object> row = jdbc.queryForMap("SELECT status, title, version FROM products WHERE id = ?", id);
         assertThat(row.get("status")).isEqualTo("NOT_ACTIVE");
         assertThat(row.get("title")).isEqualTo("Laptop");
+        // The read-model update is not a product change: no new version, so no product event and no 409 for a
+        // manager who loaded the product before it
+        assertThat(row.get("version")).isEqualTo(0L);
     }
 
     @Test
