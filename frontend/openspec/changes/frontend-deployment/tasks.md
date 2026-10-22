@@ -12,7 +12,7 @@ Root files (`docker-compose.yml`, `k8s/`, `k8s.txt`) are edited under the except
 
 ## 3. Kubernetes
 
-- [ ] 3.1 Add `k8s/frontend/` (Deployment, Service), point the Ingress at the frontend, extend the network policies and `k8s.txt` (design D4); verify with `kubectl apply --dry-run=server` (or `--dry-run=client` when no cluster runs) that every manifest is valid
+- [x] 3.1 Add `k8s/frontend/` (Deployment, Service), point the Ingress at the frontend, extend the network policies and `k8s.txt` (design D4); verify with `kubectl apply --dry-run=server` (or `--dry-run=client` when no cluster runs) that every manifest is valid
 - [ ] 3.2 Deploy to minikube (ask a person before starting or resetting the cluster), seed it through the tunnel and run the live journeys with `E2E_BASE_URL` set to the Ingress address; verify they pass (*Journeys against the cluster*) and that a reload of `/account/orders` keeps the page
 
 ## 4. Docs and backlog

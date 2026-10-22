@@ -1,0 +1,14 @@
+# The Service the Ingress forwards to; the API is reached through the frontend's /api proxy.
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: voltstore
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
