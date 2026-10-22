@@ -1,7 +1,7 @@
 ---
 id: BL-04
 title: OpenAPI description for every routed service
-status: In progress
+status: Done
 importance: Important
 services: [auth-service, catalog-service, customer-service, order-service, inventory-service, delivery-service]
 blocks: —
@@ -33,7 +33,7 @@ The API contracts exist only as Markdown specs. The frontend writes its TypeScri
 
 ## Delivered (2026-10-22)
 
-Implemented on the branch `springdoc` (PR [Relrige/Spring-microservice#20](https://github.com/Relrige/Spring-microservice/pull/20), not merged yet). It becomes `Done` once the PR is merged and the frontend has switched to the generated types. The binding rules are in [`openapi-conventions.md`](../../../docs/design/services-requirements/openapi-conventions.md) (decisions D1–D9). The backend tasks are `../../../docs/tasks/catalog-service/26-openapi-document.md` (pilot), then Auth 10, Customer 11, Inventory 21, Order 18 and Delivery 18.
+Implemented on the branch `springdoc` (PR [Relrige/Spring-microservice#20](https://github.com/Relrige/Spring-microservice/pull/20), merged 2026-10-22). The frontend switched to the generated types in the change `api-contract-types`. The binding rules are in [`openapi-conventions.md`](../../../docs/design/services-requirements/openapi-conventions.md) (decisions D1–D9). The backend tasks are `../../../docs/tasks/catalog-service/26-openapi-document.md` (pilot), then Auth 10, Customer 11, Inventory 21, Order 18 and Delivery 18.
 
 ### Differences from the request
 
@@ -63,17 +63,17 @@ Implemented on the branch `springdoc` (PR [Relrige/Spring-microservice#20](https
 - [x] Every routed operation lists its success and error statuses; error bodies reference shared problem-details schemas
 - [x] A short doc says where each document is: [`openapi-conventions.md`](../../../docs/design/services-requirements/openapi-conventions.md#where-to-find-the-documents)
 - [x] Optional: a test per service fails when the document changes unexpectedly (snapshot)
-- [ ] The frontend generates its types from the committed `public.json` files and drops the hand-written ones (frontend side; marks the item `Done`)
+- [x] The frontend generates its types from the committed `public.json` files and drops the hand-written ones (frontend side; marks the item `Done`)
 
 ## Frontend impact
 
-- Until the PR is merged: hand-written types in `src/api/<service>.ts`, each citing its spec section; live browser tests catch drift.
-- After the merge, in one frontend change:
-  1. Add `openapi-typescript` and a script (for example `npm run gen:api`) that generates one file per service from `../<service>-service/openapi/public.json` for Auth, Catalog, Customer, Order, Inventory and Delivery. Commit the generated files, so the build doesn't need the backend folders.
-  2. Rebuild `src/api/<service>.ts` on top of the generated `paths`/`components` types, keeping the existing function signatures where possible, and drop the hand-written DTO types.
-  3. Re-check the mock handlers against the generated types: they must answer only the required fields as non-null, and must answer problems with the named shapes.
-  4. Handle `null` and missing optional fields alike, and branch on the problem `type` where `oneOf` applies.
-  5. Mark BL-04 and BL-05 `Done` and update the index.
+Done in the OpenSpec change `api-contract-types` (2026-10-22):
+
+- `npm run gen:api` generates `src/api/generated/<service>.ts` from the six `public.json` files with `openapi-typescript`; the files are committed. `npm run check:api`, part of `npm run check`, fails when they no longer match the documents.
+- `src/api/auth.ts`, `catalog.ts` and `inventory.ts` alias the generated types through `src/api/contract.ts` (`JsonBody`, `Query`, `Ok`, `Received`, `pathsOf`) and keep their function signatures. No hand-written DTO is left.
+- Optional answer fields are typed `T | null | undefined` (`Received`); problems are told apart by `type` with `problemOf`.
+- Mock answers are checked with `satisfies` against the generated schemas, and mock problems use the backend's `type` kinds.
+- The rules for later iterations are in `../../AGENTS.md` §3, *API types from OpenAPI*.
 
 ## Notes
 

@@ -45,7 +45,7 @@ export function ProductListPage() {
     ? `Results for “${state.search}”`
     : (categoryName ?? (state.category ? 'Category' : 'All products'));
   const total = products.data?.totalElements;
-  // BL-05: the page size comes from the answer; there is no totalPages.
+  // The page size comes from the answer (paging envelope); there is no totalPages.
   const totalPages = products.data
     ? Math.max(1, Math.ceil(products.data.totalElements / products.data.size))
     : 1;

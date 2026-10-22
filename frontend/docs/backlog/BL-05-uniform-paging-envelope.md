@@ -1,7 +1,7 @@
 ---
 id: BL-05
 title: One paging envelope for all list endpoints
-status: In progress
+status: Done
 importance: Nice to have
 services: [catalog-service]
 blocks: —
@@ -29,7 +29,7 @@ Add `size` (the effective page size) to Catalog's `PageResponse`, so all service
 
 ## Delivered (2026-10-22)
 
-Implemented as proposed in `../../../docs/tasks/catalog-service/25-uniform-paging-envelope.md`, on PR [Relrige/Spring-microservice#20](https://github.com/Relrige/Spring-microservice/pull/20) (not merged yet). Differences from the request:
+Implemented as proposed in `../../../docs/tasks/catalog-service/25-uniform-paging-envelope.md`, on PR [Relrige/Spring-microservice#20](https://github.com/Relrige/Spring-microservice/pull/20) (merged 2026-10-22). Differences from the request:
 
 - **No `totalPages`**, here or in any other service (the optional part was not taken). Compute it as `Math.ceil(totalElements / size)` where a pager needs it.
 - `size` is the **effective** page size: the requested `size`, or the default `20`. It is not the number of items in `content`, so a short last page still answers the requested size.
@@ -40,9 +40,8 @@ Implemented as proposed in `../../../docs/tasks/catalog-service/25-uniform-pagin
 - [x] Catalog list responses include `size`
 - [x] The envelope is described once (`api-contracts.md`, *Shared Conventions*) and all paged endpoints reference it
 - [x] Updated: catalog spec EP-CAT-04 and EP-CAT-10
-- [ ] The frontend reads `size` from Catalog lists (frontend side; marks the item `Done`)
+- [x] The frontend reads `size` from Catalog lists (frontend side; marks the item `Done`)
 
 ## Frontend impact
 
-- Until done: the Catalog envelope type in `src/api/catalog.ts` has no `size` (checked 2026-10-22; there is no adapter).
-- After the merge: Catalog lists answer `size` like the other services, so use one envelope type for every service, ideally the generated one, in the same change that switches to the BL-04 types.
+Done in the OpenSpec change `api-contract-types` (2026-10-22): every list returns the one `Page<T>` of `src/api/contract.ts` (`{ content, page, size, totalElements }`, checked against the generated envelopes), the mock Catalog lists answer `size`, and the storefront pager computes the page count from the answered `size`.
