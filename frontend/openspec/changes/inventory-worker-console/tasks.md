@@ -10,7 +10,7 @@ Apply on `inventory-worker-console`, branched from main after PR #27 (Catalog ta
 
 ## 2. Navigation
 
-- [ ] 2.1 Replace the warehouse placeholder with the `/warehouse` and `/warehouse/queue` routes and give the worker the "Stock" and "Fulfillment queue" links with the queue count (design D3); verify with tests for *Worker header* and the worker's landing, and update the tests that expected the "Warehouse" heading
+- [x] 2.1 Replace the warehouse placeholder with the `/warehouse` and `/warehouse/queue` routes and give the worker the "Stock" and "Fulfillment queue" links with the queue count (design D3); verify with tests for *Worker header* and the worker's landing, and update the tests that expected the "Warehouse" heading
 
 ## 3. Stock page
 
