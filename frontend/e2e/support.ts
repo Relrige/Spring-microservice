@@ -1,5 +1,11 @@
-import { expect, type Page } from '@playwright/test';
-import { DEMO_ADMIN, type DemoAccount } from '../src/fixtures/demo-data';
+import { expect, type APIRequestContext, type Page } from '@playwright/test';
+import {
+  DEMO_ADMIN,
+  DEMO_CART,
+  DEMO_CUSTOMER,
+  DEMO_STAFF,
+  type DemoAccount,
+} from '../src/fixtures/demo-data';
 
 export const SESSION_KEY = 'voltstore.session';
 
@@ -42,4 +48,42 @@ export async function shortenSession(page: Page, seconds: number) {
     },
     { key: SESSION_KEY, seconds },
   );
+}
+
+async function apiToken(request: APIRequestContext, account: DemoAccount): Promise<string> {
+  const answer = await request.post('/api/auth/login', {
+    data: { email: account.email, password: account.password },
+  });
+  expect(answer.ok(), `log in as ${account.email}`).toBe(true);
+  return ((await answer.json()) as { token: string }).token;
+}
+
+/**
+ * Live mode only (change customer-cart, design D11): puts DEMO_CART back into the
+ * demo customer's cart through the gateway, so earlier runs do not change the
+ * result. The mock starts from the fixtures on every page load.
+ */
+export async function resetDemoCart(request: APIRequestContext) {
+  const manager = await apiToken(
+    request,
+    DEMO_STAFF.find((a) => a.role === 'CATALOG_MANAGER')!,
+  );
+  const items = [];
+  for (const line of DEMO_CART) {
+    // The manager also sees the inactive product of the demo cart.
+    const found = await request.get('/api/catalog/products', {
+      params: { search: line.title, size: 100 },
+      headers: { Authorization: `Bearer ${manager}` },
+    });
+    const { content } = (await found.json()) as { content: { productId: string; title: string }[] };
+    const product = content.find((p) => p.title === line.title);
+    expect(product, `demo product ${line.title}`).toBeDefined();
+    items.push({ productId: product!.productId, quantity: line.quantity });
+  }
+  const customer = await apiToken(request, DEMO_CUSTOMER);
+  const answer = await request.put('/api/customers/cart', {
+    headers: { Authorization: `Bearer ${customer}` },
+    data: { items },
+  });
+  expect(answer.ok(), 'reset the demo cart').toBe(true);
 }

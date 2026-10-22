@@ -31,7 +31,7 @@ Apply after `api-contract-types`: `src/api/generated/customer.ts`, `src/api/cont
 ## 5. Demo data, browser journeys and docs
 
 - [ ] 5.1 Add the demo-cart step to `scripts/seed.ts` (design D10: set only when the demo customer's cart is empty; summary `demo cart: set | kept`); verify against the Compose stack that the first run sets the cart, a second run reports `Result: unchanged`, and the demo customer's cart page shows two lines and one unavailable line
-- [ ] 5.2 Write the cart journeys (design D11): guest cart with badge and reload; login as the demo customer with "Merge both" and logout to an empty cart; add the live-mode reset of the demo customer's cart to `e2e/support.ts`; verify `npm run check:e2e` passes
+- [x] 5.2 Write the cart journeys (design D11): guest cart with badge and reload; login as the demo customer with "Merge both" and logout to an empty cart; add the live-mode reset of the demo customer's cart to `e2e/support.ts`; verify `npm run check:e2e` passes
 - [ ] 5.3 Run `npm run test:e2e:live` against the Compose stack after `npm run seed`, fix any mock mismatch found in the cart contract (a generated type that disagrees with the service spec is a backlog item, `AGENTS.md` §3, not a frontend fix), and record the result in the *Live verification* section of `frontend/README.md` together with the demo cart in *Demo accounts*; verify the live run passes
 - [ ] 5.4 Check the finished screens against `Cart.dc.html` and `Product.dc.html` in the preview pane on desktop and at 375 px (light and dark), including the dialog; verify by screenshots that layout, hierarchy and colours match and there is no horizontal scroll
 
