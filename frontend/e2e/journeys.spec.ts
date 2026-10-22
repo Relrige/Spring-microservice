@@ -53,9 +53,11 @@ test('register, log out, log in again', async ({ page }) => {
   await expect(page.getByTestId('current-user')).toHaveText(`${email} · Customer`);
 
   await page.getByRole('button', { name: 'Log out' }).click();
-  await expect(page.getByRole('link', { name: 'Log in' })).toBeVisible();
+  // The header link: the register page, with its own "Log in" link, may still be leaving.
+  const headerLogIn = page.getByRole('banner').getByRole('link', { name: 'Log in' });
+  await expect(headerLogIn).toBeVisible();
 
-  await page.getByRole('link', { name: 'Log in' }).click();
+  await headerLogIn.click();
   await logIn(page, email, 'secret-123');
   await expect(page.getByTestId('current-user')).toHaveText(`${email} · Customer`);
 
