@@ -57,6 +57,7 @@ spring:
                 - TrustBoundary
               metadata:
                 authMode: OPTIONAL
+            # Optional: staff also see inactive products; a stale token is a 401, not a silent guest.
             # {id} is a UUID, so the internal GET /catalog/products/batch-get never matches here
             - id: catalog-get-product
               uri: ${gateway.upstreams.catalog}
@@ -66,7 +67,7 @@ spring:
               filters:
                 - TrustBoundary
               metadata:
-                authMode: PUBLIC
+                authMode: OPTIONAL
             - id: catalog-create-product
               uri: ${gateway.upstreams.catalog}
               predicates:

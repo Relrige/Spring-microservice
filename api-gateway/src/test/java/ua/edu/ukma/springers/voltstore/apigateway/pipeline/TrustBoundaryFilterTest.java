@@ -160,6 +160,55 @@ class TrustBoundaryFilterTest extends GatewayIntegrationTest {
         assertNoUpstreamCalled();
     }
 
+    // --- Optional: product details (staff also see inactive products) ---
+
+    private static final String PRODUCT_DETAILS = "/catalog/products/" + RouteSamples.SAMPLE_ID;
+
+    @Test
+    void productDetails_withoutToken_isAnonymous() throws Exception {
+        assertThat(send("GET", PRODUCT_DETAILS, null, null).statusCode()).isEqualTo(200);
+        assertAnonymous(CATALOG.single());
+    }
+
+    @Test
+    void productDetails_withCatalogManagerToken_propagatesIdentity() throws Exception {
+        UUID manager = UUID.randomUUID();
+
+        assertThat(send("GET", PRODUCT_DETAILS, null, token(manager, UserRole.CATALOG_MANAGER)).statusCode())
+                .isEqualTo(200);
+
+        Received received = CATALOG.single();
+        assertThat(received.uri()).isEqualTo(PRODUCT_DETAILS);
+        assertThat(received.header("X-User-Id")).containsExactly(manager.toString());
+        assertThat(received.header("X-User-Role")).containsExactly("CATALOG_MANAGER");
+        assertThat(received.header("Authorization")).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"garbage", "expired", "basic", "empty-bearer"})
+    void productDetails_withInvalidCredentials_isUnauthorized(String credentials) throws Exception {
+        HttpResponse<String> response = send("GET", PRODUCT_DETAILS, null, null, authorization(credentials));
+
+        assertThat(response.statusCode()).isEqualTo(401);
+        assertNoUpstreamCalled();
+    }
+
+    @Test
+    void productDetails_spoofedHeadersWithoutToken_areStripped() throws Exception {
+        assertThat(send("GET", PRODUCT_DETAILS, null, null, SPOOFED_HEADERS).statusCode()).isEqualTo(200);
+        assertAnonymous(CATALOG.single());
+    }
+
+    @Test
+    void productDetails_spoofedHeadersWithToken_areReplacedByTokenIdentity() throws Exception {
+        UUID customer = UUID.randomUUID();
+        assertThat(send("GET", PRODUCT_DETAILS, null, token(customer, UserRole.CUSTOMER), SPOOFED_HEADERS)
+                .statusCode()).isEqualTo(200);
+        Received received = CATALOG.single();
+        assertThat(received.header("X-User-Id")).containsExactly(customer.toString());
+        assertThat(received.header("X-User-Role")).containsExactly("CUSTOMER");
+    }
+
     // --- Required ---
 
     @ParameterizedTest
