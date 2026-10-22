@@ -64,6 +64,9 @@ function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => 
           py={9}
           style={({ isActive }: { isActive: boolean }) => ({
             borderRadius: 6,
+            display: 'inline-flex',
+            alignItems: 'center',
+            whiteSpace: 'nowrap',
             color: isActive ? 'var(--vs-primary)' : 'var(--vs-ink)',
             background: isActive ? 'var(--vs-primary-soft)' : undefined,
           })}

@@ -28,7 +28,7 @@ Apply on `inventory-worker-console`, branched from main after PR #27 (Catalog ta
 
 - [x] 5.1 Write the worker journey and update the staff-login journey (design D9); verify `npm run check:e2e` passes
 - [x] 5.2 Run `npm run test:e2e:live` against the Compose stack with the inventory, order and delivery images rebuilt from main and the stack seeded; fix any mock mismatch (a generated type that disagrees with a service spec is a backlog item, `AGENTS.md` §3); record the result in *Live verification* of `frontend/README.md`; set BL-02 to `Done` in its file and the backlog index, correcting its note that PR #25 is not merged; verify the live run passes
-- [ ] 5.3 Check the stock page, both dialogs and the queue in the preview pane on desktop and at 375 px (light and dark) against `WarehouseStock.dc.html`; verify by screenshots that layout and colours match and there is no horizontal scroll
+- [x] 5.3 Check the stock page, both dialogs and the queue in the preview pane on desktop and at 375 px (light and dark) against `WarehouseStock.dc.html`; verify by screenshots that layout and colours match and there is no horizontal scroll
 
 ## Workflow follow-up
 

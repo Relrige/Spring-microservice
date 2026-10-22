@@ -64,8 +64,10 @@ export interface MockOrder {
   shippedAt?: string;
 }
 
+/** The index leads, so short ids (`#00000017`, first 8 characters) differ between rows. */
 function fixedUuid(group: string, index: number): string {
-  return `00000000-0000-4000-${group}-${(index + 1).toString(16).padStart(12, '0')}`;
+  const hex = (index + 1).toString(16);
+  return `${hex.padStart(8, '0')}-0000-4000-${group}-${hex.padStart(12, '0')}`;
 }
 
 export function createDb(): MockDb {
