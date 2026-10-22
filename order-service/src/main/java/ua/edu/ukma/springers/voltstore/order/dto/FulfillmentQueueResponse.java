@@ -1,5 +1,6 @@
 package ua.edu.ukma.springers.voltstore.order.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import ua.edu.ukma.springers.voltstore.order.entities.DeliveryDetails;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderEntity;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderItemEntity;
@@ -11,6 +12,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
 /**
  * EP-ORD-07: the paid orders waiting for dispatch, oldest payment first, with their shipment from Delivery.
  *
@@ -18,10 +21,19 @@ import java.util.UUID;
  *                              {@code deliveryStatus}, {@code ttn} and {@code failureReason}, which then do not mean
  *                              "no shipment"
  */
-public record FulfillmentQueueResponse(boolean deliveryDataAvailable, List<Entry> orders) {
+public record FulfillmentQueueResponse(@Schema(requiredMode = REQUIRED) boolean deliveryDataAvailable,
+                                       @Schema(requiredMode = REQUIRED) List<Entry> orders) {
 
-    public record Entry(UUID orderId, OrderStatus status, Instant placedAt, Instant paidAt, List<Item> items,
-                        Delivery deliveryDetails, DeliveryStatus deliveryStatus, String ttn, String failureReason) {
+    @Schema(name = "FulfillmentQueueEntry")
+    public record Entry(@Schema(requiredMode = REQUIRED) UUID orderId,
+                        @Schema(requiredMode = REQUIRED) OrderStatus status,
+                        @Schema(requiredMode = REQUIRED) Instant placedAt,
+                        @Schema(requiredMode = REQUIRED) Instant paidAt,
+                        @Schema(requiredMode = REQUIRED) List<Item> items,
+                        @Schema(requiredMode = REQUIRED) Delivery deliveryDetails,
+                        DeliveryStatus deliveryStatus,
+                        String ttn,
+                        String failureReason) {
 
         /** @param shipment {@code null} when Delivery has no shipment for the order or was not asked */
         public static Entry of(OrderEntity order, ShipmentInfo shipment) {
@@ -33,14 +45,21 @@ public record FulfillmentQueueResponse(boolean deliveryDataAvailable, List<Entry
     }
 
     /** What the worker picks from the shelf. */
-    public record Item(UUID productId, String productTitle, int quantity) {
+    @Schema(name = "FulfillmentQueueItem")
+    public record Item(@Schema(requiredMode = REQUIRED) UUID productId,
+                       @Schema(requiredMode = REQUIRED) String productTitle,
+                       @Schema(requiredMode = REQUIRED) int quantity) {
 
         static Item of(OrderItemEntity item) {
             return new Item(item.getProductId(), item.getProductTitle(), item.getQuantity());
         }
     }
 
-    public record Delivery(String name, String phone, String address, String carrier) {
+    @Schema(name = "FulfillmentQueueDelivery")
+    public record Delivery(@Schema(requiredMode = REQUIRED) String name,
+                           @Schema(requiredMode = REQUIRED) String phone,
+                           @Schema(requiredMode = REQUIRED) String address,
+                           @Schema(requiredMode = REQUIRED) String carrier) {
 
         static Delivery of(DeliveryDetails details) {
             return new Delivery(details.getName(), details.getPhone(), details.getAddress(), details.getCarrier());

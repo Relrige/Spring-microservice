@@ -59,6 +59,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!-- OpenAPI documents (docs/design/services-requirements/openapi-conventions.md); off at runtime unless enabled -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>3.1.1</version>
+        </dependency>
         <!-- Micrometer → Prometheus exposition format at /actuator/prometheus -->
         <dependency>
             <groupId>io.micrometer</groupId>

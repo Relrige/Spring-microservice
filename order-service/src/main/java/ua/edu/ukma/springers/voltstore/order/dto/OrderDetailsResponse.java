@@ -1,5 +1,6 @@
 package ua.edu.ukma.springers.voltstore.order.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import ua.edu.ukma.springers.voltstore.order.entities.DeliveryDetails;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderEntity;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderItemEntity;
@@ -11,15 +12,29 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
 /**
  * EP-ORD-05. {@code ttn} and {@code deliveryStatus} come from Delivery and are {@code null} when there is no
  * shipment yet or Delivery is unavailable.
  */
-public record OrderDetailsResponse(UUID orderId, OrderStatus status, List<Item> items, Delivery deliveryDetails,
-                                   BigDecimal totalAmount, String currency, Instant placedAt, Instant paidAt,
-                                   Instant reservationExpiresAt, String ttn, DeliveryStatus deliveryStatus) {
+public record OrderDetailsResponse(@Schema(requiredMode = REQUIRED) UUID orderId,
+                                   @Schema(requiredMode = REQUIRED) OrderStatus status,
+                                   @Schema(requiredMode = REQUIRED) List<Item> items,
+                                   @Schema(requiredMode = REQUIRED) Delivery deliveryDetails,
+                                   @Schema(requiredMode = REQUIRED) BigDecimal totalAmount,
+                                   @Schema(requiredMode = REQUIRED) String currency,
+                                   @Schema(requiredMode = REQUIRED) Instant placedAt,
+                                   Instant paidAt,
+                                   @Schema(requiredMode = REQUIRED) Instant reservationExpiresAt,
+                                   String ttn,
+                                   DeliveryStatus deliveryStatus) {
 
-    public record Item(UUID productId, String productTitle, BigDecimal unitPriceAtOrder, int quantity) {
+    @Schema(name = "OrderDetailsItem")
+    public record Item(@Schema(requiredMode = REQUIRED) UUID productId,
+                       @Schema(requiredMode = REQUIRED) String productTitle,
+                       @Schema(requiredMode = REQUIRED) BigDecimal unitPriceAtOrder,
+                       @Schema(requiredMode = REQUIRED) int quantity) {
 
         static Item of(OrderItemEntity item) {
             return new Item(item.getProductId(), item.getProductTitle(), item.getUnitPriceAtOrder(),
@@ -27,7 +42,11 @@ public record OrderDetailsResponse(UUID orderId, OrderStatus status, List<Item> 
         }
     }
 
-    public record Delivery(String name, String phone, String address, String carrier) {
+    @Schema(name = "OrderDetailsDelivery")
+    public record Delivery(@Schema(requiredMode = REQUIRED) String name,
+                           @Schema(requiredMode = REQUIRED) String phone,
+                           @Schema(requiredMode = REQUIRED) String address,
+                           @Schema(requiredMode = REQUIRED) String carrier) {
 
         static Delivery of(DeliveryDetails details) {
             return new Delivery(details.getName(), details.getPhone(), details.getAddress(), details.getCarrier());
