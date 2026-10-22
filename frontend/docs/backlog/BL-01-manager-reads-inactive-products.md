@@ -53,9 +53,10 @@ Backend tasks: Catalog [27](../../../docs/tasks/catalog-service/27-staff-product
 
 ## Backend progress (2026-10-22)
 
-- **Done in Catalog** (task 27, [PR #22](https://github.com/Relrige/Spring-microservice/pull/22), not merged yet): `GET /catalog/products/{id}` answers `ProductResponse` `{ productId, title, description, categoryId, basePrice, status, stockStatus }` to every caller. `CATALOG_MANAGER` and `INVENTORY_WORKER` get `200` for inactive products too; everyone else gets the same `404` as for a missing product. In `catalog-service/openapi/public.json` the operation is documented as optional authentication, and the `ProductDetailsResponse` schema is gone, so `npm run gen:api` changes the generated types.
+- **Done in Catalog** (task 27, [PR #22](https://github.com/Relrige/Spring-microservice/pull/22), merged): `GET /catalog/products/{id}` answers `ProductResponse` `{ productId, title, description, categoryId, basePrice, status, stockStatus }` to every caller. `CATALOG_MANAGER` and `INVENTORY_WORKER` get `200` for inactive products too; everyone else gets the same `404` as for a missing product. In `catalog-service/openapi/public.json` the operation is documented as optional authentication, and the `ProductDetailsResponse` schema is gone, so `npm run gen:api` changes the generated types.
 - **Also in that PR** (task 29): `PUT /catalog/products/{id}` and `PATCH …/status` can answer `409` (type `conflict`) when two saves of the same product overlap.
-- **Still open:** gateway task 12. Until the route `catalog-get-product` is `OPTIONAL`, the gateway forwards no role on this path, so through the gateway a manager still gets `404` for an inactive product. The item stays `In progress` until that task is done and the frontend has verified it.
+- **Done in the gateway** (task 12, [PR #27](https://github.com/Relrige/Spring-microservice/pull/27), not merged yet): the route `catalog-get-product` is `OPTIONAL`. A request with a valid token is forwarded with the caller's role, so a manager gets `200` for an inactive product; a request without a token is anonymous as before; an invalid or expired token is now `401` on this path instead of being ignored.
+- **Next:** once that PR is merged, the manager's edit form can load inactive products with the manager's token. The item stays `In progress` until the frontend has verified this.
 
 ## Notes
 
