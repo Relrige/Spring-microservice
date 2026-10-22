@@ -20,7 +20,7 @@ Apply on a branch that contains `customer-checkout-orders`, Catalog tasks 27–2
   - type tests for the new aliases and bodies;
   - an http test that `getProduct(id, { auth: 'session' })` sends the token while the default sends none;
   - a test that `deleteCategory` resolves on a `200` with an empty body.
-- [ ] 1.4 Make `MockProduct.packaging` nullable, give EP-CAT-05 the staff visibility rule with a `401` for a bad token, and add the six manager handlers of design D10. Verify with handler tests through the API calls for every status code and problem `type`:
+- [x] 1.4 Make `MockProduct.packaging` nullable, give EP-CAT-05 the staff visibility rule with a `401` for a bad token, and add the six manager handlers of design D10. Verify with handler tests through the API calls for every status code and problem `type`:
   - `401` and `403` per route;
   - EP-CAT-05 for anonymous, `CUSTOMER`, `ADMIN`, `CATALOG_MANAGER` and `INVENTORY_WORKER` callers;
   - `422` `activation-rejected` for a product created in the mock;
