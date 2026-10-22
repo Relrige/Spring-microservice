@@ -15,6 +15,8 @@ export interface RequestOptions {
    * `{ token }`: send this token (seed script).
    */
   auth?: 'session' | 'none' | { token: string };
+  /** Extra request headers, e.g. `Idempotency-Key`; never `Authorization`. */
+  headers?: Record<string, string>;
   signal?: AbortSignal;
 }
 
@@ -54,6 +56,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const { method = 'GET', body, query, auth = 'session', signal } = options;
 
   const headers: Record<string, string> = {
+    ...options.headers,
     Accept: 'application/json, application/problem+json',
   };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
