@@ -5,7 +5,7 @@ Apply on `inventory-worker-console`, branched from main after PR #27 (Catalog ta
 ## 1. Contracts and mock backend
 
 - [x] 1.1 Run `npm run gen:api`, review the Inventory diff and adapt `src/api/inventory.ts`, the seed and the mock to the new stock row (design D1); verify `npm run check` passes again
-- [ ] 1.2 Add `getFulfillmentQueue`/`shipOrder` to `src/api/order.ts` and write `src/api/delivery.ts` with `retryTtn` and `ttnFailure` (design D2); verify with type tests for the new aliases and a unit test that `ttnFailure` reads the `reason` of a `ttn-generation-failed` problem and nothing from other errors
+- [x] 1.2 Add `getFulfillmentQueue`/`shipOrder` to `src/api/order.ts` and write `src/api/delivery.ts` with `retryTtn` and `ttnFailure` (design D2); verify with type tests for the new aliases and a unit test that `ttnFailure` reads the `reason` of a `ttn-generation-failed` problem and nothing from other errors
 - [ ] 1.3 Add the mock stock, adjust, packaging, queue, ship and TTN-retry handlers and the lazy TTN failure and delivery progress (design D8); verify with handler tests through the API calls for every status code, the filters and sorts, untitled rows last, `401` and `403`, and that the checkout and order tests still pass
 
 ## 2. Navigation
