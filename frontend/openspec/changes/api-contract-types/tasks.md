@@ -18,7 +18,7 @@
 
 ## 4. Mock backend on generated types
 
-- [ ] 4.1 Type every JSON answer in `src/mocks/handlers.ts` with `satisfies` against the generated schemas, align the default `type` kinds of `problem()` with the backend's (`unprocessable-entity`, `internal-error`, …) and add its optional `type` kind parameter (design D6); keep `db.ts` record types with enums imported from the service modules; verify `npm run check` passes, a handler test asserts the `type` URI of a `400` and of a custom kind, and removing a required field from one answer makes `tsc` fail (checked once, not committed)
+- [x] 4.1 Type every JSON answer in `src/mocks/handlers.ts` with `satisfies` against the generated schemas, align the default `type` kinds of `problem()` with the backend's (`unprocessable-entity`, `internal-error`, …) and add its optional `type` kind parameter (design D6); keep `db.ts` record types with enums imported from the service modules; verify `npm run check` passes, a handler test asserts the `type` URI of a `400` and of a custom kind, and removing a required field from one answer makes `tsc` fail (checked once, not committed)
 
 ## 5. Conventions for later iterations
 

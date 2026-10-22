@@ -5,7 +5,7 @@ import { ApiError } from '../api/errors';
 import { request } from '../api/http';
 import { DEMO_CATEGORIES, DEMO_CUSTOMER, DEMO_PRODUCTS, DEMO_STAFF } from '../fixtures/demo-data';
 import { db, resetDb } from './db';
-import { compareText } from './handlers';
+import { compareText, problem } from './handlers';
 import { createMockToken, readMockToken } from './tokens';
 
 async function failure(promise: Promise<unknown>): Promise<ApiError> {
@@ -117,5 +117,28 @@ describe('mock catalog', () => {
     const error = await failure(listProducts({}, { auth: { token: 'garbage' } }));
     expect(error.status).toBe(401);
     expect((await failure(request('/no/such/route'))).status).toBe(404);
+  });
+});
+
+describe('mock problems', () => {
+  it('writes the backend type URIs: validation for a 400, the given kind when one is passed', async () => {
+    const invalid = await failure(register({ email: 'not-an-email', password: 'secret' }));
+    expect(invalid.problem?.type).toBe('https://voltstore.com/errors/validation');
+
+    const custom = await problem(
+      422,
+      'Too many products',
+      { violation: 'TOO_MANY_PRODUCTS' },
+      'customer-service',
+      'cart-rule-violation',
+    ).json();
+    expect(custom).toMatchObject({
+      type: 'https://voltstore.com/errors/cart-rule-violation',
+      status: 422,
+      service: 'customer-service',
+      violation: 'TOO_MANY_PRODUCTS',
+    });
+    const plain = await problem(422, 'Not processable').json();
+    expect(plain.type).toBe('https://voltstore.com/errors/unprocessable-entity');
   });
 });
