@@ -30,7 +30,7 @@ Apply on a branch that contains `customer-checkout-orders`, Catalog tasks 27–2
 
 ## 2. Routes, navigation and shared pieces
 
-- [ ] 2.1 Replace the `/manage` placeholder with the routes of design D4. Change the manager's header links to "Products" and "Categories", with nested paths highlighting their link. Verify with navigation tests for *Manager opens the manager area*, *Unknown manager page*, *Manager header* and *Admin cannot open the manager area*, and check that the existing navigation and session tests still pass. The session test that expects `/manage` after a re-login now expects `/manage/products`.
+- [x] 2.1 Replace the `/manage` placeholder with the routes of design D4. Change the manager's header links to "Products" and "Categories", with nested paths highlighting their link. Verify with navigation tests for *Manager opens the manager area*, *Unknown manager page*, *Manager header* and *Admin cannot open the manager area*, and check that the existing navigation and session tests still pass. The session test that expects `/manage` after a re-login now expects `/manage/products`.
 - [x] 2.2 Add `src/features/manage/`:
   - `queries.ts` with `manageKeys` and the D3 invalidation helper;
   - `url-state.ts` for the product and category lists;

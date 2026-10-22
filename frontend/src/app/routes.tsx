@@ -12,6 +12,10 @@ import { GuestCartResolver } from '../features/cart/GuestCartResolver';
 import { RegisterPage } from '../features/auth/RegisterPage';
 import { ProductDetailsPage } from '../features/catalog/ProductDetailsPage';
 import { ProductListPage } from '../features/catalog/ProductListPage';
+import { CategoriesPage } from '../features/manage/CategoriesPage';
+import { ProductCreatePage } from '../features/manage/ProductCreatePage';
+import { ProductEditPage } from '../features/manage/ProductEditPage';
+import { ProductListPage as ManagedProductListPage } from '../features/manage/ProductListPage';
 import { RequireRole } from '../session/RequireRole';
 import { SessionProvider } from '../session/SessionProvider';
 import { AppLayout } from './AppLayout';
@@ -63,16 +67,22 @@ export const routes: RouteObject[] = [
           { path: ':orderId', element: <PaymentPage /> },
         ],
       },
+      // Catalog manager console (change catalog-manager-console, design D4).
       {
-        path: 'manage/*',
+        path: 'manage',
         element: (
           <RequireRole allow="CATALOG_MANAGER">
-            <AreaPlaceholderPage
-              title="Catalog console"
-              arrives="Product and category management arrives in iteration 4 (catalog-manager-console)."
-            />
+            <Outlet />
           </RequireRole>
         ),
+        children: [
+          { index: true, element: <Navigate to="products" replace /> },
+          { path: 'products', element: <ManagedProductListPage /> },
+          { path: 'products/new', element: <ProductCreatePage /> },
+          { path: 'products/:productId', element: <ProductEditPage /> },
+          { path: 'categories', element: <CategoriesPage /> },
+          { path: '*', element: <NotFoundPage /> },
+        ],
       },
       {
         path: 'warehouse/*',

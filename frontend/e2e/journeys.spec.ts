@@ -65,7 +65,7 @@ test('register, log out, log in again', async ({ page }) => {
 
 test('staff login lands in its area', async ({ page }) => {
   const cases = [
-    { account: manager, path: '/manage', heading: 'Catalog console' },
+    { account: manager, path: '/manage/products', heading: 'Products' },
     { account: worker, path: '/warehouse', heading: 'Warehouse' },
     { account: adminAccount(), path: '/admin', heading: 'Administration' },
   ];
@@ -82,17 +82,17 @@ test('staff login lands in its area', async ({ page }) => {
 test('expired session returns to the same page after login', async ({ page }) => {
   await page.goto('/login');
   await logIn(page, manager.email, manager.password);
-  await expect(page).toHaveURL(/\/manage$/);
+  await expect(page).toHaveURL(/\/manage\/products$/);
 
   await shortenSession(page, 2);
   await page.reload();
-  await expect(page.getByRole('heading', { level: 1, name: 'Catalog console' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Products' })).toBeVisible();
 
   await expect(page.getByText('Your session has expired.', { exact: false })).toBeVisible();
-  await expect(page).toHaveURL(/\/login\?expired=1&returnTo=%2Fmanage$/);
+  await expect(page).toHaveURL(/\/login\?expired=1&returnTo=%2Fmanage%2Fproducts$/);
 
   await logIn(page, manager.email, manager.password);
-  await expect(page).toHaveURL(/\/manage$/);
+  await expect(page).toHaveURL(/\/manage\/products$/);
 });
 
 test('layout at 375 px has no horizontal scroll', async ({ page }) => {

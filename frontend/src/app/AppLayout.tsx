@@ -22,7 +22,10 @@ const AREA_LINKS: Record<Role, NavItem[]> = {
     { to: '/account/orders', label: 'Orders' },
     { to: '/account/profile', label: 'Profile' },
   ],
-  CATALOG_MANAGER: [{ to: '/manage', label: 'Catalog console' }],
+  CATALOG_MANAGER: [
+    { to: '/manage/products', label: 'Products' },
+    { to: '/manage/categories', label: 'Categories' },
+  ],
   INVENTORY_WORKER: [{ to: '/warehouse', label: 'Warehouse' }],
   ADMIN: [{ to: '/admin', label: 'Admin' }],
 };
