@@ -5,6 +5,8 @@ import {
   type CartItem,
   type CartItemsRequest,
   type CartViolation,
+  type Profile,
+  type ProfileInput,
 } from './customer';
 import { ApiError, PROBLEM_TYPE_PREFIX } from './errors';
 import type { components } from './generated/customer';
@@ -15,6 +17,8 @@ describe('customer API types', () => {
   it('CartItem and the request bodies match the generated types', () => {
     expectTypeOf<CartItem>().toEqualTypeOf<Received<Schemas['CartItemResponse']>>();
     expectTypeOf<CartItemsRequest>().toEqualTypeOf<Schemas['CartItemsRequest']>();
+    expectTypeOf<Profile>().toEqualTypeOf<Received<Schemas['ProfileResponse']>>();
+    expectTypeOf<ProfileInput>().toEqualTypeOf<Schemas['ProfileRequest']>();
     expectTypeOf<CartViolation>().toEqualTypeOf<
       'TOO_MANY_PRODUCTS' | 'QUANTITY_LIMIT_EXCEEDED' | 'DUPLICATE_PRODUCT'
     >();

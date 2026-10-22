@@ -53,6 +53,8 @@ The mock backend and `npm run seed` use the same fixtures ([`src/fixtures/demo-d
 
 The demo customer also has a demo cart (`DEMO_CART`): 1 × Sony WH-1000XM5 headphones, 2 × Anker 737 power bank and 1 × the inactive Xiaomi 14T, which the cart page shows as unavailable. A visitor who adds products and then logs in as the demo customer meets the replace/keep/merge choice at once. The mock starts every page load with this cart; `npm run seed` sets it only while the demo customer's cart is empty, and the live journeys put it back before each cart journey.
 
+The demo customer also has a demo profile (`DEMO_PROFILE`): Olena Kovalenko, `+380501234567`, "Kyiv, branch No. 12, Velyka Vasylkivska St 72", which pre-fills the checkout's delivery form. The mock starts with it; `npm run seed` sets it only while the profile was never saved. On the payment step the demo provider's test cards apply: `…4242` approves, `…0002` declines (insufficient funds), `…5000` approves after a lost answer, any other number declines.
+
 The mock keeps its data in memory: a reload of the page starts again from the fixtures (registered users are lost; sessions survive because mock tokens are self-contained).
 
 ## Seeding a live stack
@@ -81,7 +83,15 @@ Result of the last live run: see *Live verification* below.
 
 ## Live verification
 
-Last run: 2026-10-22, branch `customer-cart` (change `customer-cart`), Compose stack of the repository root rebuilt from the current sources.
+Last run: 2026-10-22, branch `new-feature` (change `customer-checkout-orders`), Compose stack of the repository root with the catalog and order images rebuilt after Catalog tasks 27–29 and Order tasks 19–20.
+
+- `npm run seed`, first run: `Result: seeded.` with `demo profile: set`; second run: `Result: unchanged`, `demo cart: kept, demo profile: kept`. Storefront: 42 active products with the expected stock status.
+- `npm run test:e2e:live`: 9 of 9 journeys passed (about 30 s), including checkout with a declined (`…0002`) and an approved (`…4242`) card and cancelling an unpaid order. `npm run check:e2e` against the mock: 9 of 9.
+- BL-07 through the gateway: `POST /orders` twice with one `Idempotency-Key` answered `201` with the same order, the second with `Idempotent-Replayed: true`; the key with another body answered `422 idempotency-key-mismatch`. The test order was cancelled afterwards.
+- Order contract: no mismatch between the mock and Order Service in the journeys (status codes, problem types, the `202` cancel answer).
+- Stack setup on that machine: Order Service did not start because its database volume held an older schema (Flyway V1: `column "placed_at" does not exist`); the volume `spring-microservice_order-service-postgres` was deleted and recreated.
+
+Previous run: 2026-10-22, branch `customer-cart` (change `customer-cart`), Compose stack of the repository root rebuilt from the current sources.
 
 - `npm run seed`, first run: `Result: seeded.` with `demo cart: set` (3 lines); second run: `Result: unchanged`, `demo cart: kept`. Storefront: 42 active products with the expected stock status.
 - `npm run test:e2e:live`: 7 of 7 journeys passed (about 25 s), including the guest cart with reload and the login as the demo customer with "Merge both", whose cart page shows the demo cart's two available lines and its unavailable line. `npm run check:e2e` against the mock: 7 of 7.

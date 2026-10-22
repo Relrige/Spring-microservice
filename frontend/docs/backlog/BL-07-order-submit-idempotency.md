@@ -1,7 +1,7 @@
 ---
 id: BL-07
 title: Idempotent order submission
-status: In progress
+status: Done
 importance: Important
 services: [order-service]
 blocks: —
@@ -49,9 +49,12 @@ Implemented in `../../../docs/tasks/order-service/19-idempotent-order-submission
 - [x] Concurrent duplicates create one order
 - [x] Without the header the behaviour is unchanged
 - [x] Updated: order spec EP-ORD-02, `api-contracts.md`
-- [ ] The checkout page sends one key per attempt and retries with it (frontend side, iteration 3; marks the item `Done`)
+- [x] The checkout page sends one key per attempt and retries with it (frontend side, iteration 3; marks the item `Done`)
 
 ## Frontend impact
+
+Done in the OpenSpec change `customer-checkout-orders` (2026-10-22): the delivery step sends one `Idempotency-Key` per attempt, reuses it for a retry, makes a new one when the cart lines or delivery details change or after `422 idempotency-key-mismatch`, and repeats once after `409 request-in-progress`. Verified on the Compose stack: the same request twice with one key answered `201` with the same order (`Idempotent-Replayed: true` on the second), and the key with another body answered `422 idempotency-key-mismatch`.
+
 
 - Until done: the submit button is disabled while the request runs (iteration 3); a lost response can still leave a second order.
 - After: the checkout page sends one key per attempt and can retry a failed submit safely.

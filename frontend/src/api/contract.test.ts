@@ -32,7 +32,7 @@ describe('operation helpers', () => {
       'ACTIVE' | 'NOT_ACTIVE' | undefined
     >();
     expectTypeOf<PathParams<CatalogOps['getProduct']>>().toEqualTypeOf<{ id: string }>();
-    expectTypeOf<Ok<CatalogOps['getProduct']>>().toEqualTypeOf<Catalog['ProductDetailsResponse']>();
+    expectTypeOf<Ok<CatalogOps['getProduct']>>().toEqualTypeOf<Catalog['ProductResponse']>();
     expectTypeOf<Ok<CatalogOps['createProduct']>>().toEqualTypeOf<
       Catalog['CreateProductResponse']
     >();

@@ -14,7 +14,8 @@ export type StockStatus = Schemas['ProductSummaryResponse']['stockStatus'];
 
 export type Category = Received<Schemas['CategoryResponse']>;
 export type ProductSummary = Received<Schemas['ProductSummaryResponse']>;
-export type ProductDetails = Received<Schemas['ProductDetailsResponse']>;
+/** EP-CAT-05 answer: the full product (storefront calls see only active products). */
+export type ProductDetails = Received<Schemas['ProductResponse']>;
 export type { Page };
 
 /** The four orders the storefront offers; the document types `sortBy` as a free string. */
@@ -38,7 +39,8 @@ export function listProducts(
   options: { auth?: Auth; signal?: AbortSignal } = {},
 ): Promise<Page<ProductSummary>> {
   return request<Page<ProductSummary>>(pathFor('/catalog/products'), {
-    query: { ...query },
+    // `ids` is sent comma-separated, as the document describes it.
+    query: { ...query, ids: query.ids?.join(',') },
     auth: options.auth ?? 'none',
     signal: options.signal,
   });

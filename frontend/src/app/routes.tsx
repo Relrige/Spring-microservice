@@ -1,8 +1,13 @@
 // Route tree (design D6): storefront, four role areas behind RequireRole, not-found.
-import type { RouteObject } from 'react-router';
+import { Navigate, Outlet, type RouteObject } from 'react-router';
 import { LoginPage } from '../features/auth/LoginPage';
 import { CartPage } from '../features/cart/CartPage';
 import { CartProvider } from '../features/cart/CartProvider';
+import { CheckoutPage } from '../features/checkout/CheckoutPage';
+import { PaymentPage } from '../features/checkout/PaymentPage';
+import { OrderHistoryPage } from '../features/orders/OrderHistoryPage';
+import { OrderPage } from '../features/orders/OrderPage';
+import { ProfilePage } from '../features/profile/ProfilePage';
 import { GuestCartResolver } from '../features/cart/GuestCartResolver';
 import { RegisterPage } from '../features/auth/RegisterPage';
 import { ProductDetailsPage } from '../features/catalog/ProductDetailsPage';
@@ -30,16 +35,33 @@ export const routes: RouteObject[] = [
       { path: 'register', element: <RegisterPage /> },
       // Open to visitors and customers; CartPage denies staff (change customer-cart, design D7).
       { path: 'cart', element: <CartPage /> },
+      // Customer pages (change customer-checkout-orders, design D3).
       {
-        path: 'account/*',
+        path: 'account',
         element: (
           <RequireRole allow="CUSTOMER">
-            <AreaPlaceholderPage
-              title="Your account"
-              arrives="Your orders and your profile arrive in iteration 3 (customer-checkout-orders)."
-            />
+            <Outlet />
           </RequireRole>
         ),
+        children: [
+          { index: true, element: <Navigate to="orders" replace /> },
+          { path: 'orders', element: <OrderHistoryPage /> },
+          { path: 'orders/:orderId', element: <OrderPage /> },
+          { path: 'profile', element: <ProfilePage /> },
+          { path: '*', element: <NotFoundPage /> },
+        ],
+      },
+      {
+        path: 'checkout',
+        element: (
+          <RequireRole allow="CUSTOMER">
+            <Outlet />
+          </RequireRole>
+        ),
+        children: [
+          { index: true, element: <CheckoutPage /> },
+          { path: ':orderId', element: <PaymentPage /> },
+        ],
       },
       {
         path: 'manage/*',

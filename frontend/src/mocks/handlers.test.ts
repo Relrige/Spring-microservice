@@ -120,6 +120,21 @@ describe('mock catalog', () => {
     expect(all.totalElements).toBe(DEMO_PRODUCTS.length);
   });
 
+  it('shows every status to an inventory worker and filters by ids (Catalog tasks 27–28)', async () => {
+    const worker = { token: createMockToken(db.users.find((u) => u.role === 'INVENTORY_WORKER')!) };
+    expect((await listProducts({ size: 100 }, { auth: worker })).totalElements).toBe(
+      DEMO_PRODUCTS.length,
+    );
+    const inactive = db.products.find((p) => p.status === 'NOT_ACTIVE')!;
+    const active = db.products.find((p) => p.status === 'ACTIVE')!;
+    const ids = [inactive.productId, active.productId];
+    const page = await listProducts({ ids, size: 100 }, { auth: worker });
+    expect(page.content.map((p) => p.productId).sort()).toEqual([...ids].sort());
+    expect((await listProducts({ ids })).content.map((p) => p.productId)).toEqual([
+      active.productId,
+    ]);
+  });
+
   it('answers 404 for inactive, unknown and non-UUID product ids', async () => {
     const inactive = db.products.find((p) => p.status === 'NOT_ACTIVE')!;
     const active = db.products.find((p) => p.status === 'ACTIVE')!;

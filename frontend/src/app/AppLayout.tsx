@@ -18,7 +18,10 @@ interface NavItem {
 
 /** Links per role: only pages of the user's own area that exist (spec app-navigation). */
 const AREA_LINKS: Record<Role, NavItem[]> = {
-  CUSTOMER: [],
+  CUSTOMER: [
+    { to: '/account/orders', label: 'Orders' },
+    { to: '/account/profile', label: 'Profile' },
+  ],
   CATALOG_MANAGER: [{ to: '/manage', label: 'Catalog console' }],
   INVENTORY_WORKER: [{ to: '/warehouse', label: 'Warehouse' }],
   ADMIN: [{ to: '/admin', label: 'Admin' }],

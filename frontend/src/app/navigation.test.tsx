@@ -5,6 +5,7 @@ import { DEMO_CUSTOMER, DEMO_STAFF } from '../fixtures/demo-data';
 import { writeGuestCart } from '../features/cart/guest-cart';
 import { db } from '../mocks/db';
 import { recordCartRequests } from '../test/cart';
+import { server } from '../test/server';
 import { currentUrl, loginAs, renderApp } from '../test/render';
 import { currentUserText, submitLogin } from '../test/ui';
 
@@ -16,7 +17,7 @@ describe('Protected pages need a login', () => {
     await waitFor(() => expect(currentUrl(router)).toBe('/login?returnTo=%2Faccount%2Forders'));
     await submitLogin(DEMO_CUSTOMER.email, DEMO_CUSTOMER.password);
     await waitFor(() => expect(currentUrl(router)).toBe('/account/orders'));
-    expect(await screen.findByRole('heading', { name: 'Your account' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Orders' })).toBeInTheDocument();
   });
 
   it('Return page not allowed for the role: the customer lands on the storefront', async () => {
@@ -135,5 +136,49 @@ describe('Cart area', () => {
     const { router } = renderApp('/login?returnTo=%2Fcart');
     await submitLogin(manager.email, manager.password);
     await waitFor(() => expect(currentUrl(router)).toBe('/manage'));
+  });
+});
+
+describe('Customer areas', () => {
+  it('Worker opens the checkout: access denied and no order request', async () => {
+    loginAs('INVENTORY_WORKER');
+    const calls: string[] = [];
+    server.events.on('request:start', ({ request }) => {
+      if (new URL(request.url).pathname.startsWith('/api/orders')) calls.push(request.url);
+    });
+    renderApp('/checkout');
+    expect(await screen.findByText('You do not have access to this page')).toBeInTheDocument();
+    expect(calls).toEqual([]);
+  });
+
+  it('Customer opens the account: the order history is shown', async () => {
+    loginAs('CUSTOMER');
+    const { router } = renderApp('/account');
+    await waitFor(() => expect(currentUrl(router)).toBe('/account/orders'));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Orders' })).toBeInTheDocument();
+  });
+
+  it('Visitor opens the checkout: login, then the checkout', async () => {
+    const { router } = renderApp('/checkout');
+    await waitFor(() => expect(currentUrl(router)).toBe('/login?returnTo=%2Fcheckout'));
+    await submitLogin(DEMO_CUSTOMER.email, DEMO_CUSTOMER.password);
+    await waitFor(() => expect(currentUrl(router)).toBe('/checkout'));
+  });
+
+  it('Customer header: catalog, Orders, Profile, the cart and Log out', async () => {
+    loginAs('CUSTOMER');
+    renderApp('/');
+    const nav = await screen.findByRole('navigation', { name: 'Main' });
+    expect(within(nav).getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: 'Orders' })).toHaveAttribute(
+      'href',
+      '/account/orders',
+    );
+    expect(within(nav).getByRole('link', { name: 'Profile' })).toHaveAttribute(
+      'href',
+      '/account/profile',
+    );
+    expect(await screen.findByRole('link', { name: /^Cart/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument();
   });
 });

@@ -76,6 +76,25 @@ export function clearCart(auth: Auth = 'session'): Promise<Received<Ok<operation
   return request(pathFor('/customers/cart'), { method: 'DELETE', auth });
 }
 
+/** EP-CUST-01/02: a profile never saved is answered with every field `null`. */
+export type Profile = Received<Schemas['ProfileResponse']>;
+export type ProfileInput = JsonBody<operations['saveProfile']>;
+
+/** EP-CUST-01 (`getProfile`): the profile, every field `null` when never saved. */
+export function getProfile(
+  auth: Auth = 'session',
+): Promise<Received<Ok<operations['getProfile']>>> {
+  return request(pathFor('/customers/me/profile'), { auth });
+}
+
+/** EP-CUST-02 (`saveProfile`): create or replace the profile; `400` with field `errors`. */
+export function saveProfile(
+  body: ProfileInput,
+  auth: Auth = 'session',
+): Promise<Received<Ok<operations['saveProfile']>>> {
+  return request(pathFor('/customers/me/profile'), { method: 'PUT', body, auth });
+}
+
 /** The `422` cart-rule problem of `error`, or `undefined` for any other error (design D3). */
 export function cartViolation(error: unknown) {
   return problemOf<CartRuleProblem>(error, 'cart-rule-violation');

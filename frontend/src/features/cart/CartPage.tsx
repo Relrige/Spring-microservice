@@ -2,12 +2,12 @@
 // and the checkout entry. The cart holds only ids and quantities (design D5).
 import { ActionIcon, Anchor, Box, Button, Group, Modal, Stack, Text, Title } from '@mantine/core';
 import { IconTrash } from '@tabler/icons-react';
-import { useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Link } from 'react-router';
-import { getProduct, type ProductDetails } from '../../api/catalog';
+import { Link, useNavigate } from 'react-router';
 import type { CartItem } from '../../api/customer';
-import { ApiError } from '../../api/errors';
+import { userMessage } from '../../api/errors';
+import { orderProblem, validateCheckout } from '../../api/order';
 import { AccessDeniedPage } from '../../app/AccessDeniedPage';
 import { PageContainer } from '../../app/PageContainer';
 import { ErrorState } from '../../components/ErrorState';
@@ -18,31 +18,10 @@ import { ProductImage } from '../../components/ProductImage';
 import { StatusChip } from '../../components/StatusChip';
 import { loginUrl } from '../../session/roles';
 import { catalogKeys, useCategoryNames } from '../catalog/queries';
+import { availableLines, useLineViews, type LineView } from './line-views';
 import { MAX_PRODUCTS, MAX_QUANTITY } from './cart-rules';
 import { cartQuery, useCart, type CartChange } from './CartProvider';
 import { estimatedSubtotal, lineKopecks } from './subtotal';
-
-type LineView =
-  | { kind: 'loading' }
-  | { kind: 'failed'; retry: () => void }
-  | { kind: 'gone' }
-  | { kind: 'sold-out'; product: ProductDetails }
-  | { kind: 'available'; product: ProductDetails };
-
-function viewOf(query: UseQueryResult<ProductDetails>): LineView {
-  if (query.data) {
-    return query.data.stockStatus === 'OUT_OF_STOCK'
-      ? { kind: 'sold-out', product: query.data }
-      : { kind: 'available', product: query.data };
-  }
-  if (query.isError) {
-    // Inactive and deleted products answer 404 (EP-CAT-05).
-    return query.error instanceof ApiError && query.error.kind === 'not-found'
-      ? { kind: 'gone' }
-      : { kind: 'failed', retry: () => void query.refetch() };
-  }
-  return { kind: 'loading' };
-}
 
 const ROW = {
   padding: 20,
@@ -201,16 +180,48 @@ export function CartPage() {
   // Spec shopping-cart, Cart opened on a second device: read the server cart again.
   useQuery({ ...cartQuery, enabled: cart.owner === 'customer', refetchOnMount: 'always' });
   const categoryNames = useCategoryNames();
-  const products = useQueries({
-    queries: cart.lines.map((line) => ({
-      queryKey: catalogKeys.product(line.productId),
-      queryFn: ({ signal }: { signal: AbortSignal }) => getProduct(line.productId, { signal }),
-    })),
-  });
+  const views = useLineViews(cart.lines);
   const [message, setMessage] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   if (cart.owner === 'none') return <AccessDeniedPage />;
+
+  /** Spec checkout, Soft check before the checkout (EP-ORD-01). */
+  const proceed = async () => {
+    setMessage(null);
+    setChecking(true);
+    try {
+      await validateCheckout(
+        cart.lines.map(({ productId, quantity }) => ({ productId, quantity })),
+      );
+      navigate('/checkout');
+    } catch (error) {
+      const problem = orderProblem(error);
+      if (problem?.kind !== 'ineligible-items') {
+        setMessage(userMessage(error));
+        return;
+      }
+      setMessage(
+        problem.items
+          .map(({ productId, reason }) => {
+            const view = views[cart.lines.findIndex((line) => line.productId === productId)];
+            const title = view && 'product' in view ? view.product.title : 'A product';
+            const state = reason === 'NOT_ACTIVE' ? 'is no longer available' : 'is out of stock';
+            return `${title} ${state}. Remove it to check out.`;
+          })
+          .join('\n'),
+      );
+      // The lines then show the products as unavailable.
+      for (const { productId } of problem.items) {
+        void queryClient.invalidateQueries({ queryKey: catalogKeys.product(productId) });
+      }
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const run = async (change: Promise<CartChange>) => {
     setMessage(null);
@@ -234,13 +245,9 @@ export function CartPage() {
       </Stack>
     );
   } else {
-    const views = products.map(viewOf);
-    const available = cart.lines.flatMap((line, index) => {
-      const view = views[index]!;
-      return view.kind === 'available'
-        ? [{ price: view.product.basePrice, quantity: line.quantity }]
-        : [];
-    });
+    const available = availableLines(cart.lines, views);
+    // Change customer-checkout-orders, design D4: the whole cart is ordered, so every line must be available.
+    const blocked = views.some((view) => view.kind !== 'available');
     const incomplete = views.some((view) => view.kind === 'loading' || view.kind === 'failed');
     const items = available.reduce((sum, line) => sum + line.quantity, 0);
     body = (
@@ -307,18 +314,22 @@ export function CartPage() {
             Prices and availability are checked again when you check out. Delivery cost is paid to
             the carrier.
           </Text>
-          {/* Design D9: a stub until checkout arrives in iteration 3. */}
           {cart.owner === 'guest' && items > 0 ? (
             <Button component={Link} to={loginUrl('/cart')} size="md">
               Proceed to checkout
             </Button>
           ) : (
-            <Button size="md" disabled>
+            <Button
+              size="md"
+              disabled={items === 0 || blocked}
+              loading={checking}
+              onClick={() => void proceed()}
+            >
               Proceed to checkout
             </Button>
           )}
-          {cart.owner === 'customer' && (
-            <Text style={muted}>Checkout arrives in the next iteration.</Text>
+          {cart.owner === 'customer' && items > 0 && blocked && (
+            <Text style={muted}>Remove unavailable products to check out.</Text>
           )}
           <Text style={muted}>
             Up to {MAX_PRODUCTS} different products, up to {MAX_QUANTITY} of each.

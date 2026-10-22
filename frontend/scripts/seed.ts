@@ -18,13 +18,14 @@ import {
 } from '../src/api/catalog';
 import { ApiError } from '../src/api/errors';
 import { configureHttp } from '../src/api/http';
-import { getCart, replaceCart } from '../src/api/customer';
+import { getCart, getProfile, replaceCart, saveProfile } from '../src/api/customer';
 import { adjustStock, listStock, setPackaging, type StockItem } from '../src/api/inventory';
 import {
   DEMO_CART,
   DEMO_CATEGORIES,
   DEMO_CUSTOMER,
   DEMO_PRODUCTS,
+  DEMO_PROFILE,
   DEMO_STAFF,
   type DemoAccount,
   type DemoProduct,
@@ -46,6 +47,7 @@ const summary = {
   activated: 0,
   deactivated: 0,
   demoCart: 'kept' as 'set' | 'kept',
+  demoProfile: 'kept' as 'set' | 'kept',
 };
 
 class SeedError extends Error {
@@ -262,6 +264,21 @@ async function ensureDemoCart(customer: Token, products: Map<DemoProduct, Produc
   log(`  demo cart set: ${items.length} lines`);
 }
 
+/**
+ * Gives the demo customer DEMO_PROFILE while their profile was never saved (change
+ * customer-checkout-orders, design D11); a profile they edited is kept.
+ */
+async function ensureDemoProfile(customer: Token) {
+  const current = await withRetry('read the demo profile', () => getProfile(customer));
+  if (Object.values(current).some((value) => value != null)) {
+    log("  the demo customer's profile is saved; kept");
+    return;
+  }
+  await withRetry('set the demo profile', () => saveProfile(DEMO_PROFILE, customer));
+  summary.demoProfile = 'set';
+  log('  demo profile set');
+}
+
 /** Polls the storefront until stock statuses match (they arrive through Kafka events). */
 async function waitForStorefront(products: Map<DemoProduct, ProductSummary>): Promise<string[]> {
   const expected = new Map(
@@ -325,8 +342,9 @@ async function main() {
   log('4. Activation (manager)');
   await setStatuses(manager, products);
 
-  log('5. Demo cart (customer)');
+  log('5. Demo cart and profile (customer)');
   await ensureDemoCart(customer, products);
+  await ensureDemoProfile(customer);
 
   log(`6. Waiting for the storefront (up to ${CONVERGE_SECONDS} s)`);
   const pending = await waitForStorefront(products);
@@ -339,14 +357,15 @@ async function main() {
     summary.stockAdjusted +
     summary.activated +
     summary.deactivated +
-    (summary.demoCart === 'set' ? 1 : 0);
+    (summary.demoCart === 'set' ? 1 : 0) +
+    (summary.demoProfile === 'set' ? 1 : 0);
   log('');
   log(changed === 0 ? 'Result: unchanged (everything was already seeded).' : 'Result: seeded.');
   log(
     `  accounts created: ${summary.accountsCreated.length}, categories created: ${summary.categoriesCreated}, ` +
       `products created: ${summary.productsCreated}, packaging set: ${summary.packagingSet}, ` +
       `stock adjusted: ${summary.stockAdjusted}, activated: ${summary.activated}, deactivated: ${summary.deactivated}, ` +
-      `demo cart: ${summary.demoCart}`,
+      `demo cart: ${summary.demoCart}, demo profile: ${summary.demoProfile}`,
   );
   log('  Demo accounts:');
   log(`    ${ADMIN_EMAIL} (Admin, password from SEED_ADMIN_PASSWORD)`);

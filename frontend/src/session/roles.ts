@@ -11,6 +11,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 /** URL prefix of each protected area and the one role that may open it (roles are not hierarchical). */
 export const AREAS: { prefix: string; role: Role }[] = [
   { prefix: '/account', role: 'CUSTOMER' },
+  { prefix: '/checkout', role: 'CUSTOMER' },
   { prefix: '/manage', role: 'CATALOG_MANAGER' },
   { prefix: '/warehouse', role: 'INVENTORY_WORKER' },
   { prefix: '/admin', role: 'ADMIN' },

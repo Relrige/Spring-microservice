@@ -12,6 +12,11 @@ export type JsonBody<Op> = Op extends { requestBody?: infer R } ? JsonOf<NonNull
 /** Query parameters of an operation. */
 export type Query<Op> = Op extends { parameters: { query?: infer Q } } ? NonNullable<Q> : never;
 
+/** Header parameters of an operation. */
+export type HeaderParams<Op> = Op extends { parameters: { header?: infer H } }
+  ? NonNullable<H>
+  : never;
+
 /** Path parameters of an operation. */
 export type PathParams<Op> = Op extends { parameters: { path?: infer P } } ? NonNullable<P> : never;
 

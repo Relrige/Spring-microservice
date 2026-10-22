@@ -1,6 +1,6 @@
 import type { StockStatus } from '../api/catalog';
 
-type Tone = 'success' | 'warning' | 'danger' | 'primary' | 'neutral';
+export type Tone = 'success' | 'warning' | 'danger' | 'primary' | 'neutral';
 
 const TONES: Record<Tone, { background: string; color: string }> = {
   success: { background: 'var(--vs-success-soft)', color: 'var(--vs-success)' },
