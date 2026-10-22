@@ -254,6 +254,59 @@ class CatalogReadAndStatusIntegrationTest {
     }
 
     @Test
+    void browse_idsFilter_combinesWithVisibilityAndOtherFilters() throws Exception {
+        UUID ultrabook = insertActive(categoryId, "Ultrabook", "light laptop", "1500.00");
+        UUID gaming = insertActive(categoryId, "Gaming laptop", "fast", "2500.00");
+        insertActive(categoryId, "Office laptop", "quiet", "700.00");
+        UUID inactive = insertProduct(jdbc, categoryId, ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK);
+        String listed = ultrabook + "," + gaming + "," + inactive + "," + UUID.randomUUID();
+
+        // Anonymous: the inactive and the unknown ID are simply absent, and totalElements counts what is returned
+        mockMvc.perform(get("/catalog/products").param("ids", listed))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(ultrabook.toString(), gaming.toString())))
+                .andExpect(jsonPath("$.totalElements").value(2));
+        // Repeated parameters bind too; duplicates count once
+        mockMvc.perform(get("/catalog/products").param("ids", gaming.toString(), gaming.toString())
+                        .param("ids", gaming.toString()))
+                .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(gaming.toString())))
+                .andExpect(jsonPath("$.totalElements").value(1));
+        // Combined with search, and with paging and sorting
+        mockMvc.perform(get("/catalog/products").param("ids", listed).param("search", "LIGHT"))
+                .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(ultrabook.toString())));
+        mockMvc.perform(get("/catalog/products").param("ids", listed).param("sortBy", "basePrice,desc").param("size", "1"))
+                .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(gaming.toString())))
+                .andExpect(jsonPath("$.totalElements").value(2));
+        // Staff see the inactive one, and the status filter applies on top
+        mockMvc.perform(get("/catalog/products").headers(asUser("INVENTORY_WORKER")).param("ids", listed))
+                .andExpect(jsonPath("$.content[*].productId",
+                        containsInAnyOrder(ultrabook.toString(), gaming.toString(), inactive.toString())));
+        mockMvc.perform(get("/catalog/products").headers(asManager()).param("ids", listed).param("status", "NOT_ACTIVE"))
+                .andExpect(jsonPath("$.content[*].productId", containsInAnyOrder(inactive.toString())));
+    }
+
+    @Test
+    void browse_invalidIds_return400() throws Exception {
+        String tooMany = Stream.generate(() -> UUID.randomUUID().toString()).limit(101).collect(Collectors.joining(","));
+
+        mockMvc.perform(get("/catalog/products").param("ids", ""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.ids").isNotEmpty());
+        mockMvc.perform(get("/catalog/products").param("ids", UUID.randomUUID() + ",nope"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.ids").isNotEmpty());
+        mockMvc.perform(get("/catalog/products").param("ids", UUID.randomUUID() + ",," + UUID.randomUUID()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.ids").isNotEmpty());
+        mockMvc.perform(get("/catalog/products").param("ids", tooMany))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.ids").isNotEmpty());
+        // 101 copies of one ID are one distinct ID
+        mockMvc.perform(get("/catalog/products").param("ids", String.join(",", Collections.nCopies(101, UUID.randomUUID().toString()))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void browse_invalidParameters_return400() throws Exception {
         mockMvc.perform(get("/catalog/products").param("minPrice", "500").param("maxPrice", "100"))
                 .andExpect(status().isBadRequest())

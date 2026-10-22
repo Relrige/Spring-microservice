@@ -49,7 +49,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ProductService {
-    // EP-CAT-09: an order never has this many distinct products; bounds the size of the IN (...) query
+    // EP-CAT-09 and the ids filter of EP-CAT-04: an order never has this many distinct products, and a page
+    // holds at most this many rows; bounds the size of the IN (...) query
     public static final int BATCH_GET_MAX_IDS = 100;
 
     // sortBy values accepted by EP-CAT-04, mapped to entity properties. Never sort by an arbitrary property name.
@@ -165,6 +166,9 @@ public class ProductService {
         if (status != null) {
             filters.add(ProductSpecifications.hasStatus(status));
         }
+        if (query.getIds() != null) {
+            filters.add(ProductSpecifications.idIn(distinctIds(query.getIds())));
+        }
         if (query.getCategoryId() != null) {
             filters.add(ProductSpecifications.inCategory(query.getCategoryId()));
         }
@@ -190,16 +194,7 @@ public class ProductService {
      */
     @Transactional(readOnly = true)
     public List<BatchProductResponse> batchGetProducts(@Nullable Collection<UUID> ids) {
-        // A list such as "?ids=a,,b" binds an empty element as null
-        if (ids == null || ids.isEmpty() || ids.stream().anyMatch(Objects::isNull)) {
-            throw new RequestValidationException(Map.of("ids", List.of("must be a non-empty list of UUIDs")));
-        }
-        Set<UUID> distinctIds = new LinkedHashSet<>(ids);
-        if (distinctIds.size() > BATCH_GET_MAX_IDS) {
-            throw new RequestValidationException(Map.of("ids",
-                    List.of("must contain at most " + BATCH_GET_MAX_IDS + " IDs")));
-        }
-
+        Set<UUID> distinctIds = distinctIds(ids);
         Map<UUID, Product> found = productRepository.findAllById(distinctIds).stream()
                 .collect(Collectors.toMap(Product::getId, Function.identity()));
         return distinctIds.stream()
@@ -222,6 +217,23 @@ public class ProductService {
 
     private static boolean isStaff(@Nullable UserRole role) {
         return role == UserRole.CATALOG_MANAGER || role == UserRole.INVENTORY_WORKER;
+    }
+
+    /**
+     * The {@code ids} of EP-CAT-04 and EP-CAT-09: a non-empty list of at most {@link #BATCH_GET_MAX_IDS} distinct
+     * UUIDs, in request order. Duplicates count once.
+     */
+    private static Set<UUID> distinctIds(@Nullable Collection<UUID> ids) {
+        // A list such as "?ids=a,,b" binds an empty element as null
+        if (ids == null || ids.isEmpty() || ids.stream().anyMatch(Objects::isNull)) {
+            throw new RequestValidationException(Map.of("ids", List.of("must be a non-empty list of UUIDs")));
+        }
+        Set<UUID> distinctIds = new LinkedHashSet<>(ids);
+        if (distinctIds.size() > BATCH_GET_MAX_IDS) {
+            throw new RequestValidationException(Map.of("ids",
+                    List.of("must contain at most " + BATCH_GET_MAX_IDS + " IDs")));
+        }
+        return distinctIds;
     }
 
     /**

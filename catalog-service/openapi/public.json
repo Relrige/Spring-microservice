@@ -365,6 +365,18 @@
             "format" : "uuid"
           }
         }, {
+          "description" : "Comma-separated product IDs, at most 100 distinct. Only these products are returned (still filtered by visibility and the other parameters); paging is unchanged, so send `size=100` to get up to 100 products in one page.",
+          "in" : "query",
+          "name" : "ids",
+          "required" : false,
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          }
+        }, {
           "in" : "query",
           "name" : "minPrice",
           "required" : false,
