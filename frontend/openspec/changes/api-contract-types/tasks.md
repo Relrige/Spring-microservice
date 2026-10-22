@@ -27,8 +27,8 @@
 
 ## 6. Integration
 
-- [ ] 6.1 Run `npm run check` and `npm run check:e2e`; verify both pass
-- [ ] 6.2 Start the Compose stack, run `npm run seed` and `npm run test:e2e:live`, and record the result in the *Live verification* section of `README.md` (including that Catalog lists answer `size`); verify the live run passes
+- [x] 6.1 Run `npm run check` and `npm run check:e2e`; verify both pass
+- [x] 6.2 Start the Compose stack, run `npm run seed` and `npm run test:e2e:live`, and record the result in the *Live verification* section of `README.md` (including that Catalog lists answer `size`); verify the live run passes
 - [ ] 6.3 Mark BL-04 and BL-05 `Done` (last requirement ticked, *Frontend impact* states what was done, frontmatter and index row equal) and remove the BL-04/BL-05 workaround notes from code comments if any remain (`grep -rn "BL-0[45]" src scripts e2e`); verify the index rows read `Done` and the grep finds no workaround marker
 
 ## Workflow follow-up
