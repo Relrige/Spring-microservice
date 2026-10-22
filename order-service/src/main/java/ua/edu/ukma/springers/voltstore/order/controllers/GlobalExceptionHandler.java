@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import ua.edu.ukma.springers.voltstore.order.exceptions.DependencyUnavailableException;
+import ua.edu.ukma.springers.voltstore.order.exceptions.IdempotencyKeyMismatchException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.IneligibleItemsException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.InsufficientStockException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.InvalidOrderStateException;
@@ -23,6 +24,7 @@ import ua.edu.ukma.springers.voltstore.order.exceptions.OrderTotalTooLargeExcept
 import ua.edu.ukma.springers.voltstore.order.exceptions.PaymentAttemptInProgressException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.PaymentDeclinedException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.PaymentWindowExpiredException;
+import ua.edu.ukma.springers.voltstore.order.exceptions.RequestInProgressException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.TtnNotGeneratedException;
 import ua.edu.ukma.springers.voltstore.order.paging.InvalidQueryParameterException;
 
@@ -47,6 +49,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     static final String SERVICE_UNAVAILABLE_DETAIL =
             "The order cannot be processed right now because a required service is unavailable. Please try again later.";
     static final String RETRY_AFTER_SECONDS = "10";
+    // The first request with the same Idempotency-Key usually finishes within a second or two
+    static final String IN_PROGRESS_RETRY_AFTER_SECONDS = "1";
 
     @ExceptionHandler(OrderNotFoundException.class)
     public ProblemDetail handleOrderNotFound(OrderNotFoundException ex) {
@@ -75,6 +79,21 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 "Order total too large", ex.getMessage());
         problem.setProperty("maxTotal", ex.getMaxTotal());
         return problem;
+    }
+
+    @ExceptionHandler(IdempotencyKeyMismatchException.class)
+    public ProblemDetail handleIdempotencyKeyMismatch(IdempotencyKeyMismatchException ex) {
+        return problem(HttpStatus.UNPROCESSABLE_ENTITY, "idempotency-key-mismatch", "Idempotency-Key mismatch",
+                ex.getMessage());
+    }
+
+    @ExceptionHandler(RequestInProgressException.class)
+    public ResponseEntity<ProblemDetail> handleRequestInProgress(RequestInProgressException ex) {
+        ProblemDetail problem = problem(HttpStatus.CONFLICT, "request-in-progress", "Request in progress",
+                ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .header(HttpHeaders.RETRY_AFTER, IN_PROGRESS_RETRY_AFTER_SECONDS)
+                .body(problem);
     }
 
     @ExceptionHandler(InvalidOrderStateException.class)

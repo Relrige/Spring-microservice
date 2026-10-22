@@ -9,6 +9,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.transaction.support.TransactionOperations;
+import tools.jackson.databind.json.JsonMapper;
 import ua.edu.ukma.springers.voltstore.order.config.CheckoutProperties;
 import ua.edu.ukma.springers.voltstore.order.dto.DeliveryDetailsRequest;
 import ua.edu.ukma.springers.voltstore.order.dto.IneligibleItem;
@@ -16,19 +17,24 @@ import ua.edu.ukma.springers.voltstore.order.dto.InsufficientItem;
 import ua.edu.ukma.springers.voltstore.order.dto.OrderItemRequest;
 import ua.edu.ukma.springers.voltstore.order.dto.PlaceOrderRequest;
 import ua.edu.ukma.springers.voltstore.order.dto.PlacedOrderResponse;
+import ua.edu.ukma.springers.voltstore.order.entities.DeliveryDetails;
+import ua.edu.ukma.springers.voltstore.order.entities.IdempotencyKey;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderEntity;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderItemEntity;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderStatus;
 import ua.edu.ukma.springers.voltstore.order.events.OrderPlacedEvent;
 import ua.edu.ukma.springers.voltstore.order.exceptions.DependencyUnavailableException;
+import ua.edu.ukma.springers.voltstore.order.exceptions.IdempotencyKeyMismatchException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.IneligibleItemsException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.InsufficientStockException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.MissingCustomerEmailException;
+import ua.edu.ukma.springers.voltstore.order.exceptions.RequestInProgressException;
 import ua.edu.ukma.springers.voltstore.order.outbox.Outbox;
 import ua.edu.ukma.springers.voltstore.order.ports.CatalogProduct;
 import ua.edu.ukma.springers.voltstore.order.ports.ProductCatalog;
 import ua.edu.ukma.springers.voltstore.order.ports.StockReservations;
 import ua.edu.ukma.springers.voltstore.order.ports.StockReservations.ReservationItem;
+import ua.edu.ukma.springers.voltstore.order.repositories.IdempotencyKeyRepository;
 import ua.edu.ukma.springers.voltstore.order.repositories.OrderRepository;
 import ua.edu.ukma.springers.voltstore.order.repositories.ReservationAttemptRepository;
 import ua.edu.ukma.springers.voltstore.order.entities.ReservationAttempt;
@@ -42,6 +48,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -52,6 +59,8 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -84,11 +93,16 @@ class OrderPlacementServiceTest {
     @Mock
     private ReservationAttemptRepository attempts;
 
+    @Mock
+    private IdempotencyKeyRepository keys;
+
     private OrderPlacementService service;
 
     @BeforeEach
     void setUp() {
-        service = new OrderPlacementService(catalog, stock, orders, attempts, outbox,
+        IdempotencyKeys idempotencyKeys = new IdempotencyKeys(keys, TransactionOperations.withoutTransaction(),
+                JsonMapper.builder().build(), Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new OrderPlacementService(catalog, stock, orders, attempts, idempotencyKeys, outbox,
                 TransactionOperations.withoutTransaction(),
                 new CheckoutProperties(Duration.ofMinutes(15), Set.of("NOVA_POSHTA")),
                 Clock.fixed(NOW, ZoneOffset.UTC));
@@ -322,6 +336,184 @@ class OrderPlacementServiceTest {
         assertThatThrownBy(() -> service.place(withoutEmail, request(item(PHONE, 1))))
                 .isInstanceOf(MissingCustomerEmailException.class);
         verifyNoInteractions(catalog, stock, orders, outbox);
+    }
+
+    // ---- Idempotency-Key (D4-D9) ----
+
+    @Test
+    void withoutAKey_noKeyRowIsTouched() {
+        catalogKnows(active(PHONE, "Phone", "100.00"));
+        when(stock.reserve(any(), anyList())).thenReturn(new StockReservations.Reserved());
+
+        assertThat(service.place(CUSTOMER, request(item(PHONE, 1)), null).replayed()).isFalse();
+        verifyNoInteractions(keys);
+    }
+
+    @Test
+    void theOwner_claimsBeforeCatalog_andCompletesWithTheOrder() {
+        UUID key = UUID.randomUUID();
+        when(keys.claim(eq(CUSTOMER.id()), eq(key), any(), eq(NOW))).thenReturn(1);
+        when(keys.complete(any(), any(), any())).thenReturn(1);
+        catalogKnows(active(PHONE, "Phone", "100.00"));
+        when(stock.reserve(any(), anyList())).thenReturn(new StockReservations.Reserved());
+
+        OrderPlacementService.Placement placed = service.place(CUSTOMER, request(item(PHONE, 1)), key);
+
+        assertThat(placed.replayed()).isFalse();
+        InOrder steps = inOrder(keys, catalog, stock, orders);
+        steps.verify(keys).claim(eq(CUSTOMER.id()), eq(key), any(), eq(NOW));
+        steps.verify(catalog).findProducts(anyList());
+        steps.verify(stock).reserve(any(), anyList());
+        steps.verify(orders).save(any());
+        steps.verify(keys).complete(CUSTOMER.id(), key, placed.order().orderId());
+        verify(keys, never()).release(any(), any());
+    }
+
+    @Test
+    void aCompletionThatFindsNoClaim_stillStoresTheOrder() {
+        UUID key = UUID.randomUUID();
+        when(keys.claim(any(), any(), any(), any())).thenReturn(1);
+        when(keys.complete(any(), any(), any())).thenReturn(0);
+        catalogKnows(active(PHONE, "Phone", "100.00"));
+        when(stock.reserve(any(), anyList())).thenReturn(new StockReservations.Reserved());
+
+        service.place(CUSTOMER, request(item(PHONE, 1)), key);
+
+        verify(orders).save(any());
+        verify(stock, never()).release(any());
+    }
+
+    @Test
+    void aReplayOfACompletedKey_returnsTheCurrentOrder_withoutCallingAnyone() {
+        UUID key = UUID.randomUUID();
+        PlaceOrderRequest request = request(item(PHONE, 1));
+        OrderEntity stored = storedOrder();
+        stored.markPaid(NOW);
+        givenExistingKey(key, request, IdempotencyKey.Status.COMPLETED, stored.getId());
+        when(orders.findById(stored.getId())).thenReturn(Optional.of(stored));
+
+        OrderPlacementService.Placement placed = service.place(CUSTOMER, request, key);
+
+        assertThat(placed.replayed()).isTrue();
+        assertThat(placed.order().orderId()).isEqualTo(stored.getId());
+        assertThat(placed.order().status()).isEqualTo(OrderStatus.PAID);
+        verifyNoInteractions(catalog, stock, attempts, outbox);
+        verify(orders, never()).save(any());
+    }
+
+    @Test
+    void aKeyUsedForAnotherRequest_isRefused_whateverItsStatus() {
+        UUID key = UUID.randomUUID();
+        givenExistingKey(key, request(item(PHONE, 1)), IdempotencyKey.Status.COMPLETED, UUID.randomUUID());
+
+        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 2)), key))
+                .isInstanceOf(IdempotencyKeyMismatchException.class);
+        verifyNoInteractions(catalog, stock, orders, attempts, outbox);
+    }
+
+    @Test
+    void aKeyAnotherRequestHasClaimed_isAnsweredInProgress() {
+        UUID key = UUID.randomUUID();
+        PlaceOrderRequest request = request(item(PHONE, 1));
+        givenExistingKey(key, request, IdempotencyKey.Status.IN_PROGRESS, null);
+
+        assertThatThrownBy(() -> service.place(CUSTOMER, request, key))
+                .isInstanceOf(RequestInProgressException.class);
+        verifyNoInteractions(catalog, stock, orders, attempts, outbox);
+        verify(keys, never()).release(any(), any());
+    }
+
+    @Test
+    void ineligibleItems_releaseTheClaim() {
+        UUID key = givenClaimedKey();
+        catalogKnows(new CatalogProduct(PHONE, "Phone", BigDecimal.ONE, CatalogProduct.Status.NOT_ACTIVE, null));
+
+        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1)), key))
+                .isInstanceOf(IneligibleItemsException.class);
+        verify(keys).release(CUSTOMER.id(), key);
+    }
+
+    @Test
+    void aTotalTooLarge_releasesTheClaim() {
+        UUID key = givenClaimedKey();
+        catalogKnows(active(PHONE, "Phone", "1000000000.00"));
+
+        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 10)), key))
+                .isInstanceOf(OrderTotalTooLargeException.class);
+        verify(keys).release(CUSTOMER.id(), key);
+    }
+
+    @Test
+    void insufficientStock_releasesTheClaim() {
+        UUID key = givenClaimedKey();
+        catalogKnows(active(PHONE, "Phone", "100.00"));
+        when(stock.reserve(any(), anyList()))
+                .thenReturn(new StockReservations.Insufficient(List.of(new InsufficientItem(PHONE, 5, 1))));
+
+        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 5)), key))
+                .isInstanceOf(InsufficientStockException.class);
+        verify(keys).release(CUSTOMER.id(), key);
+    }
+
+    @Test
+    void anUnavailableDependency_releasesTheClaim_andKeepsTheAttempt() {
+        UUID key = givenClaimedKey();
+        catalogKnows(active(PHONE, "Phone", "100.00"));
+        when(stock.reserve(any(), anyList())).thenThrow(new DependencyUnavailableException("Inventory", "down", null));
+
+        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1)), key))
+                .isInstanceOf(DependencyUnavailableException.class);
+        verify(keys).release(CUSTOMER.id(), key);
+        verify(attempts, never()).deleteById(any());
+    }
+
+    @Test
+    void aFailedSave_releasesTheClaim_andTheReservation() {
+        UUID key = givenClaimedKey();
+        catalogKnows(active(PHONE, "Phone", "100.00"));
+        when(stock.reserve(any(), anyList())).thenReturn(new StockReservations.Reserved());
+        DataAccessResourceFailureException failure = new DataAccessResourceFailureException("database down");
+        doThrow(failure).when(orders).save(any());
+
+        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1)), key)).isSameAs(failure);
+        verify(keys).release(CUSTOMER.id(), key);
+        verify(stock).release(any());
+    }
+
+    @Test
+    void aFailedRelease_doesNotHideTheOriginalFailure_ofAKeyedRequest() {
+        UUID key = givenClaimedKey();
+        DependencyUnavailableException failure = new DependencyUnavailableException("Catalog", "down", null);
+        when(catalog.findProducts(anyList())).thenThrow(failure);
+        when(keys.release(any(), any())).thenThrow(new DataAccessResourceFailureException("database down"));
+
+        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1)), key)).isSameAs(failure);
+    }
+
+    private UUID givenClaimedKey() {
+        when(keys.claim(any(), any(), any(), any())).thenReturn(1);
+        return UUID.randomUUID();
+    }
+
+    private void givenExistingKey(UUID key, PlaceOrderRequest firstRequest, IdempotencyKey.Status status,
+                                  UUID orderId) {
+        // The row as the first request left it, with that request's hash
+        IdempotencyKeys hasher = new IdempotencyKeys(keys, TransactionOperations.withoutTransaction(),
+                JsonMapper.builder().build(), Clock.fixed(NOW, ZoneOffset.UTC));
+        IdempotencyKey row = mock(IdempotencyKey.class);
+        when(row.getRequestHash()).thenReturn(hasher.hash(firstRequest));
+        lenient().when(row.getStatus()).thenReturn(status);
+        lenient().when(row.getOrderId()).thenReturn(orderId);
+        when(keys.claim(any(), eq(key), any(), any())).thenReturn(0);
+        when(keys.findById(new IdempotencyKey.Id(CUSTOMER.id(), key))).thenReturn(Optional.of(row));
+    }
+
+    private static OrderEntity storedOrder() {
+        return OrderEntity.place(UUID.randomUUID(), CUSTOMER.id(), CUSTOMER.email(),
+                new DeliveryDetails("Ivan Petrenko", "+380501234567",
+                        "Kyiv, branch 12", "NOVA_POSHTA"),
+                List.of(OrderItemEntity.snapshot(PHONE, "Phone", new BigDecimal("100.00"), 1)), "UAH", NOW,
+                Duration.ofMinutes(15));
     }
 
     private void catalogKnows(CatalogProduct... products) {
