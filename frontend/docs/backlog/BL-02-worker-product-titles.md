@@ -59,16 +59,31 @@ Backend tasks: Catalog [27](../../../docs/tasks/catalog-service/27-staff-product
 - **Done in Catalog** (tasks 27–29, [PR #22](https://github.com/Relrige/Spring-microservice/pull/22), merged):
   - `GET /catalog/products` shows `INVENTORY_WORKER` products of every status, and the `status` filter works for workers;
   - `GET /catalog/products?ids=a,b,c` (at most 100 distinct IDs; repeated `ids=` also works) returns only those products, still filtered by visibility; empty, malformed or more than 100 IDs → `400` with `errors.ids`;
-  - `GET /catalog/products/{id}` gives workers inactive products too (but see BL-01: the gateway route is not `OPTIONAL` yet);
+  - `GET /catalog/products/{id}` gives workers inactive products too (through the gateway once gateway task 12, [PR #27](https://github.com/Relrige/Spring-microservice/pull/27), is merged; see BL-01);
   - Catalog now publishes full-state `ProductCreated` and `ProductUpdated` events, which Inventory will use for its copy of titles.
 - **Usable through the gateway as soon as the PR is merged:** the list with `ids` and the worker's visibility (route `catalog-browse-products` is already `OPTIONAL`). That replaces the "one request per title" workaround (`BL-02` comments in the code).
-- **Done in Inventory** (tasks 22–24, [PR #25](https://github.com/Relrige/Spring-microservice/pull/25), not merged yet):
+- **Done in Inventory** (tasks 22–24, [PR #25](https://github.com/Relrige/Spring-microservice/pull/25), merged):
   - each row of `GET /inventory/stock` adds `title` and `productStatus` (`ACTIVE`/`NOT_ACTIVE`). Both are optional in `inventory-service/openapi/public.json` and are missing or `null` until copied, so `npm run gen:api` adds them as optional fields;
   - new query parameters `search` (case-insensitive part of the title; `%` and `_` match literally; blank means no filter) and `productStatus`; both combine with `packagingConfigured` and paging;
   - `sortBy=title` (and `title,desc`) puts rows without a title last;
   - an invalid `productStatus` (and now also an invalid `packagingConfigured`) → `400` with `errors.<parameter>`;
   - the copy comes from Catalog's product events and a backfill job, so a rename shows up a moment later (eventually consistent). The Catalog side (PR #22) is merged.
-- **Next:** once PR #25 is merged, the worker console can take titles from the stock list itself and drop the per-title lookups (`BL-02` comments in the code). The item stays `In progress` until the frontend has verified this.
+- **Next:** the worker console can take titles from the stock list itself and drop the per-title lookups (`BL-02` comments in the code). The item stays `In progress` until the frontend has verified this.
+
+### How to use it from the frontend
+
+- Worker stock page: `GET /api/inventory/stock?search=…&productStatus=…&sortBy=title&page=…&size=…` with the worker's token. Show `title` when present. Where it is missing (not copied yet), fall back to the product ID; there's no need to call Catalog for it.
+- `productStatus` per row lets the console mark products that are still being prepared (`NOT_ACTIVE`).
+- `400` answers name the bad parameter in `errors` (for example `errors.productStatus`, `errors.packagingConfigured`, `errors.sortBy`), so a form can show the error next to the field.
+- `GET /api/catalog/products?ids=…` stays available when full product data is needed (price, category); workers see every status there.
+- Mock backend: the stock handler should add `title`/`productStatus`, apply `search` (case-insensitive substring), the `productStatus` filter and `sortBy=title` with untitled rows last.
+
+### Differences from what was requested
+
+- **More than requested:** besides the two proposed Catalog changes, Inventory now returns titles itself, with search and sort by title across the whole stock list. This is the alternative the item had rejected. The backend took it anyway, because joining titles in the browser can't search or sort beyond one page. It's kept up to date with full-state events and a version number, instead of updating the event only on rename.
+- **Eventually consistent:** a new or renamed product shows its title in the stock list a moment later, and rows can briefly have no title.
+- **Visibility also on the details endpoint:** workers see inactive products on `GET /catalog/products/{id}` too (shared with BL-01).
+- **`ids` details:** repeated `ids=` parameters work as well as a comma-separated list, and duplicates count once towards the limit of 100.
 
 ## Notes
 

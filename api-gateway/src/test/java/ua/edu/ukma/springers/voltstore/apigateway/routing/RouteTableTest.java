@@ -157,6 +157,7 @@ class RouteTableTest extends GatewayIntegrationTest {
         assertThat(policy.all()).hasSize(31);
         assertThat(policy.forRoute("auth-register")).contains(new RouteAccess(AuthMode.PUBLIC, Set.of()));
         assertThat(policy.forRoute("catalog-browse-products")).contains(new RouteAccess(AuthMode.OPTIONAL, Set.of()));
+        assertThat(policy.forRoute("catalog-get-product")).contains(new RouteAccess(AuthMode.OPTIONAL, Set.of()));
         assertThat(policy.forRoute("auth-create-non-customer"))
                 .contains(new RouteAccess(AuthMode.REQUIRED, Set.of(UserRole.ADMIN)));
         assertThat(policy.forRoute("inventory-adjust-stock"))
