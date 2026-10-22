@@ -17,7 +17,7 @@ Root files (`docker-compose.yml`, `k8s/`, `k8s.txt`) are edited under the except
 
 ## 4. Docs and backlog
 
-- [ ] 4.1 Add BL-14 (gateway spec: the Ingress now serves the frontend; Nice to have, docs) with its index row; document Compose and Kubernetes use in `frontend/README.md` (ports, the `/api` path through the Ingress, `E2E_BASE_URL`) and record both runs in *Live verification*; verify the links in the README resolve
+- [x] 4.1 Add BL-14 (gateway spec: the Ingress now serves the frontend; Nice to have, docs) with its index row; document Compose and Kubernetes use in `frontend/README.md` (ports, the `/api` path through the Ingress, `E2E_BASE_URL`) and record both runs in *Live verification*; verify the links in the README resolve
 
 ## Workflow follow-up
 

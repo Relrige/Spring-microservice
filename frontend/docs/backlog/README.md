@@ -17,3 +17,4 @@ Changes the **backend** should make so the frontend can work properly or better.
 | [BL-11](BL-11-carrier-list.md) | List of available carriers | Open | Later | order, gateway | — | Endpoint listing the carriers `POST /orders` accepts; frontend hardcodes `NOVA_POSHTA` until then |
 | [BL-12](BL-12-product-attributes.md) | Product attributes | Open | Later | catalog | — | Technical characteristics and filtering by them; postponed |
 | [BL-13](BL-13-order-status-push.md) | Push order status changes to the browser | Open | Later | order, gateway | — | SSE or long polling instead of short polling; postponed |
+| [BL-14](BL-14-ingress-serves-frontend.md) | Gateway docs still say the Ingress sends all traffic to the gateway | Open | Nice to have | docs | — | The Ingress now serves the frontend, which proxies `/api` to the gateway; the gateway spec and `e2e/manual/k8s-gateway.md` still describe `/` → gateway |
