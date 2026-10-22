@@ -55,7 +55,7 @@ async function as<T>(token: string, call: () => Promise<T>): Promise<T> {
   }
 }
 
-function order(token: string, productId: string, quantity = 1, k = key()) {
+function order(token: string, productId: string, quantity = 1, k: string = key()) {
   return as(token, () =>
     placeOrder({ items: [{ productId, quantity }], deliveryDetails: delivery }, k),
   );
