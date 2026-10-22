@@ -9,7 +9,7 @@
 
 - [x] 2.1 Write the admin journey and update the staff-login journey (design D3); verify `npm run check:e2e` passes
 - [x] 2.2 Run `npm run test:e2e:live` against the Compose stack; record the result in *Live verification* of `frontend/README.md`; verify the live run passes
-- [ ] 2.3 Check `/admin` in the preview pane on desktop and at 375 px, light and dark; verify by screenshots that it follows the design system README and has no horizontal scroll
+- [x] 2.3 Check `/admin` in the preview pane on desktop and at 375 px, light and dark; verify by screenshots that it follows the design system README and has no horizontal scroll
 
 ## Workflow follow-up
 
