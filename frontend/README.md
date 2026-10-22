@@ -20,7 +20,9 @@ The web app of VoltStore: one React + TypeScript single-page app for customers, 
 | `npm run dev:mock` | Dev server on <http://localhost:5174> with the mock backend (MSW in the browser). No Docker needed. |
 | `npm run build` | Type-check and build to `dist/`. |
 | `npm run preview` | Serve the build on <http://localhost:4173> (no API proxy). |
-| `npm run check` | Types, lint and all unit and component tests (Vitest). Run before every commit. |
+| `npm run check` | `check:api`, types, lint and all unit and component tests (Vitest). Run before every commit. |
+| `npm run gen:api` | Regenerate the API types in `src/api/generated/` from the services' OpenAPI documents (below). |
+| `npm run check:api` | Fail if the generated API types differ from what the current OpenAPI documents produce. |
 | `npm run check:e2e` | Browser journeys (Playwright, project `mock`) against `dev:mock`; starts the server itself. |
 | `npm run test:e2e:live` | The same journeys (project `live`) against the Compose stack through `npm run dev`. Seed first. |
 | `npm run seed` | Fill a running stack with the demo data (below). |
@@ -30,6 +32,13 @@ The web app of VoltStore: one React + TypeScript single-page app for customers, 
 First run of the browser tests on a machine: `npx playwright install chromium`.
 
 The preview pane of the Claude desktop app has two launch entries in [`.claude/launch.json`](.claude/launch.json): `frontend-dev` (5173, live backend) and `frontend-mock` (5174, mock backend).
+
+## API types
+
+The request and response types come from the OpenAPI documents the services commit next to their code: `../<service>-service/openapi/public.json` for Auth, Catalog, Customer, Order, Inventory and Delivery (rules in [`../docs/design/services-requirements/openapi-conventions.md`](../docs/design/services-requirements/openapi-conventions.md)). `npm run gen:api` turns each into `src/api/generated/<service>.ts` with `openapi-typescript`. The generated files are committed, so the build does not need the backend folders, and are never edited by hand. `src/api/<service>.ts` aliases them and makes the calls.
+
+When a service changes its document, `npm run check` fails at `check:api`. Run `npm run gen:api`, review the diff of the generated files (it is the API change), and adapt the code and the mock handlers.
+
 
 ## Demo accounts
 

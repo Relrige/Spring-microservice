@@ -17,11 +17,12 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run typecheck && npm run lint && npm run test",
+    "check": "npm run check:api && npm run typecheck && npm run lint && npm run test",
     "check:e2e": "playwright test --project=mock",
     "test:e2e:live": "playwright test --project=live",
     "seed": "tsx scripts/seed.ts",
-    "gen:api": "tsx scripts/gen-api.ts"
+    "gen:api": "tsx scripts/gen-api.ts",
+    "check:api": "tsx scripts/gen-api.ts --check"
   },
   "dependencies": {
     "@mantine/core": "9.7.3",

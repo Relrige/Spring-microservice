@@ -3,7 +3,7 @@
 ## 1. Type generation
 
 - [x] 1.1 Add `openapi-typescript` (current stable, exact pin; design Risks for the TypeScript peer range), `scripts/gen-api.ts` and `npm run gen:api` (design D2): six files `src/api/generated/{auth,catalog,customer,order,inventory,delivery}.ts` from `../<service>-service/openapi/public.json`, LF line endings, never `internal.json`; add `src/api/generated/` to the ESLint ignores and `.prettierignore`; verify the six files are generated, contain `paths`, `components` and `operations`, and `npm run check` passes
-- [ ] 1.2 Add `npm run check:api` (generate in memory, compare with the committed files, name each stale file and the fix) and run it first in `npm run check`; document both scripts and the source of the generated files in `README.md`; verify that `check:api` fails naming `catalog.ts` after a local edit to `src/api/generated/catalog.ts`, passes again after `gen:api`, and that `npm run check` passes
+- [x] 1.2 Add `npm run check:api` (generate in memory, compare with the committed files, name each stale file and the fix) and run it first in `npm run check`; document both scripts and the source of the generated files in `README.md`; verify that `check:api` fails naming `catalog.ts` after a local edit to `src/api/generated/catalog.ts`, passes again after `gen:api`, and that `npm run check` passes
 
 ## 2. Contract helpers and problems (spec `api-access`)
 
