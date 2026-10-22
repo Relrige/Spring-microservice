@@ -14,6 +14,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -34,10 +35,13 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Stream;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalToJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.noContent;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
@@ -117,6 +121,7 @@ class CheckoutIntegrationTest {
         jdbc.update("DELETE FROM orders");
         jdbc.update("DELETE FROM outbox_events");
         jdbc.update("DELETE FROM reservation_attempts");
+        jdbc.update("DELETE FROM idempotency_keys");
     }
 
     // ---- EP-ORD-01 ----
@@ -265,6 +270,137 @@ class CheckoutIntegrationTest {
 
         wireMock.verify(1, postRequestedFor(urlMatching(RELEASE)));
         assertThat(count("reservation_attempts")).isZero();
+    }
+
+    // ---- EP-ORD-02 with an Idempotency-Key (task 19) ----
+
+    @Test
+    void aRepeatWithTheSameKey_returnsTheFirstOrder_andReservesOnce() throws Exception {
+        catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
+        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(noContent()));
+        UUID key = UUID.randomUUID();
+
+        String first = placeWithKey(CUSTOMER, key, placeBody())
+                .andExpect(status().isCreated())
+                .andExpect(header().doesNotExist("Idempotent-Replayed"))
+                .andReturn().getResponse().getContentAsString();
+        String second = placeWithKey(CUSTOMER, key, placeBody())
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Idempotent-Replayed", "true"))
+                .andReturn().getResponse().getContentAsString();
+
+        UUID orderId = orderId(first);
+        assertThat(orderId(second)).isEqualTo(orderId);
+        assertThat(count("orders")).isEqualTo(1);
+        wireMock.verify(1, postRequestedFor(urlEqualTo(RESERVE)));
+        wireMock.verify(1, getRequestedFor(urlPathEqualTo(CATALOG)));
+        assertThat(jdbc.queryForMap("SELECT status, order_id FROM idempotency_keys"))
+                .containsEntry("status", "COMPLETED").containsEntry("order_id", orderId);
+    }
+
+    @Test
+    void twoConcurrentRequestsWithTheSameKey_placeOneOrder() throws Exception {
+        catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
+        // Slow enough that the second request arrives while the first one is still reserving
+        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(noContent().withFixedDelay(1500)));
+        UUID key = UUID.randomUUID();
+
+        List<CompletableFuture<MockHttpServletResponse>> calls =
+                Stream.of(0, 1).map(i -> CompletableFuture.supplyAsync(() -> {
+                    try {
+                        return placeWithKey(CUSTOMER, key, placeBody()).andReturn().getResponse();
+                    } catch (Exception e) {
+                        throw new IllegalStateException(e);
+                    }
+                })).toList();
+        List<MockHttpServletResponse> answers =
+                calls.stream().map(CompletableFuture::join).toList();
+
+        assertThat(answers).extracting(MockHttpServletResponse::getStatus)
+                .contains(201).allSatisfy(code -> assertThat(code).isIn(201, 409));
+        assertThat(answers).filteredOn(answer -> answer.getStatus() == 409)
+                .allSatisfy(answer -> assertThat(answer.getHeader("Retry-After")).isEqualTo("1"));
+        assertThat(count("orders")).isEqualTo(1);
+        wireMock.verify(1, postRequestedFor(urlEqualTo(RESERVE)));
+    }
+
+    @Test
+    void theSameKeyWithAnotherBody_is422_andPlacesNothingMore() throws Exception {
+        catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
+        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(noContent()));
+        UUID key = UUID.randomUUID();
+        placeWithKey(CUSTOMER, key, placeBody()).andExpect(status().isCreated());
+
+        String otherCart = "{\"items\":[{\"productId\":\"" + PHONE + "\",\"quantity\":3}],\"deliveryDetails\":"
+                + DELIVERY + "}";
+        placeWithKey(CUSTOMER, key, otherCart)
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/idempotency-key-mismatch"));
+
+        assertThat(count("orders")).isEqualTo(1);
+        wireMock.verify(1, postRequestedFor(urlEqualTo(RESERVE)));
+    }
+
+    @Test
+    void aFailedRequest_releasesTheKey_soARetryWithItPlacesTheOrder() throws Exception {
+        catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
+        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(serviceUnavailable()));
+        wireMock.stubFor(post(urlMatching(RELEASE)).willReturn(noContent()));
+        UUID key = UUID.randomUUID();
+        placeWithKey(CUSTOMER, key, placeBody()).andExpect(status().isServiceUnavailable());
+        assertThat(count("idempotency_keys")).isZero();
+
+        circuitBreakers.getAllCircuitBreakers().forEach(CircuitBreaker::reset);
+        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(noContent()));
+        placeWithKey(CUSTOMER, key, placeBody())
+                .andExpect(status().isCreated())
+                .andExpect(header().doesNotExist("Idempotent-Replayed"));
+
+        assertThat(count("orders")).isEqualTo(1);
+    }
+
+    @Test
+    void theSameKeyFromTwoCustomers_placesTwoOrders() throws Exception {
+        catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
+        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(noContent()));
+        UUID key = UUID.randomUUID();
+
+        String first = placeWithKey(CUSTOMER, key, placeBody()).andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String second = placeWithKey(UUID.randomUUID(), key, placeBody())
+                .andExpect(status().isCreated())
+                .andExpect(header().doesNotExist("Idempotent-Replayed"))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(orderId(second)).isNotEqualTo(orderId(first));
+        assertThat(count("orders")).isEqualTo(2);
+    }
+
+    @Test
+    void aReplayAfterPayment_showsTheCurrentStatus() throws Exception {
+        catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
+        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(noContent()));
+        UUID key = UUID.randomUUID();
+        UUID orderId = orderId(placeWithKey(CUSTOMER, key, placeBody()).andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString());
+        // As EP-ORD-03 leaves it; paying is tested in PaymentAndQueriesIntegrationTest
+        jdbc.update("UPDATE orders SET status = 'PAID', paid_at = now() WHERE id = ?", orderId);
+
+        placeWithKey(CUSTOMER, key, placeBody())
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Idempotent-Replayed", "true"))
+                .andExpect(header().string("Location", "/orders/" + orderId))
+                .andExpect(jsonPath("$.status").value("PAID"));
+    }
+
+    private ResultActions placeWithKey(UUID customer, UUID key, String body) throws Exception {
+        return mockMvc.perform(MockMvcRequestBuilders.post("/orders").headers(TrustedHeaders.asCustomer(customer))
+                .header("Idempotency-Key", key.toString())
+                .contentType(MediaType.APPLICATION_JSON).content(body));
+    }
+
+    private static UUID orderId(String response) {
+        return UUID.fromString(JSON.readTree(response).get("orderId").asString());
     }
 
     private ResultActions validate() throws Exception {

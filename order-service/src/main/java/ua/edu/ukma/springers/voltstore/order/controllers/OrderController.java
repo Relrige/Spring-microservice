@@ -2,6 +2,7 @@ package ua.edu.ukma.springers.voltstore.order.controllers;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ua.edu.ukma.springers.voltstore.order.dto.CancellationResponse;
@@ -54,6 +56,9 @@ import static ua.edu.ukma.springers.voltstore.order.openapi.OpenApiConfig.BEARER
 @RestController
 @RequiredArgsConstructor
 public class OrderController {
+    static final String IDEMPOTENCY_KEY = "Idempotency-Key";
+    static final String IDEMPOTENT_REPLAYED = "Idempotent-Replayed";
+
     private final CheckoutCheckService checkoutCheck;
     private final OrderPlacementService placement;
     private final OrderPaymentService payment;
@@ -89,13 +94,21 @@ public class OrderController {
         return ResponseEntity.noContent().build();
     }
 
-    /** EP-ORD-02: places the order and reserves its stock; the customer then pays within the payment window. */
+    /**
+     * EP-ORD-02: places the order and reserves its stock; the customer then pays within the payment window. With an
+     * {@code Idempotency-Key}, a repeat of a finished request returns the same order (D7).
+     */
     @Operation(summary = "Place an order (EP-ORD-02)",
-            description = "Role: CUSTOMER. Takes current prices from Catalog and reserves the stock; the order must then be paid before `reservationExpiresAt`.",
+            description = "Role: CUSTOMER. Takes current prices from Catalog and reserves the stock; the order must then be paid before `reservationExpiresAt`. "
+                    + "With an `Idempotency-Key`, repeating the request returns the first order instead of placing another.",
             security = @SecurityRequirement(name = BEARER_AUTH))
-    @ApiResponse(responseCode = "201", description = "Placed",
-            headers = @Header(name = "Location", description = "`/orders/{orderId}`",
-                    schema = @Schema(type = "string")))
+    @ApiResponse(responseCode = "201", description = "Placed, or replayed: the order placed earlier with the same "
+            + "`Idempotency-Key`, in its current state",
+            headers = {@Header(name = "Location", description = "`/orders/{orderId}`",
+                    schema = @Schema(type = "string")),
+                    @Header(name = IDEMPOTENT_REPLAYED, description = "`true` when the order was placed by an "
+                            + "earlier request with the same `Idempotency-Key`; absent otherwise",
+                            schema = @Schema(type = "boolean"))})
     @ApiResponse(responseCode = "400", description = "Invalid items or delivery details",
             content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE,
                     schema = @Schema(implementation = ValidationProblem.class)))
@@ -103,20 +116,36 @@ public class OrderController {
             content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = Problem.class)))
     @ApiResponse(responseCode = "403", description = "Not a CUSTOMER",
             content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = Problem.class)))
+    @ApiResponse(responseCode = "409", description = "A request with the same `Idempotency-Key` is still being "
+            + "processed (type `request-in-progress`); retry after `Retry-After`",
+            headers = @Header(name = "Retry-After", description = "Seconds to wait before retrying",
+                    schema = @Schema(type = "integer")),
+            content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = Problem.class)))
     @ApiResponse(responseCode = "422", description = "A product cannot be ordered, the stock is "
-            + "insufficient, or the total is too large; no order was created. The `type` tells them apart.",
+            + "insufficient, or the total is too large; no order was created. Or the `Idempotency-Key` was already "
+            + "used for a different request (Problem, type `idempotency-key-mismatch`). The `type` tells them apart.",
             content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE,
                     schema = @Schema(oneOf = {IneligibleItemsProblem.class, InsufficientStockProblem.class,
-                            OrderTotalTooLargeProblem.class})))
+                            OrderTotalTooLargeProblem.class, Problem.class})))
     @ApiResponse(responseCode = "503", description = "Catalog or Inventory cannot be reached; no order was created",
             headers = @Header(name = "Retry-After", description = "Seconds to wait before retrying",
                     schema = @Schema(type = "integer")),
             content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = Problem.class)))
     @PostMapping("/orders")
     public ResponseEntity<PlacedOrderResponse> place(@Valid @RequestBody PlaceOrderRequest request,
+                                                     @Parameter(in = ParameterIn.HEADER, description = "One key per "
+                                                             + "checkout attempt, generated by the client; a repeat "
+                                                             + "with the same key and body returns the first order")
+                                                     @RequestHeader(name = IDEMPOTENCY_KEY, required = false)
+                                                     UUID idempotencyKey,
                                                      @AuthenticationPrincipal AuthenticatedUser customer) {
-        PlacedOrderResponse order = placement.place(customer, request);
-        return ResponseEntity.created(URI.create("/orders/" + order.orderId())).body(order);
+        OrderPlacementService.Placement placed = placement.place(customer, request, idempotencyKey);
+        PlacedOrderResponse order = placed.order();
+        ResponseEntity.BodyBuilder created = ResponseEntity.created(URI.create("/orders/" + order.orderId()));
+        if (placed.replayed()) {
+            created.header(IDEMPOTENT_REPLAYED, "true");
+        }
+        return created.body(order);
     }
 
     /**
