@@ -86,9 +86,10 @@ test('expired session returns to the same page after login', async ({ page }) =>
   await logIn(page, manager.email, manager.password);
   await expect(page).toHaveURL(/\/manage\/products$/);
 
+  // The rewritten token is unsigned: the live gateway answers the product list with 401 at
+  // once, the mock only when it expires. Either way the session ends on this page.
   await shortenSession(page, 2);
   await page.reload();
-  await expect(page.getByRole('heading', { level: 1, name: 'Products' })).toBeVisible();
 
   await expect(page.getByText('Your session has expired.', { exact: false })).toBeVisible();
   await expect(page).toHaveURL(/\/login\?expired=1&returnTo=%2Fmanage%2Fproducts$/);
