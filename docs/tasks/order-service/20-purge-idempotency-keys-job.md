@@ -44,3 +44,5 @@ service: order-service
 - **Boundary tests split between two classes** (decided before implementation). The task puts the row-by-row boundary checks into `RecoveryJobsTest`, which mocks the repository and so cannot show which rows a `DELETE` removes. `RecoveryJobsTest` checks the exact cutoffs and the independence of the rules; `IdempotencyKeyRepositoryTest` checks the rows around each cutoff against PostgreSQL. Alternative: an in-memory fake repository, rejected because it would test the fake's comparison, not the SQL.
 - **One delete method for both rules** (`deleteByStatusCreatedBefore`) instead of two named ones. The rules differ only in status and cutoff, which the job names in its log line.
 - **`batch-size` is not used by the purge.** The task's "no batch limit" note: both deletes run unbounded; the `RecoveryProperties` Javadoc says so.
+
+*Spec sync (2026-10-22):* now part of the Order spec (EP-ORD-JOB-05, step 3): the strict cutoff, one transaction per rule, the log levels and the missing batch limit. The test split and the single delete method are implementation details and stay here only.

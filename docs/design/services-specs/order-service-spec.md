@@ -179,8 +179,11 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
   - `request_hash` differs → `422` type `idempotency-key-mismatch` (whatever the row's status).
   - `COMPLETED` → load the order `order_id` and return `201 Created` with the body of step 7 built from the order's **current** state (its `status` may already be `PAID` or later), `Location: /orders/{orderId}`, and the header `Idempotent-Replayed: true` (D7).
   - `IN_PROGRESS` → `409` type `request-in-progress` with `Retry-After: 1` ("A request with this Idempotency-Key is still being processed").
-- **Complete (inside the transaction of step 5).** Set the row to `COMPLETED` with `order_id`, together with the order, `OrderPlaced` and the attempt deletion: either the order is stored and the key remembers it, or neither. If the row is gone (purged by EP-ORD-JOB-05 as stale, which cannot happen within a normal request), the order is still stored; log a warning.
-- **Release on failure (D6).** Every answer other than `201` after the claim — `422` from step 3 or step 4, `503`, `500` from step 5/6 — deletes the row in its own transaction (best-effort, logged on failure), so a retry with the same key runs from scratch with a new `orderId`. The reservation cleanup of steps 4–6 is unchanged: a reservation of the failed run is still released by its own attempt row and EP-ORD-JOB-03.
+  - The row is gone when it is read (the first request failed and released it in between) → also `409 request-in-progress`; the retry claims the key itself.
+  - A `COMPLETED` row whose order is missing cannot happen (the row is completed only in the transaction that stores the order) and would answer `500`.
+  - `reservationExpiresAt` of a replay comes from the stored row and so has microsecond precision; the first answer may carry nanoseconds. Both are the same instant for any client.
+- **Complete (inside the transaction of step 5).** Set the row to `COMPLETED` with `order_id` (only while it is still `IN_PROGRESS`), together with the order, `OrderPlaced` and the attempt deletion: either the order is stored and the key remembers it, or neither. If the row is gone (purged by EP-ORD-JOB-05 as stale, which cannot happen within a normal request), the order is still stored; log a warning.
+- **Release on failure (D6).** Every answer other than `201` after the claim — `422` from step 3 or step 4, `503`, `500` from step 5/6 — deletes the row (only while it is still `IN_PROGRESS`, so a completed key is never released) in its own transaction (best-effort, logged on failure), so a retry with the same key runs from scratch with a new `orderId`. The reservation cleanup of steps 4–6 is unchanged: a reservation of the failed run is still released by its own attempt row and EP-ORD-JOB-03.
 - **Purge.** EP-ORD-JOB-05 deletes stale `IN_PROGRESS` rows (left by an instance that died mid-request) and `COMPLETED` rows older than `ORDER_IDEMPOTENCY_KEY_TTL`; a key used after that is processed as new.
 
 **Edge cases:**
@@ -468,7 +471,7 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 **Steps:**
 1. Delete `idempotency_keys` rows with `status = IN_PROGRESS` and `created_at` older than the settle time of EP-ORD-JOB-03 (2 minutes, far longer than a submit request with its Catalog and Inventory calls and their retries). Such a row belongs to a request whose instance died; deleting it lets the customer's retry with the same key run (D10). The reservation of that request, if any, is released by EP-ORD-JOB-03 through its attempt row.
 2. Delete rows with `status = COMPLETED` and `created_at` older than `ORDER_IDEMPOTENCY_KEY_TTL` (default `24h`). The order stays; only the key is forgotten.
-3. Each rule is one bulk `DELETE`; a failure is logged and the next run tries again.
+3. Each rule is one bulk `DELETE` (`created_at` strictly before the cutoff, served by the `(status, created_at)` index) in its own transaction: the number of deleted rows is logged at `DEBUG`, a failure at `WARN`, a failure of rule 1 does not stop rule 2, and the next run tries again. No batch limit: the rows are small.
 
 > Several replicas need no claim: deleting the same rows twice is harmless. A request is never still running when its `IN_PROGRESS` row is purged, for the same reason the settle time protects EP-ORD-JOB-03.
 
@@ -536,7 +539,7 @@ The code changes these documents imply in Auth, the gateway and Catalog are task
 
 ### Revision 2026-10-22: idempotent order submission
 
-`POST /orders` accepts an optional `Idempotency-Key` header (EP-ORD-02, decisions D4–D10), replacing the edge case "double submission creates two orders … accepted for now". New: the technical table `idempotency_keys`, the problem types `idempotency-key-mismatch` (`422`) and `request-in-progress` (`409`), the response header `Idempotent-Replayed`, EP-ORD-JOB-05 and `ORDER_IDEMPOTENCY_KEY_TTL`. Implementation: [task 19](../../tasks/order-service/19-idempotent-order-submission.md), then [task 20](../../tasks/order-service/20-purge-idempotency-keys-job.md).
+`POST /orders` accepts an optional `Idempotency-Key` header (EP-ORD-02, decisions D4–D10), replacing the edge case "double submission creates two orders … accepted for now". *Synced with the implementation of tasks 19–20 on 2026-10-22:* the answer when the row disappears between the claim and its lookup, complete and release acting only on `IN_PROGRESS` rows, the precision of a replayed `reservationExpiresAt`, and the transactions and log levels of EP-ORD-JOB-05. New: the technical table `idempotency_keys`, the problem types `idempotency-key-mismatch` (`422`) and `request-in-progress` (`409`), the response header `Idempotent-Replayed`, EP-ORD-JOB-05 and `ORDER_IDEMPOTENCY_KEY_TTL`. Implementation: [task 19](../../tasks/order-service/19-idempotent-order-submission.md), then [task 20](../../tasks/order-service/20-purge-idempotency-keys-job.md).
 
 Other documents updated with this revision (2026-10-22):
 - [api-contracts.md](../services-requirements/api-contracts.md) — the `POST /orders` row: optional header, replay, `409` and `422` answers (and the `422 order-total-too-large` answer, which was missing there; the type list above lacked it too).
