@@ -43,6 +43,17 @@ Alternatives considered:
 - Until done: the worker console (iteration 5) shows product ids, and titles only for active products (looked up through the public list one by one). Marked in code with `BL-02`.
 - After: one extra request per stock page fetches all titles.
 
+## Backend decision (2026-10-22)
+
+Both recommended changes are accepted, and the backend goes one step further, because joining titles in the browser only works within one page (no search or sort by title across the whole stock list):
+1. `INVENTORY_WORKER` is staff on `GET /catalog/products` **and** `GET /catalog/products/{id}`: all statuses, `status` filter (Catalog D1).
+2. `GET /catalog/products` gets the `ids` filter as proposed (Catalog D4).
+3. **New:** Inventory keeps a copy of each product's title and status, updated from Catalog's product events, so `GET /inventory/stock` returns `title` and `productStatus` per row (both `null` until copied) and supports `search` (title substring), `productStatus=ACTIVE|NOT_ACTIVE` and `sortBy=title` (Inventory D8–D10). The worker console then needs no extra request for titles; the copy is eventually consistent (a rename shows up after the event arrives).
+
+Recorded in the [Catalog spec](../../../docs/design/services-specs/catalog-service-spec.md) and [Inventory spec](../../../docs/design/services-specs/inventory-service-spec.md) revisions of 2026-10-22. The earlier alternative "Inventory stores titles" was taken after all, with full-state events and a per-product version instead of event enrichment on rename only.
+
+Backend tasks: Catalog [27](../../../docs/tasks/catalog-service/27-staff-product-visibility.md), [28](../../../docs/tasks/catalog-service/28-browse-products-ids-filter.md), [29](../../../docs/tasks/catalog-service/29-product-version-and-full-state-events.md); Inventory [22](../../../docs/tasks/inventory-service/22-product-data-copy-from-events.md), [23](../../../docs/tasks/inventory-service/23-product-data-backfill.md), [24](../../../docs/tasks/inventory-service/24-stock-list-title-search-and-sort.md). Status stays `Open` until they are implemented.
+
 ## Notes
 
 - Same visibility idea as [BL-01](BL-01-manager-reads-inactive-products.md) for managers.

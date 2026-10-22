@@ -10,11 +10,48 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 
 | | |
 |---|---|
-| **Owned entities** | `Category` (`id`, `name`); `Product` (`id`, `title`, `description`, `categoryId`, `basePrice`, `status`, `stockStatus`) |
+| **Owned entities** | `Category` (`id`, `name`); `Product` (`id`, `title`, `description`, `categoryId`, `basePrice`, `status`, `stockStatus`, `version`) |
 | **Key enums** | `ProductStatus { ACTIVE, NOT_ACTIVE }`; `StockStatus { IN_STOCK, OUT_OF_STOCK }` |
-| **Events emitted** | `ProductCreated` |
+| **Events emitted** | `ProductCreated`, `ProductUpdated` (see *Product Events*) |
 | **Events consumed** | `ProductStockReplenished`, `ProductStockDepleted` (both from Inventory Service) |
 | **API description** | OpenAPI documents `catalog-service/openapi/public.json` and `internal.json`, generated from the code ([OpenAPI Conventions](../services-requirements/openapi-conventions.md)); pilot service for them |
+
+---
+
+## Cross-cutting Conventions
+
+### Product visibility
+
+Who may see `NOT_ACTIVE` products is one business rule, applied by the read endpoints EP-CAT-04 and EP-CAT-05 (D1). It is not a security rule: both endpoints are open to everyone, and the role only changes what is returned.
+
+| Caller (role from `X-User-Role`) | Sees |
+|---|---|
+| **Staff:** `CATALOG_MANAGER`, `INVENTORY_WORKER` | `ACTIVE` and `NOT_ACTIVE` products; may use the `status` filter of EP-CAT-04 |
+| Anonymous, `CUSTOMER`, `ADMIN` | `ACTIVE` products only; `status` is ignored, and a `NOT_ACTIVE` product answers the same `404` as a missing one |
+
+Staff need inactive products because the whole preparation of a product happens while it is inactive: the manager creates and edits it, the worker sets up stock and packaging, and only then is it activated. The rule lives in one place in the code (`ProductService.visibleStatus`). The API Gateway forwards the role on both paths (route mode `Optional`, D3).
+
+### Product version
+
+`Product.version` (`bigint`, JPA `@Version`, D5) starts at `0` and is increased by Hibernate on every update of the product row. It serves two purposes:
+- **Ordering of product events.** Every product event carries the version after the change, so a consumer can tell a newer state from an older one even when events arrive out of order (see *Product Events*).
+- **Optimistic locking.** Two overlapping saves of the same product (EP-CAT-02, EP-CAT-03) cannot silently overwrite each other: the second fails and answers `409 Conflict` ("The product was changed by someone else. Reload it and try again."). There is no `If-Match` / ETag: a client that loaded the product earlier and saves later is not detected; only overlapping transactions are.
+
+The stock-status update from Inventory's events (EP-CAT-EVT-01/02) is a bulk JPQL update that does **not** increase the version: `stockStatus` is Inventory's data and not part of the product events. `Product` is mapped with `@DynamicUpdate`, so a save writes only the columns it changed and can never write back a stale `stockStatus` that a stock event changed in the meantime.
+
+### Product Events
+
+| | |
+|---|---|
+| **Topic** | `catalog.product-events` (owned and declared by Catalog), 3 partitions |
+| **Key** | `productId` |
+| **Headers** | `eventType` = `ProductCreated` or `ProductUpdated`; `eventId` (the same value as in the payload) |
+| **Payload** (both types, D6) | `{ eventId, productId, title, categoryId, basePrice, status, version, timestamp }` — the full product state after the change, without `description` (long, and no consumer needs it) and without `stockStatus` (Inventory's data) |
+
+- **When:** `ProductCreated` by EP-CAT-01 (`version: 0`); `ProductUpdated` after every successful EP-CAT-02, and after an EP-CAT-03 that changes the status. A status request that changes nothing (deactivating an inactive product, re-activating an active one) emits nothing.
+- **Delivery:** transactional outbox. The event is stored in the same transaction as the product change and published by the relay afterwards; at-least-once.
+- **Order is not guaranteed.** The relay publishes in `created_at` order but may run on several replicas, and consumers use non-blocking retry topics. Consumers therefore apply an event only if its `version` is greater than the one they stored, which also makes repeats harmless (Inventory: EP-INV-EVT-01/03).
+- The version in the payload must be the value **after** the update: the service flushes the product before it builds the event (Hibernate increases the version at flush time). An EP-CAT-02 call that changes no value leaves the version unchanged; its event repeats the stored version and is ignored by consumers.
 
 ---
 
@@ -27,8 +64,8 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 **Steps:**
 1. Validate request body: `title` non-empty; `description` non-empty; `categoryId` valid UUID; `basePrice` > 0.
 2. Verify that `categoryId` exists in the `categories` table. If not → `422`.
-3. Persist `Product(id=UUID, title, description, categoryId, basePrice, status=NOT_ACTIVE, stockStatus=OUT_OF_STOCK)`.
-4. In the same transaction, store the event `ProductCreated { eventId, productId, timestamp }` in the outbox table; a relay publishes it to the message broker (topic `catalog.product-events`, key `productId`) after the commit. Delivery is at-least-once (transactional outbox), so consumers deduplicate by `eventId`.
+3. Persist `Product(id=UUID, title, description, categoryId, basePrice, status=NOT_ACTIVE, stockStatus=OUT_OF_STOCK, version=0)`.
+4. In the same transaction, store the event `ProductCreated { eventId, productId, title, categoryId, basePrice, status, version, timestamp }` in the outbox table; a relay publishes it to the message broker (topic `catalog.product-events`, key `productId`) after the commit (see *Product Events*). Delivery is at-least-once (transactional outbox), so consumers deduplicate by `eventId` or by `version`.
 5. Return `201 Created { productId }`.
 
 > Products are always created in `NOT_ACTIVE` state. This allows the catalog manager to prepare the listing before publishing it to customers.
@@ -39,7 +76,7 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 - `title` or `description` blank → `400 Bad Request`
 
 **External calls:** none (synchronous); event published asynchronously
-**Emits:** `ProductCreated { eventId, productId, timestamp }` → consumed by Inventory Service (EP-INV-EVT-01)
+**Emits:** `ProductCreated { eventId, productId, title, categoryId, basePrice, status, version, timestamp }` → consumed by Inventory Service (EP-INV-EVT-01)
 **Refs:** US-CM-01, SCN-CM01, N-01, N-02
 
 ---
@@ -54,8 +91,9 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 1. Verify that the product with `id` exists. If not → `404`.
 2. Validate request body: `title` and `description` non-empty; `categoryId` valid UUID; `basePrice` > 0.
 3. Verify that the target `categoryId` exists. If not → `422`.
-4. Update `Product.title`, `Product.description`, `Product.categoryId`, `Product.basePrice`.
-5. Return `200 OK` with the updated product.
+4. Update `Product.title`, `Product.description`, `Product.categoryId`, `Product.basePrice`, and flush (the version increases if a value changed).
+5. In the same transaction, store `ProductUpdated` with the product's state after the change in the outbox (see *Product Events*).
+6. Return `200 OK` with the updated product (the full view `{ productId, title, description, categoryId, basePrice, status, stockStatus }`).
 
 > Price changes affect **only future orders**. Past orders retain their `OrderItemSnapshot` prices unchanged.
 
@@ -63,9 +101,11 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 - Product `id` not found → `404 Not Found`
 - `categoryId` not found → `422 Unprocessable Entity`
 - `basePrice` ≤ 0 → `400 Bad Request`
+- An overlapping save of the same product committed first → `409 Conflict`; nothing is changed and no event is stored (*Product version*)
+- No value changed → `200 OK`; the event repeats the stored version and consumers ignore it
 
 **External calls:** none
-**Emits:** none
+**Emits:** `ProductUpdated { eventId, productId, title, categoryId, basePrice, status, version, timestamp }` → consumed by Inventory Service (EP-INV-EVT-03)
 **Refs:** US-CM-04, SCN-CM04
 
 ---
@@ -88,8 +128,9 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 4. **If `status == NOT_ACTIVE`** (deactivation / soft-delete path):
    a. Set `Product.status = NOT_ACTIVE` immediately. No external calls required.
    b. Return `200 OK`.
+5. If the status actually changed (step 3d or 4a), store `ProductUpdated` with the product's state after the change in the outbox, in the same transaction (see *Product Events*).
 
-> Deactivation does not publish a domain event. Downstream services (Order Service, Catalog browsing) query product status synchronously or via the existing API when they need to check it. Hard deletes are **forbidden**; deactivation is the only removal mechanism, preserving order history integrity.
+> The status change is announced by `ProductUpdated`, so Inventory can show each stock row's product status (D6). Services that must decide on the current status (Order Service at checkout) still ask synchronously through EP-CAT-09, because an event can arrive late. Hard deletes are **forbidden**; deactivation is the only removal mechanism, preserving order history integrity.
 
 **Edge cases:**
 - Product `id` not found → `404 Not Found`
@@ -97,63 +138,69 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 - Activation: Inventory Service returns `404` for the product → `422 Unprocessable Entity` ("StockItem not found — stock must be initialized before activation")
 - Activation: Inventory Service is unavailable (connection error, timeout, `5xx`, or an unexpected status such as `401`/`403`) → `503 Service Unavailable` with a `Retry-After` hint; the status is not changed. Connection errors, timeouts and `5xx` are retried once before giving up (timeouts 2 s connect / 3 s read); no circuit breaker (decision in catalog task 22)
 - Activation of an already `ACTIVE` product → the readiness check runs again; if Inventory says "not ready", `422` and the product stays `ACTIVE`
-- Deactivation: product is already `NOT_ACTIVE` → idempotent success; return `200 OK`
+- Deactivation: product is already `NOT_ACTIVE` → idempotent success; return `200 OK`; no event
+- An overlapping save of the same product committed first → `409 Conflict`; the status is not changed and no event is stored (*Product version*)
 
 **External calls:**
 - Inventory Service: `GET /inventory/stock/{productId}/readiness` — purpose: validate stock & packaging readiness — **sync** (activation path only)
 
-**Emits:** none
+**Emits:** `ProductUpdated { eventId, productId, title, categoryId, basePrice, status, version, timestamp }` when the status changed → consumed by Inventory Service (EP-INV-EVT-03)
 **Refs:** US-CM-02, US-CM-03, SCN-CM02, SCN-CM03, N-02, N-03
 
 ---
 
-## EP-CAT-04: Browse & Filter Products (Public / Manager View)
+## EP-CAT-04: Browse & Filter Products (Public / Staff View)
 
 **Type:** `HTTP GET /catalog/products`
-**Caller:** Customer (unauthenticated or `ROLE_CUSTOMER`) — or — Catalog Manager (`ROLE_CATALOG_MANAGER`)
-**Auth:** None required; role determines which products are visible
+**Caller:** Customer (unauthenticated or `ROLE_CUSTOMER`) — or — staff: Catalog Manager (`ROLE_CATALOG_MANAGER`), Inventory Worker (`ROLE_INVENTORY_WORKER`)
+**Auth:** None required; role determines which products are visible (*Product visibility*)
 
 **Steps:**
-1. Parse optional query parameters: `search` (title/description keyword), `categoryId`, `minPrice`, `maxPrice`, `sortBy`, `page`, `size`. `sortBy` is `field` or `field,direction` with field `title` or `basePrice` and direction `asc` (default) or `desc`; the default order is by `title`. `page` is zero-based; `size` defaults to `20` (maximum `100`).
-2. Determine caller role from the `X-User-Role` header (or absent header for anonymous):
-   - **Customer / anonymous**: filter to `status = ACTIVE` only.
-   - **Catalog Manager**: no status filter — all products (`ACTIVE` and `NOT_ACTIVE`) are returned. An additional optional `status` query param may be used to filter.
-3. Execute the filtered, paginated query against the `products` table.
+1. Parse optional query parameters: `search` (title/description keyword), `categoryId`, `minPrice`, `maxPrice`, `ids`, `sortBy`, `page`, `size`. `ids` is a comma-separated list of product UUIDs (D4): only those products are returned, at most 100 distinct IDs. `sortBy` is `field` or `field,direction` with field `title` or `basePrice` and direction `asc` (default) or `desc`; the default order is by `title`. `page` is zero-based; `size` defaults to `20` (maximum `100`).
+2. Determine caller role from the authenticated principal (set from the `X-User-Role` header; none for anonymous) and apply *Product visibility*:
+   - **Customer / anonymous / any non-staff role**: filter to `status = ACTIVE` only.
+   - **Staff (`CATALOG_MANAGER`, `INVENTORY_WORKER`)**: no status filter — all products (`ACTIVE` and `NOT_ACTIVE`) are returned. An additional optional `status` query param may be used to filter.
+3. Execute the filtered, paginated query against the `products` table. All filters, `ids` included, are combined with AND, together with the visibility filter.
 4. For each product in the result, include the `stockStatus` read-model field (`IN_STOCK` or `OUT_OF_STOCK`) directly from the stored column (no Inventory call required).
 5. Return `200 OK { content: [ { productId, title, basePrice, categoryId, status, stockStatus } ], page, size, totalElements }` — the shared paging envelope ([api-contracts.md](../services-requirements/api-contracts.md#shared-conventions)); `size` is the effective page size (the requested one, or `20`).
 
 **Edge cases:**
 - `minPrice` > `maxPrice` → `400 Bad Request`
 - Invalid `status`, `sortBy`, `page` or `size` → `400 Bad Request`
-- A non-manager caller sends `status` → the parameter is ignored (only `ACTIVE` products are returned)
+- A non-staff caller sends `status` → the parameter is ignored (only `ACTIVE` products are returned)
 - `categoryId` not found → return empty result (not a 404; a non-existent category simply matches nothing)
 - No products match the filters → return `200 OK` with empty `content` array
+- `ids` empty, containing a malformed UUID, or with more than 100 distinct IDs → `400 Bad Request` (`errors.ids`)
+- `ids` with duplicates → each product appears once; unknown IDs, and inactive products for a non-staff caller, are simply absent
+- `ids` does not change paging: a caller who wants all of up to 100 products in one page sends `size=100`
 
 **External calls:** none
 **Emits:** none
-**Refs:** US-CUST-01, US-CM-06, SCN-C05
+**Refs:** US-CUST-01, US-CM-06, US-INV-04, SCN-C05
 
 ---
 
 ## EP-CAT-05: Get Product Details
 
 **Type:** `HTTP GET /catalog/products/{id}`
-**Caller:** Customer (unauthenticated or `ROLE_CUSTOMER`)
-**Auth:** None
+**Caller:** Customer (unauthenticated or `ROLE_CUSTOMER`) — or — staff: Catalog Manager (the edit form needs the description of a product being prepared), Inventory Worker
+**Auth:** None required; role determines which products are visible (*Product visibility*, D1). The gateway route is `Optional` (D3)
 
 **Steps:**
 1. Look up `Product` by `id`.
 2. If the product does not exist → `404 Not Found`.
-3. If the product exists but `status = NOT_ACTIVE` → `404 Not Found` (hidden from customer-facing API; managers use EP-CAT-04 to view inactive products).
-4. Return `200 OK { productId, title, description, categoryId, basePrice, stockStatus }`.
+3. If the product exists, `status = NOT_ACTIVE`, and the caller is not staff → `404 Not Found` (hidden from customers).
+4. Return `200 OK { productId, title, description, categoryId, basePrice, status, stockStatus }` — the full view, the same shape for every caller (D2). Customers only ever get `status: ACTIVE`.
 
 **Edge cases:**
 - Product not found → `404 Not Found`
-- Product found but `NOT_ACTIVE` → `404 Not Found` (do not leak the existence of inactive products to customers)
+- Product found but `NOT_ACTIVE`, caller anonymous or not staff → `404 Not Found` (do not leak the existence of inactive products to customers)
+- Product found but `NOT_ACTIVE`, caller staff → `200 OK` with `status: NOT_ACTIVE`
+- An invalid or expired token on this path → `401` from the gateway (behaviour of `Optional` routes); the storefront sends no token on catalog reads
 
 **External calls:** none
 **Emits:** none
-**Refs:** US-CUST-02, SCN-C06
+**Refs:** US-CUST-02, US-CM-04, SCN-C06
 
 ---
 
@@ -229,13 +276,13 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 ## EP-CAT-09: Batch Get Products by IDs (Internal)
 
 **Type:** `HTTP GET /catalog/products/batch-get?ids={uuid1,uuid2,...}`
-**Caller:** Order Service (internal, during order submission to capture price snapshots)
+**Caller:** Order Service (internal, during order submission to capture price snapshots); Inventory Service (existence check in EP-INV-02/03 and the product-data backfill EP-INV-JOB-01)
 **Auth:** Internal (no JWT; service-to-service trust)
 
 **Steps:**
 1. Parse the `ids` query parameter as a comma-separated list of UUIDs.
 2. Query all `Product` records whose `id` is in the list.
-3. Return `200 OK [ { productId, title, basePrice, status, stockStatus } ]` — a flat array, including the current `status` field so Order Service can also validate `ACTIVE` status in the same call, and the `stockStatus` read model (`IN_STOCK` / `OUT_OF_STOCK`, added 2026-10-16) so Order's checkout soft check (EP-ORD-01) needs no Inventory call. `stockStatus` is the stored column, updated from Inventory's stock events; it is eventually consistent and says nothing about quantities.
+3. Return `200 OK [ { productId, title, basePrice, status, stockStatus, version } ]` — a flat array, including the current `status` field so Order Service can also validate `ACTIVE` status in the same call, and the `stockStatus` read model (`IN_STOCK` / `OUT_OF_STOCK`, added 2026-10-16) so Order's checkout soft check (EP-ORD-01) needs no Inventory call. `stockStatus` is the stored column, updated from Inventory's stock events; it is eventually consistent and says nothing about quantities. `version` (added 2026-10-22, D7) is the product's current version (*Product version*), so Inventory can store the answer with the same "newer version wins" rule it applies to product events.
 4. If some requested `productId` values are not found in the catalog, they are simply absent from the array (do not fail the entire request). The caller detects missing products by comparing IDs.
 
 > **Agreed change:** an earlier version of this card returned a wrapper object with a `products` array and a separate `notFound` list. The team dropped the wrapper and the `notFound` list; the contract is the flat array above (see [api-contracts.md](../services-requirements/api-contracts.md)).
@@ -322,6 +369,39 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 ---
 
 ## Revisions
+
+### 2026-10-22: Staff visibility, product version and full-state product events
+
+Prompted by the frontend backlog items BL-01 (catalog managers cannot load an inactive product's description) and BL-02 (inventory workers cannot see the titles of inactive products). Both had one root cause: the read API was designed for customers, while staff work almost entirely on `NOT_ACTIVE` products. Searching and sorting the stock list by title also needs the title inside Inventory, which this revision provides through product events.
+
+**Decisions** (D8–D10 are in the [Inventory spec](inventory-service-spec.md#revision-2026-10-22-copy-of-product-data) revision of the same date):
+
+| # | Decision | Reason |
+|---|---|---|
+| D1 | One visibility rule for EP-CAT-04 and EP-CAT-05: `CATALOG_MANAGER` and `INVENTORY_WORKER` see all statuses; everyone else (`ADMIN` included) only `ACTIVE` | One rule in one place; a worker who opens a product from the list must not get `404`. `ADMIN` has no catalog job in any user story |
+| D2 | EP-CAT-05 returns the full view `{ productId, title, description, categoryId, basePrice, status, stockStatus }` to every caller; `ProductDetailsResponse` is removed | One response shape per endpoint; a separate staff path (`/catalog/manage/...`) was rejected because the list already applies the role on the shared path |
+| D3 | Gateway route `GET /catalog/products/{id}` changes from `Public` to `Optional` | Catalog can only apply D1 if the gateway forwards the role |
+| D4 | EP-CAT-04 gets an `ids` filter (at most 100 distinct IDs, combined with every other filter and the visibility rule) | Lets a client look up the products of one page of another service's list in one call |
+| D5 | `Product.version` with JPA `@Version`; overlapping saves → `409`; `@DynamicUpdate` on `Product` | Orders product events for consumers; closes the lost update where a save could write back a stale `stockStatus` |
+| D6 | Product events carry the full state `{ eventId, productId, title, categoryId, basePrice, status, version, timestamp }`; new `ProductUpdated` after EP-CAT-02 and after an EP-CAT-03 that changes the status | Inventory keeps a copy of title and status (D8) for searching and sorting stock rows. A full-state event is idempotent by content and serves later needs without a new event type (preferred over a narrow `ProductRenamed`) |
+| D7 | EP-CAT-09 adds `version` to its answer (additive) | Inventory fills missing copies from batch-get with the same "newer version wins" rule as for events (D9) |
+
+**Changes from the earlier version of this spec:**
+
+| Area | Before | Now |
+|---|---|---|
+| EP-CAT-04 visibility | `NOT_ACTIVE` visible to `CATALOG_MANAGER` only | visible to staff (`CATALOG_MANAGER`, `INVENTORY_WORKER`) |
+| EP-CAT-04 filters | — | `ids` (comma-separated, ≤ 100) |
+| EP-CAT-05 | `ACTIVE` only for everyone; `{ productId, title, description, categoryId, basePrice, stockStatus }` | staff see `NOT_ACTIVE` too; full view with `status` |
+| `Product` | no version | `version` (`@Version`), `@DynamicUpdate` |
+| `ProductCreated` payload | `{ eventId, productId, timestamp }` | full product state (additive) |
+| Product events | `ProductCreated` only; deactivation published nothing | also `ProductUpdated` (EP-CAT-02, status changes of EP-CAT-03) |
+| EP-CAT-02/03 errors | — | `409` on an overlapping save |
+| EP-CAT-09 answer | `{ productId, title, basePrice, status, stockStatus }` | adds `version` |
+
+Tasks: [27](../../tasks/catalog-service/27-staff-product-visibility.md) (D1, D2), [28](../../tasks/catalog-service/28-browse-products-ids-filter.md) (D4), [29](../../tasks/catalog-service/29-product-version-and-full-state-events.md) (D5–D7); gateway [task 12](../../tasks/api-getaway/12-optional-product-details-route.md) (D3).
+
+**Other documents updated with this revision (2026-10-22):** `api-contracts.md` (EP-CAT-04, EP-CAT-05, EP-CAT-09, EP-INV-01), `events-catalogue.md` (`ProductCreated` payload, new `ProductUpdated`), `entities.md` (`Product.version`, the copied product fields of `StockItem`), the API Gateway spec (route table), the Inventory spec (copy of product data, D8–D10), and the frontend backlog items BL-01 and BL-02 (backend decision notes).
 
 ### 2026-10-21: Paging envelope and OpenAPI document
 

@@ -43,6 +43,14 @@ Rejected: a separate back-office path such as `GET /catalog/manage/products/{id}
 - Until done: the manager console (iteration 4) cannot be delivered properly; editing an inactive product would start with an empty description and overwrite it on save. The storefront is unaffected because it sends no token on catalog reads.
 - After: the edit form loads the product by id with the manager's token.
 
+## Backend decision (2026-10-22)
+
+Accepted as proposed (option A), and generalized together with BL-02: **staff** (`CATALOG_MANAGER` and `INVENTORY_WORKER`) see `NOT_ACTIVE` products on both `GET /catalog/products` and `GET /catalog/products/{id}`; `ADMIN` is not staff. EP-CAT-05 answers the full view `{ productId, title, description, categoryId, basePrice, status, stockStatus }` to everyone (the generated type `ProductDetailsResponse` disappears in favour of `ProductResponse`), and the route becomes `Optional`. Recorded as D1–D3 in the [Catalog spec](../../../docs/design/services-specs/catalog-service-spec.md) revision 2026-10-22.
+
+Separate change worth knowing for the edit form: `PUT /catalog/products/{id}` and `PATCH …/status` can now answer `409` when two saves of the same product overlap (D5).
+
+Backend tasks: Catalog [27](../../../docs/tasks/catalog-service/27-staff-product-visibility.md), gateway [12](../../../docs/tasks/api-getaway/12-optional-product-details-route.md). Status stays `Open` until they are implemented.
+
 ## Notes
 
 - Related: [BL-02](BL-02-worker-product-titles.md) applies the same "staff see all statuses" idea to inventory workers on the list endpoint.
