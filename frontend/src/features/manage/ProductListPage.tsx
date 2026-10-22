@@ -18,7 +18,7 @@ import type { ProductStatus, SortBy } from '../../api/catalog';
 import { PageContainer } from '../../app/PageContainer';
 import { ErrorState } from '../../components/ErrorState';
 import { Loading } from '../../components/Loading';
-import { Price } from '../../components/Price';
+import { formatPrice } from '../../components/Price';
 import { ProductImage } from '../../components/ProductImage';
 import { StockBadge } from '../../components/StatusChip';
 import { Paging } from '../catalog/Paging';
@@ -202,8 +202,8 @@ export function ProductListPage() {
                       </Anchor>
                     </Table.Td>
                     <Table.Td c="dimmed">{categoryName ?? ''}</Table.Td>
-                    <Table.Td ta="right">
-                      <Price value={product.basePrice} />
+                    <Table.Td ta="right" fw={600} style={{ whiteSpace: 'nowrap' }}>
+                      {formatPrice(product.basePrice)}
                     </Table.Td>
                     <Table.Td>
                       <ProductStatusChip status={product.status} />

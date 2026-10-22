@@ -36,7 +36,8 @@ export function StaffTable({ label, columns, minWidth, children }: StaffTablePro
       minWidth={minWidth}
       type="native"
       className="vs-raised"
-      style={{ borderRadius: 6 }}
+      // Contains the absolutely positioned hidden header labels, so they cannot widen the page.
+      style={{ borderRadius: 6, position: 'relative' }}
     >
       <Table
         aria-label={label}
