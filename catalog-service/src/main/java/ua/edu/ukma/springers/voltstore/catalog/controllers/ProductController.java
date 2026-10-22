@@ -111,7 +111,8 @@ public class ProductController {
 
     // No @Valid: the spec requires the 404 check before body validation, so the service validates
     @Operation(summary = "Update a product (EP-CAT-02)",
-            description = "Role: CATALOG_MANAGER. Status and stock status are not editable here.",
+            description = "Role: CATALOG_MANAGER. Status and stock status are not editable here. Stores a "
+                    + "`ProductUpdated` event.",
             security = @SecurityRequirement(name = BEARER_AUTH))
     @ApiResponse(responseCode = "200", description = "The updated product")
     @ApiResponse(responseCode = "400", description = "Invalid fields",
@@ -123,6 +124,8 @@ public class ProductController {
             content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = Problem.class)))
     @ApiResponse(responseCode = "404", description = "No product with this ID",
             content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = Problem.class)))
+    @ApiResponse(responseCode = "409", description = "The product was changed by someone else at the same time",
+            content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = Problem.class)))
     @ApiResponse(responseCode = "422", description = "The category does not exist",
             content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = Problem.class)))
     @PutMapping("/{id}")
@@ -133,7 +136,8 @@ public class ProductController {
     // EP-CAT-03. No @Valid for the same reason as the update; the spec returns 200 OK with no body.
     @Operation(summary = "Activate or deactivate a product (EP-CAT-03)",
             description = "Role: CATALOG_MANAGER. Activation first asks Inventory whether the product is ready "
-                    + "(stock item and packaging data exist).",
+                    + "(stock item and packaging data exist). Stores a `ProductUpdated` event when the status "
+                    + "changes.",
             security = @SecurityRequirement(name = BEARER_AUTH))
     @ApiResponse(responseCode = "200", description = "Status set")
     @ApiResponse(responseCode = "400", description = "Missing or invalid status",
@@ -144,6 +148,8 @@ public class ProductController {
     @ApiResponse(responseCode = "403", description = "Not a CATALOG_MANAGER",
             content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = Problem.class)))
     @ApiResponse(responseCode = "404", description = "No product with this ID",
+            content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = Problem.class)))
+    @ApiResponse(responseCode = "409", description = "The product was changed by someone else at the same time",
             content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = Problem.class)))
     @ApiResponse(responseCode = "422", description = "Inventory says the product is not ready for activation",
             content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE,

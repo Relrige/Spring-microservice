@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import ua.edu.ukma.springers.voltstore.catalog.dto.BatchProductResponse;
@@ -15,6 +16,7 @@ import ua.edu.ukma.springers.voltstore.catalog.dto.ProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductSearchQuery;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductStatusRequest;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductSummaryResponse;
+import ua.edu.ukma.springers.voltstore.catalog.entities.Product;
 import ua.edu.ukma.springers.voltstore.catalog.entities.ProductStatus;
 import ua.edu.ukma.springers.voltstore.catalog.entities.StockStatus;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.CategoryNotFoundForProductException;
@@ -160,6 +162,30 @@ class ProductControllerTest {
 
         mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json("Phone", "A phone", CATEGORY_ID, "10")))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void update_overlappingSave_returns409() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(productService.updateProduct(eq(id), any()))
+                .thenThrow(new ObjectOptimisticLockingFailureException(Product.class, id));
+
+        mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json("Phone", "A phone", CATEGORY_ID, "10")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/conflict"))
+                .andExpect(jsonPath("$.detail").value("The product was changed by someone else. Reload it and try again."));
+    }
+
+    @Test
+    void changeStatus_overlappingSave_returns409() throws Exception {
+        UUID id = UUID.randomUUID();
+        doThrow(new ObjectOptimisticLockingFailureException(Product.class, id))
+                .when(productService).changeStatus(eq(id), any());
+
+        mockMvc.perform(patch(URL + "/" + id + "/status").headers(asManager())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"NOT_ACTIVE\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/conflict"));
     }
 
     @Test
@@ -415,7 +441,7 @@ class ProductControllerTest {
         UUID second = UUID.randomUUID();
         when(productService.batchGetProducts(List.of(first, second))).thenReturn(List.of(
                 new BatchProductResponse(first, "Phone", new BigDecimal("10.00"), ProductStatus.NOT_ACTIVE,
-                        StockStatus.OUT_OF_STOCK)));
+                        StockStatus.OUT_OF_STOCK, 4L)));
 
         mockMvc.perform(get(URL + "/batch-get").headers(asInternalService()).param("ids", first + "," + second))
                 .andExpect(status().isOk())
@@ -423,6 +449,7 @@ class ProductControllerTest {
                 .andExpect(jsonPath("$[0].title").value("Phone"))
                 .andExpect(jsonPath("$[0].basePrice").value(10.00))
                 .andExpect(jsonPath("$[0].status").value("NOT_ACTIVE"))
+                .andExpect(jsonPath("$[0].version").value(4))
                 .andExpect(jsonPath("$[0].stockStatus").value("OUT_OF_STOCK"))
                 .andExpect(jsonPath("$.length()").value(1));
     }

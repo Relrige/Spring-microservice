@@ -7,16 +7,19 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
 import ua.edu.ukma.springers.voltstore.catalog.TestcontainersConfiguration;
+import ua.edu.ukma.springers.voltstore.catalog.dto.ProductRequest;
 import ua.edu.ukma.springers.voltstore.catalog.entities.Product;
 import ua.edu.ukma.springers.voltstore.catalog.entities.ProductStatus;
 import ua.edu.ukma.springers.voltstore.catalog.entities.StockStatus;
 import ua.edu.ukma.springers.voltstore.catalog.repositories.CategoryRepository;
 import ua.edu.ukma.springers.voltstore.catalog.repositories.ProductRepository;
+import ua.edu.ukma.springers.voltstore.catalog.services.ProductService;
 
 import java.math.BigDecimal;
 import java.util.Map;
@@ -24,6 +27,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doReturn;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -51,6 +55,9 @@ class ProductIntegrationTest {
 
     @Autowired
     private ProductRepository productRepository;
+
+    @Autowired
+    private ProductService productService;
 
     // Lets a test skip the category pre-check to simulate a category deleted concurrently
     @MockitoSpyBean
@@ -231,6 +238,45 @@ class ProductIntegrationTest {
         Map<String, Object> row = jdbc.queryForMap("SELECT * FROM products WHERE id = ?", id);
         assertThat(row.get("title")).isEqualTo("New title");
         assertThat(row.get("stock_status")).isEqualTo("IN_STOCK");
+        // The stock update does not count as a change of the product: the edit is not rejected, version 0 → 1
+        assertThat(row.get("version")).isEqualTo(1L);
+    }
+
+    @Test
+    void update_overlappingWithAnotherSave_isRejectedAndChangesNothing() {
+        UUID id = insertProduct(jdbc, categoryId, ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK);
+        ProductRequest request = new ProductRequest();
+        request.setTitle("Mine");
+        request.setDescription("Mine");
+        request.setCategoryId(categoryId);
+        request.setBasePrice(new BigDecimal("10"));
+
+        assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(tx -> {
+            // This transaction loads version 0 ...
+            productRepository.findById(id).orElseThrow();
+            // ... another manager's save commits version 1 in the meantime ...
+            CompletableFuture.runAsync(() -> jdbc.update(
+                    "UPDATE products SET title = 'Theirs', version = version + 1 WHERE id = ?", id)).join();
+            // ... and this save, of the already loaded product, finds version 0 gone
+            productService.updateProduct(id, request);
+        })).isInstanceOf(ObjectOptimisticLockingFailureException.class);
+
+        Map<String, Object> row = jdbc.queryForMap("SELECT * FROM products WHERE id = ?", id);
+        assertThat(row.get("title")).isEqualTo("Theirs");
+        assertThat(row.get("version")).isEqualTo(1L);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM outbox_events", Integer.class)).isZero();
+    }
+
+    @Test
+    void update_staleEntitySavedDirectly_isRejected() {
+        UUID id = insertProduct(jdbc, categoryId, ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK);
+        Product stale = productRepository.findById(id).orElseThrow();
+        jdbc.update("UPDATE products SET version = version + 1 WHERE id = ?", id);
+
+        stale.updateDetails("Stale", "Stale", categoryId, new BigDecimal("10"));
+        assertThatThrownBy(() -> productRepository.saveAndFlush(stale))
+                .isInstanceOf(ObjectOptimisticLockingFailureException.class);
+        assertThat(jdbc.queryForObject("SELECT title FROM products WHERE id = ?", String.class, id)).isEqualTo("Laptop");
     }
 
     private Integer countProducts() {

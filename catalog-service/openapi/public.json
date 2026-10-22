@@ -615,7 +615,7 @@
         "tags" : [ "Products" ]
       },
       "put" : {
-        "description" : "Role: CATALOG_MANAGER. Status and stock status are not editable here.",
+        "description" : "Role: CATALOG_MANAGER. Status and stock status are not editable here. Stores a `ProductUpdated` event.",
         "operationId" : "updateProduct",
         "parameters" : [ {
           "in" : "path",
@@ -687,6 +687,16 @@
             },
             "description" : "No product with this ID"
           },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "The product was changed by someone else at the same time"
+          },
           "422" : {
             "content" : {
               "application/problem+json" : {
@@ -717,7 +727,7 @@
     },
     "/catalog/products/{id}/status" : {
       "patch" : {
-        "description" : "Role: CATALOG_MANAGER. Activation first asks Inventory whether the product is ready (stock item and packaging data exist).",
+        "description" : "Role: CATALOG_MANAGER. Activation first asks Inventory whether the product is ready (stock item and packaging data exist). Stores a `ProductUpdated` event when the status changes.",
         "operationId" : "changeStatus",
         "parameters" : [ {
           "in" : "path",
@@ -781,6 +791,16 @@
               }
             },
             "description" : "No product with this ID"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "The product was changed by someone else at the same time"
           },
           "422" : {
             "content" : {

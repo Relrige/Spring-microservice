@@ -13,9 +13,12 @@ import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
 import ua.edu.ukma.springers.voltstore.catalog.TestcontainersConfiguration;
 import ua.edu.ukma.springers.voltstore.catalog.config.KafkaTopics;
-import ua.edu.ukma.springers.voltstore.catalog.events.ProductCreatedEvent;
+import ua.edu.ukma.springers.voltstore.catalog.entities.ProductStatus;
+import ua.edu.ukma.springers.voltstore.catalog.events.ProductEvent;
 
+import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -65,7 +68,8 @@ class KafkaSetupIntegrationTest {
 
     @Test
     void messageSentWithKafkaTemplate_isReceivedByListener() throws Exception {
-        ProductCreatedEvent event = ProductCreatedEvent.forProduct(UUID.randomUUID());
+        ProductEvent event = new ProductEvent(UUID.randomUUID(), UUID.randomUUID(), "Laptop", UUID.randomUUID(),
+                new BigDecimal("999.99"), ProductStatus.NOT_ACTIVE, 0, Instant.now());
         String key = event.productId().toString();
 
         kafkaTemplate.send(KafkaTopics.PRODUCT_EVENTS, key, event).get(10, TimeUnit.SECONDS);

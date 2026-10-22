@@ -324,6 +324,7 @@ class CatalogReadAndStatusIntegrationTest {
     void batchGet_returnsExistingProductsOfAnyStatusOnce() throws Exception {
         UUID active = insertProduct(jdbc, categoryId, ProductStatus.ACTIVE, StockStatus.IN_STOCK);
         UUID inactive = insertProduct(jdbc, categoryId, ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK);
+        jdbc.update("UPDATE products SET version = 5 WHERE id = ?", inactive);
 
         mockMvc.perform(batchGet(active + "," + UUID.randomUUID() + "," + inactive + "," + active))
                 .andExpect(status().isOk())
@@ -333,8 +334,10 @@ class CatalogReadAndStatusIntegrationTest {
                 .andExpect(jsonPath("$[0].basePrice").value(999.99))
                 .andExpect(jsonPath("$[0].status").value("ACTIVE"))
                 .andExpect(jsonPath("$[0].stockStatus").value("IN_STOCK"))
+                .andExpect(jsonPath("$[0].version").value(0))
                 .andExpect(jsonPath("$[1].status").value("NOT_ACTIVE"))
-                .andExpect(jsonPath("$[1].stockStatus").value("OUT_OF_STOCK"));
+                .andExpect(jsonPath("$[1].stockStatus").value("OUT_OF_STOCK"))
+                .andExpect(jsonPath("$[1].version").value(5));
         mockMvc.perform(batchGet(UUID.randomUUID().toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));

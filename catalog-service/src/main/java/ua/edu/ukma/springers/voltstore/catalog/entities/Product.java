@@ -12,7 +12,8 @@ import java.util.UUID;
 @Entity
 @Table(name = "products")
 // UPDATE statements contain only the changed columns, so a manager edit never writes back a stale
-// stockStatus that an Inventory event changed after this row was loaded
+// stockStatus that an Inventory event changed after this row was loaded (that update does not change the version,
+// so it does not make the edit fail either)
 @DynamicUpdate
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -48,6 +49,13 @@ public class Product {
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private StockStatus stockStatus;
+
+    // Optimistic lock: Hibernate increments it whenever it updates this row and adds "AND version = ?" to the
+    // UPDATE, so an overlapping save fails instead of silently winning. Product events carry it so consumers can
+    // tell a newer state from an older one. The bulk stock-status update (ProductRepository) leaves it unchanged.
+    @Version
+    @Column(nullable = false)
+    private long version;
 
     /**
      * New products are hidden from customers until a manager activates them, and are out of stock

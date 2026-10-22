@@ -20,7 +20,7 @@ import ua.edu.ukma.springers.voltstore.catalog.entities.Product;
 import ua.edu.ukma.springers.voltstore.catalog.entities.ProductStatus;
 import ua.edu.ukma.springers.voltstore.catalog.entities.StockStatus;
 import ua.edu.ukma.springers.voltstore.catalog.config.KafkaTopics;
-import ua.edu.ukma.springers.voltstore.catalog.events.ProductCreatedEvent;
+import ua.edu.ukma.springers.voltstore.catalog.events.ProductEvent;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.CategoryNotFoundForProductException;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.ProductActivationRejectedException;
 import ua.edu.ukma.springers.voltstore.catalog.exceptions.ProductNotFoundException;
@@ -73,9 +73,7 @@ public class ProductService {
         saveAndFlush(product);
 
         // Same transaction as the product: the event is stored if and only if the product is (outbox)
-        ProductCreatedEvent event = ProductCreatedEvent.forProduct(product.getId());
-        outbox.append("Product", product.getId(), ProductCreatedEvent.EVENT_TYPE, KafkaTopics.PRODUCT_EVENTS,
-                event.eventId(), event);
+        appendEvent(ProductEvent.CREATED, product);
         return new CreateProductResponse(product.getId());
     }
 
@@ -98,15 +96,19 @@ public class ProductService {
 
         product.updateDetails(request.getTitle().trim(), request.getDescription().trim(),
                 request.getCategoryId(), request.getBasePrice());
+        // The flush runs the UPDATE now: an overlapping save fails here (409) before any event is stored, and the
+        // event below carries the incremented version. An update that changes nothing issues no UPDATE; its event
+        // repeats the current version, which consumers ignore.
         saveAndFlush(product);
+        appendEvent(ProductEvent.UPDATED, product);
         return ProductResponse.from(product);
     }
 
     /**
      * EP-CAT-03. Order of checks follows the spec: 404, then 400, then (activation only) the Inventory readiness
      * check (422 not ready, 503 Inventory unavailable). Only {@code status} changes (thanks to
-     * {@code @DynamicUpdate}, {@code stockStatus} is never written), and no event is published. A deactivation
-     * racing with an activation is last-write-wins.
+     * {@code @DynamicUpdate}, {@code stockStatus} is never written). {@code ProductUpdated} is stored only when the
+     * status actually changed. An overlapping save of the same product fails with 409 (optimistic lock).
      * <p>
      * Not {@code @Transactional}: the readiness call to Inventory (up to several seconds with timeouts and a
      * retry) must not hold a database transaction or connection. The existence check runs in its own short
@@ -127,10 +129,15 @@ public class ProductService {
         }
         transactionOperations.executeWithoutResult(tx -> {
             Product product = findProduct(id);
+            if (product.getStatus() == status) {
+                return;
+            }
             switch (status) {
                 case ACTIVE -> product.activate();
                 case NOT_ACTIVE -> product.deactivate();
             }
+            productRepository.flush();
+            appendEvent(ProductEvent.UPDATED, product);
         });
     }
 
@@ -274,6 +281,12 @@ public class ProductService {
         if (!categoryRepository.existsById(categoryId)) {
             throw new CategoryNotFoundForProductException(categoryId);
         }
+    }
+
+    // Must run in the caller's transaction, after the product was flushed (see ProductEvent.of)
+    private void appendEvent(String eventType, Product product) {
+        ProductEvent event = ProductEvent.of(product);
+        outbox.append("Product", product.getId(), eventType, KafkaTopics.PRODUCT_EVENTS, event.eventId(), event);
     }
 
     private void saveAndFlush(Product product) {

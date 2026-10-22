@@ -100,9 +100,13 @@
           },
           "title" : {
             "type" : "string"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
           }
         },
-        "required" : [ "basePrice", "productId", "status", "stockStatus", "title" ]
+        "required" : [ "basePrice", "productId", "status", "stockStatus", "title", "version" ]
       },
       "Problem" : {
         "type" : "object",
