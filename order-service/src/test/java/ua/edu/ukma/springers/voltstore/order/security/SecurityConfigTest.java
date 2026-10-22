@@ -81,8 +81,9 @@ class SecurityConfigTest {
 
     @BeforeEach
     void placementAnswers() {
-        when(placement.place(any(), any())).thenReturn(new PlacedOrderResponse(UUID.randomUUID(),
-                OrderStatus.PENDING_PAYMENT, new BigDecimal("100.00"), "UAH", Instant.now()));
+        when(placement.place(any(), any(), any())).thenReturn(new OrderPlacementService.Placement(
+                new PlacedOrderResponse(UUID.randomUUID(), OrderStatus.PENDING_PAYMENT, new BigDecimal("100.00"),
+                        "UAH", Instant.now()), false));
     }
 
     @ParameterizedTest(name = "{0} {1}")
@@ -166,7 +167,7 @@ class SecurityConfigTest {
                 .andExpect(status().isCreated());
 
         ArgumentCaptor<AuthenticatedUser> caller = ArgumentCaptor.forClass(AuthenticatedUser.class);
-        verify(placement).place(caller.capture(), any());
+        verify(placement).place(caller.capture(), any(), any());
         assertThat(caller.getValue().id()).isEqualTo(customerId);
         assertThat(caller.getValue().role()).isEqualTo(UserRole.CUSTOMER);
         assertThat(caller.getValue().email()).isEqualTo("ivan@example.com");

@@ -191,10 +191,12 @@ class CheckoutIntegrationTest {
                     {"orderId":"%s","items":[{"productId":"%s","quantity":2},{"productId":"%s","quantity":1}]}
                     """.formatted(orderId, PHONE, CASE))));
 
+            // The relay may still publish an earlier test's events after the probe started; pick this order's
             List<ConsumerRecord<String, String>> records = await().atMost(Duration.ofSeconds(20))
-                    .until(probe::poll, received -> !received.isEmpty());
-            ConsumerRecord<String, String> record = records.getFirst();
-            assertThat(record.key()).isEqualTo(orderId.toString());
+                    .until(probe::poll, received -> received.stream()
+                            .anyMatch(r -> orderId.toString().equals(r.key())));
+            ConsumerRecord<String, String> record = records.stream()
+                    .filter(r -> orderId.toString().equals(r.key())).findFirst().orElseThrow();
             assertThat(new String(record.headers().lastHeader("eventType").value(), StandardCharsets.UTF_8))
                     .isEqualTo("OrderPlaced");
             JsonNode event = JSON.readTree(record.value());
