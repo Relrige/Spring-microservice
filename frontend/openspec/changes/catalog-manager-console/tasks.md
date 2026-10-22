@@ -53,8 +53,8 @@ Apply on a branch that contains `customer-checkout-orders`, Catalog tasks 27–2
 
 ## 4. Categories
 
-- [ ] 4.1 Build `CategoriesPage` (design D9): the table, search, paging and URL state, the empty state and the failure state. Verify with tests for *Categories listed*, *Search by name* and *No categories match*.
-- [ ] 4.2 Build `CategoryDialog` for create and rename, and the delete confirmation, with the `409`, `404` and `400` handling of design D9 and the D3 invalidation. Verify with tests for:
+- [x] 4.1 Build `CategoriesPage` (design D9): the table, search, paging and URL state, the empty state and the failure state. Verify with tests for *Categories listed*, *Search by name* and *No categories match*.
+- [x] 4.2 Build `CategoryDialog` for create and rename, and the delete confirmation, with the `409`, `404` and `400` handling of design D9 and the D3 invalidation. Verify with tests for:
   - *Blank name*, *Category created*, *Name in use*, *Category renamed*, *Category deleted meanwhile*, *Empty category deleted*, *Category with products* and *Deletion cancelled*;
   - *Renamed category in the product list* and *New category offered in the product form*.
 
