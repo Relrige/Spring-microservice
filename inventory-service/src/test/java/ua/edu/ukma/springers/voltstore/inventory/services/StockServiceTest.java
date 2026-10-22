@@ -81,7 +81,7 @@ class StockServiceTest {
         Page<StockItemEntity> expected = new PageImpl<>(List.of(stockItem(1)), pageable, 6);
         when(stockItemRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(expected);
 
-        Page<StockItemEntity> result = stockService.listStock(null, pageable);
+        Page<StockItemEntity> result = stockService.listStock(null, null, null, pageable);
 
         assertThat(result).isSameAs(expected);
     }
@@ -92,7 +92,7 @@ class StockServiceTest {
         Pageable pageable = PageRequest.of(0, 20);
         when(stockItemRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(Page.empty(pageable));
 
-        stockService.listStock(configured, pageable);
+        stockService.listStock(configured, null, null, pageable);
 
         verify(stockItemRepository).findAll(any(Specification.class), eq(pageable));
     }

@@ -49,14 +49,22 @@ public class StockService {
     }
 
     /**
-     * Lists stock items one page at a time. Filters are optional ({@code null} means "do not filter") and combine
-     * with AND; ordering comes from the pageable.
+     * Lists stock items one page at a time. Filters are optional ({@code null} means "do not filter"; a blank
+     * {@code search} too) and combine with AND; ordering comes from the pageable. Title and status come from the
+     * copied product data only; Catalog is not called (D8).
      */
     @Transactional(readOnly = true)
-    public Page<StockItemEntity> listStock(Boolean packagingConfigured, Pageable pageable) {
+    public Page<StockItemEntity> listStock(@Nullable Boolean packagingConfigured, @Nullable String search,
+                                           @Nullable ProductStatus productStatus, Pageable pageable) {
         Specification<StockItemEntity> spec = Specification.unrestricted();
         if (packagingConfigured != null) {
             spec = spec.and(StockItemSpecifications.packagingConfigured(packagingConfigured));
+        }
+        if (search != null && !search.isBlank()) {
+            spec = spec.and(StockItemSpecifications.titleContains(search.trim()));
+        }
+        if (productStatus != null) {
+            spec = spec.and(StockItemSpecifications.hasProductStatus(productStatus));
         }
         return stockItemRepository.findAll(spec, pageable);
     }

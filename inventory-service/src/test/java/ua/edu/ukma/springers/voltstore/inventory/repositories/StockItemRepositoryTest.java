@@ -265,6 +265,47 @@ class StockItemRepositoryTest {
                 Integer.class, productId)).isEqualTo(9);
     }
 
+    // --- stock list filters on the copy (task 24) ---
+
+    @Test
+    void titleContains_isCaseInsensitive_andMatchesPercentAndUnderscoreLiterally() {
+        UUID laptop = copied("Gaming LAPTOP 15", "ACTIVE");
+        UUID percent = copied("Charger 50% off", "ACTIVE");
+        UUID underscore = copied("Cable_USB", "ACTIVE");
+        copied("Charger 50 off", "ACTIVE");
+        UUID cableDash = copied("Cable-USB", "ACTIVE");
+        repository.insertIfAbsent(UUID.randomUUID());
+
+        assertThat(idsMatching(StockItemSpecifications.titleContains("laptop"))).containsExactly(laptop);
+        assertThat(idsMatching(StockItemSpecifications.titleContains("50%"))).containsExactly(percent);
+        assertThat(idsMatching(StockItemSpecifications.titleContains("e_u"))).containsExactly(underscore);
+        assertThat(idsMatching(StockItemSpecifications.titleContains("%"))).containsExactly(percent);
+        assertThat(idsMatching(StockItemSpecifications.titleContains("cable"))).containsExactlyInAnyOrder(underscore,
+                cableDash);
+    }
+
+    @Test
+    void hasProductStatus_matchesTheCopiedStatus_rowsWithoutCopyMatchNeither() {
+        UUID active = copied("A", "ACTIVE");
+        UUID inactive = copied("B", "NOT_ACTIVE");
+        repository.insertIfAbsent(UUID.randomUUID());
+
+        assertThat(idsMatching(StockItemSpecifications.hasProductStatus(ProductStatus.ACTIVE)))
+                .containsExactly(active);
+        assertThat(idsMatching(StockItemSpecifications.hasProductStatus(ProductStatus.NOT_ACTIVE)))
+                .containsExactly(inactive);
+    }
+
+    private UUID copied(String title, String status) {
+        UUID productId = UUID.randomUUID();
+        repository.upsertProductData(productId, title, status, 0);
+        return productId;
+    }
+
+    private List<UUID> idsMatching(org.springframework.data.jpa.domain.Specification<StockItemEntity> spec) {
+        return repository.findAll(spec).stream().map(StockItemEntity::getProductId).toList();
+    }
+
     private List<Object> copyOf(UUID productId) {
         return List.copyOf(jdbcTemplate.queryForMap("SELECT title, product_status, product_version FROM stock_items "
                 + "WHERE product_id = ?", productId).values());

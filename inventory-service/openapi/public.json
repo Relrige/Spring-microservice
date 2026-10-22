@@ -22,6 +22,23 @@
             "type" : "boolean"
           }
         }, {
+          "description" : "Case-insensitive part of the product title; `%` and `_` match literally. Blank means no filter; rows without a copied title never match",
+          "in" : "query",
+          "name" : "search",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Only items whose product has this Catalog status",
+          "in" : "query",
+          "name" : "productStatus",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "ACTIVE", "NOT_ACTIVE" ]
+          }
+        }, {
           "description" : "Zero-based page number",
           "in" : "query",
           "name" : "page",
@@ -42,7 +59,7 @@
             "default" : 20
           }
         }, {
-          "description" : "`productId`, `availableQuantity` or `reservedQuantity`, optionally followed by `,asc` or `,desc`; default `productId`",
+          "description" : "`productId`, `title`, `availableQuantity` or `reservedQuantity`, optionally followed by `,asc` or `,desc`; default `productId`. Rows without a title come last",
           "example" : "availableQuantity,desc",
           "in" : "query",
           "name" : "sortBy",
@@ -456,9 +473,18 @@
             "type" : "string",
             "format" : "uuid"
           },
+          "productStatus" : {
+            "type" : "string",
+            "description" : "Catalog's product status; missing until copied",
+            "enum" : [ "ACTIVE", "NOT_ACTIVE" ]
+          },
           "reservedQuantity" : {
             "type" : "integer",
             "format" : "int32"
+          },
+          "title" : {
+            "type" : "string",
+            "description" : "Catalog's product title; missing until copied"
           },
           "totalQuantity" : {
             "type" : "integer",

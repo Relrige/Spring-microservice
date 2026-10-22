@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -39,6 +40,20 @@ class PageableParserTest {
 
         assertThat(pageable.getSort()).isEqualTo(
                 Sort.by(Sort.Order.desc("availableQuantity"), Sort.Order.asc("productId")));
+    }
+
+    @Test
+    void nullsLastProperty_putsNullsLastInBothDirections_otherPropertiesKeepTheDefault() {
+        PageableParser withNullsLast = new PageableParser(Map.of(
+                "title", "title",
+                "available", "availableQuantity"), "productId", Set.of("title"));
+
+        assertThat(withNullsLast.parse(0, 20, "title,desc").getSort()).isEqualTo(
+                Sort.by(Sort.Order.desc("title").nullsLast(), Sort.Order.asc("productId")));
+        assertThat(withNullsLast.parse(0, 20, "title").getSort()).isEqualTo(
+                Sort.by(Sort.Order.asc("title").nullsLast(), Sort.Order.asc("productId")));
+        assertThat(withNullsLast.parse(0, 20, "available").getSort()).isEqualTo(
+                Sort.by(Sort.Order.asc("availableQuantity"), Sort.Order.asc("productId")));
     }
 
     @Test
