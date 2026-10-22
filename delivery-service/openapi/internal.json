@@ -1,0 +1,255 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "Delivery API",
+    "version" : "1"
+  },
+  "servers" : [ {
+    "url" : "/",
+    "description" : "Through the API Gateway"
+  } ],
+  "paths" : {
+    "/delivery/shipments" : {
+      "get" : {
+        "description" : "One entry per distinct order ID. An order without a shipment yet has only `orderId`.",
+        "operationId" : "getShipmentStatuses",
+        "parameters" : [ {
+          "description" : "Comma-separated order IDs, at most 100 distinct",
+          "in" : "query",
+          "name" : "orderIds",
+          "required" : true,
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/ShipmentStatusResponse"
+                  }
+                }
+              }
+            },
+            "description" : "The statuses"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Missing or empty `orderIds`, an empty element, more than 100 distinct values, or a non-UUID value"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Missing or invalid internal token"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "internalToken" : [ ]
+        } ],
+        "summary" : "Get shipment statuses for orders (EP-DEL-01)",
+        "tags" : [ "Shipments" ]
+      }
+    },
+    "/delivery/shipments/{orderId}" : {
+      "delete" : {
+        "description" : "Idempotent: 204 also when there is no shipment or it is already cancelled, and when the carrier cancellation fails (the failure is recorded).",
+        "operationId" : "cancelShipment",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "orderId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Cancelled, or nothing to cancel"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Malformed request or invalid fields"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Missing or invalid internal token"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "The parcel was already handed to the carrier"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "internalToken" : [ ]
+        } ],
+        "summary" : "Cancel an order's shipment (EP-DEL-02)",
+        "tags" : [ "Shipments" ]
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "Problem" : {
+        "type" : "object",
+        "description" : "RFC 9457 problem details",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "service" : {
+            "type" : "string",
+            "description" : "Name of the service that answered"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri",
+            "description" : "Error kind: `https://voltstore.com/errors/<kind>`"
+          }
+        },
+        "required" : [ "status", "title", "type" ]
+      },
+      "ShipmentStatusResponse" : {
+        "type" : "object",
+        "properties" : {
+          "failureReason" : {
+            "type" : "string"
+          },
+          "orderId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "TTN_PENDING", "TTN_FAILED", "TTN_GENERATED", "IN_TRANSIT", "DELIVERED", "CANCELLED" ]
+          },
+          "ttn" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "orderId" ]
+      },
+      "ValidationProblem" : {
+        "type" : "object",
+        "description" : "A malformed request or broken field rules (400)",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "errors" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              }
+            },
+            "description" : "Field or parameter name to its messages"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "service" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          }
+        },
+        "required" : [ "status", "title", "type" ]
+      }
+    },
+    "securitySchemes" : {
+      "internalToken" : {
+        "description" : "Shared service-to-service token",
+        "in" : "header",
+        "name" : "X-Internal-Token",
+        "type" : "apiKey"
+      }
+    }
+  }
+}

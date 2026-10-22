@@ -102,6 +102,25 @@ delivery:
       failure-rate: ${DELIVERY_CARRIER_MOCK_FAILURE_RATE:0.0}
       latency: ${DELIVERY_CARRIER_MOCK_LATENCY:0}
       delivery-delay: ${DELIVERY_CARRIER_MOCK_DELIVERY_DELAY:30s}
+# OpenAPI documents (docs/design/services-requirements/openapi-conventions.md, D2/D3/D8). Off by default: Compose turns
+# both on through SPRINGDOC_* environment variables; OpenApiDocumentTest turns api-docs on for itself.
+springdoc:
+  api-docs:
+    enabled: false
+    version: openapi_3_1
+  swagger-ui:
+    enabled: false
+    # Read-only: "Try it out" would bypass the gateway
+    supported-submit-methods: []
+  # Stable committed snapshot: pretty-printed with sorted keys
+  writer-with-default-pretty-printer: true
+  writer-with-order-by-keys: true
+  # Controllers answer JSON; without this every response is documented as */*
+  default-produces-media-type: application/json
+  # Error responses are declared per operation (@ApiResponse) and by ErrorResponsesCustomizer, not inferred from
+  # GlobalExceptionHandler, whose handlers carry no @ResponseStatus
+  override-with-generic-response: false
+
 management:
   endpoint:
     health:
