@@ -29,7 +29,8 @@ export interface MockProduct {
   basePrice: number;
   status: ProductStatus;
   stockStatus: StockStatus;
-  packaging: DemoPackaging;
+  /** `null` when never set (tests); the fixtures always have it. */
+  packaging: DemoPackaging | null;
   available: number;
 }
 
@@ -59,6 +60,8 @@ export interface MockOrder {
   reservationExpiresAt: string;
   ttn?: string;
   deliveryStatus?: DeliveryStatus;
+  failureReason?: string;
+  shippedAt?: string;
 }
 
 function fixedUuid(group: string, index: number): string {
