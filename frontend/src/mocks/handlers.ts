@@ -221,6 +221,7 @@ export const handlers: HttpHandler[] = [
         stockStatus: p.stockStatus,
       })),
       page: page!,
+      size: size!,
       totalElements: matches.length,
     });
   }),
@@ -256,6 +257,7 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json({
       content: matches.slice(page * size, page * size + size),
       page,
+      size,
       totalElements: matches.length,
     });
   }),
