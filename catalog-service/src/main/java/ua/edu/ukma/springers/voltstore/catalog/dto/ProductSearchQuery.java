@@ -36,8 +36,8 @@ public class ProductSearchQuery {
     @Parameter(description = "`title` or `basePrice`, optionally followed by `,asc` or `,desc`", example = "basePrice,desc")
     private String sortBy;
 
-    // Applied for Catalog Managers only; ignored for every other caller
-    @Parameter(description = "Applied for CATALOG_MANAGER only")
+    // Applied for staff (Catalog Managers and Inventory Workers) only; ignored for every other caller
+    @Parameter(description = "Applied for CATALOG_MANAGER and INVENTORY_WORKER only")
     private ProductStatus status;
 
     // page × size must fit the int row offset Spring Data passes to JPA

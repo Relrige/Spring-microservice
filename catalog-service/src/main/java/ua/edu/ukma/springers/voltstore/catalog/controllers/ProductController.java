@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.*;
 import ua.edu.ukma.springers.voltstore.catalog.dto.BatchProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.CreateProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.PageResponse;
-import ua.edu.ukma.springers.voltstore.catalog.dto.ProductDetailsResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductRequest;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductSearchQuery;
@@ -47,9 +46,9 @@ public class ProductController {
     // EP-CAT-04. The caller is the principal set by the trusted-header filter (null when anonymous or for
     // a service call); the controller never reads X-User-Role itself.
     @Operation(summary = "Search products (EP-CAT-04)",
-            description = "Role: none or CATALOG_MANAGER. Anonymous callers and every role except CATALOG_MANAGER see "
-                    + "only ACTIVE products, and `status` is ignored for them. A CATALOG_MANAGER sees ACTIVE and "
-                    + "NOT_ACTIVE products and may filter by `status`.")
+            description = "Role: none, or CATALOG_MANAGER or INVENTORY_WORKER. Anonymous callers and every other role "
+                    + "see only ACTIVE products, and `status` is ignored for them. A CATALOG_MANAGER or "
+                    + "INVENTORY_WORKER sees ACTIVE and NOT_ACTIVE products and may filter by `status`.")
     @OptionalAuthentication
     @ApiResponse(responseCode = "200", description = "One page of products")
     @ApiResponse(responseCode = "400", description = "Invalid query parameters, or minPrice greater than maxPrice",
@@ -78,15 +77,17 @@ public class ProductController {
         return productService.batchGetProducts(ids);
     }
 
-    // EP-CAT-05
-    @Operation(summary = "Get an active product (EP-CAT-05)",
-            description = "Public. A NOT_ACTIVE product answers the same 404 as a missing one.")
+    // EP-CAT-05. Same caller handling and visibility rule as EP-CAT-04.
+    @Operation(summary = "Get a product (EP-CAT-05)",
+            description = "Role: none, or CATALOG_MANAGER or INVENTORY_WORKER. These two roles see products of any "
+                    + "status; for every other caller a NOT_ACTIVE product answers the same 404 as a missing one.")
+    @OptionalAuthentication
     @ApiResponse(responseCode = "200", description = "The product")
-    @ApiResponse(responseCode = "404", description = "No active product with this ID",
+    @ApiResponse(responseCode = "404", description = "No product with this ID that the caller may see",
             content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = Problem.class)))
     @GetMapping("/{id}")
-    public ProductDetailsResponse getProduct(@PathVariable UUID id) {
-        return productService.getActiveProduct(id);
+    public ProductResponse getProduct(@PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user) {
+        return productService.getProduct(id, user != null ? user.role() : null);
     }
 
     @Operation(summary = "Create a product (EP-CAT-01)",

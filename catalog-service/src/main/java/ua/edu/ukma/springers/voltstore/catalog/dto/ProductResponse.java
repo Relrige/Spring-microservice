@@ -12,7 +12,7 @@ import java.util.UUID;
 
 import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 
-// Full (manager) view of a product
+// Full view of a product: EP-CAT-05 for every caller, and the answer of EP-CAT-02
 @Data
 @AllArgsConstructor
 public class ProductResponse {

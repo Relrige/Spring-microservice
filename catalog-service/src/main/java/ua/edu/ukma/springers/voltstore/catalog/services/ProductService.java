@@ -11,7 +11,6 @@ import org.springframework.transaction.support.TransactionOperations;
 import ua.edu.ukma.springers.voltstore.catalog.dto.BatchProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.CreateProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.PageResponse;
-import ua.edu.ukma.springers.voltstore.catalog.dto.ProductDetailsResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductRequest;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductSearchQuery;
@@ -134,20 +133,24 @@ public class ProductService {
         });
     }
 
-    // EP-CAT-05: the customer view. An inactive product gets exactly the same 404 as a missing one,
-    // so the existence of unpublished products does not leak (for every caller, managers included).
+    /**
+     * EP-CAT-05: the full view for every caller, under the same visibility rule as EP-CAT-04. Staff see a product
+     * of any status; for everyone else an inactive product gets exactly the same 404 as a missing one, so the
+     * existence of unpublished products does not leak.
+     */
     @Transactional(readOnly = true)
-    public ProductDetailsResponse getActiveProduct(UUID id) {
+    public ProductResponse getProduct(UUID id, @Nullable UserRole callerRole) {
+        ProductStatus visible = visibleStatus(null, callerRole);
         return productRepository.findById(id)
-                .filter(product -> product.getStatus() == ProductStatus.ACTIVE)
-                .map(ProductDetailsResponse::from)
+                .filter(product -> visible == null || product.getStatus() == visible)
+                .map(ProductResponse::from)
                 .orElseThrow(() -> new ProductNotFoundException(id));
     }
 
     /**
-     * EP-CAT-04. Catalog Managers see every product and may filter by {@code status}; every other caller
-     * (anonymous included, {@code callerRole == null}) sees ACTIVE products only and the {@code status}
-     * parameter is ignored. {@code stockStatus} comes from the stored read-model column; Inventory is not called.
+     * EP-CAT-04. Staff see every product and may filter by {@code status}; every other caller (anonymous
+     * included, {@code callerRole == null}) sees ACTIVE products only and the {@code status} parameter is
+     * ignored. {@code stockStatus} comes from the stored read-model column; Inventory is not called.
      */
     @Transactional(readOnly = true)
     public PageResponse<ProductSummaryResponse> browseProducts(ProductSearchQuery query, @Nullable UserRole callerRole) {
@@ -208,11 +211,17 @@ public class ProductService {
 
 
     /**
-     * Role-based visibility of the product listing (business logic, not a security rule): the status filter to
-     * apply, or null for no status filter. Only a Catalog Manager may see NOT_ACTIVE products.
+     * Role-based product visibility for EP-CAT-04 and EP-CAT-05 (business logic, not a security rule): the status
+     * filter to apply, or null for no status filter. Only staff ({@code CATALOG_MANAGER} and
+     * {@code INVENTORY_WORKER}, who prepare products before activation) see NOT_ACTIVE products; {@code ADMIN},
+     * customers, anonymous callers and internal calls do not.
      */
     static @Nullable ProductStatus visibleStatus(@Nullable ProductStatus requested, @Nullable UserRole callerRole) {
-        return callerRole == UserRole.CATALOG_MANAGER ? requested : ProductStatus.ACTIVE;
+        return isStaff(callerRole) ? requested : ProductStatus.ACTIVE;
+    }
+
+    private static boolean isStaff(@Nullable UserRole role) {
+        return role == UserRole.CATALOG_MANAGER || role == UserRole.INVENTORY_WORKER;
     }
 
     /**

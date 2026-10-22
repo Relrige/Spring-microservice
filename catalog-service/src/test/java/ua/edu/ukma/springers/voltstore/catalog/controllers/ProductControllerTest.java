@@ -11,7 +11,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import ua.edu.ukma.springers.voltstore.catalog.dto.BatchProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.CreateProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.PageResponse;
-import ua.edu.ukma.springers.voltstore.catalog.dto.ProductDetailsResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductResponse;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductSearchQuery;
 import ua.edu.ukma.springers.voltstore.catalog.dto.ProductStatusRequest;
@@ -53,6 +52,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asInternalService;
 import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asManager;
+import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asUser;
 import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asUser;
 
 @WebMvcTest(ProductController.class)
@@ -277,24 +277,37 @@ class ProductControllerTest {
     // --- EP-CAT-05: product details ---
 
     @Test
-    void getProduct_anonymous_returnsCustomerViewWithoutStatus() throws Exception {
+    void getProduct_anonymous_returnsFullViewWithStatus() throws Exception {
         UUID id = UUID.randomUUID();
-        when(productService.getActiveProduct(id)).thenReturn(new ProductDetailsResponse(id, "Phone", "A phone",
-                CATEGORY_ID, new BigDecimal("10.00"), StockStatus.IN_STOCK));
+        when(productService.getProduct(id, null)).thenReturn(new ProductResponse(id, "Phone", "A phone",
+                CATEGORY_ID, new BigDecimal("10.00"), ProductStatus.ACTIVE, StockStatus.IN_STOCK));
 
         mockMvc.perform(get(URL + "/" + id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.productId").value(id.toString()))
+                .andExpect(jsonPath("$.title").value("Phone"))
                 .andExpect(jsonPath("$.description").value("A phone"))
                 .andExpect(jsonPath("$.categoryId").value(CATEGORY_ID.toString()))
-                .andExpect(jsonPath("$.stockStatus").value("IN_STOCK"))
-                .andExpect(jsonPath("$.status").doesNotExist());
+                .andExpect(jsonPath("$.basePrice").value(10.00))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.stockStatus").value("IN_STOCK"));
+    }
+
+    @Test
+    void getProduct_passesTheCallersRole() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(productService.getProduct(id, UserRole.INVENTORY_WORKER)).thenReturn(new ProductResponse(id, "Phone",
+                "A phone", CATEGORY_ID, new BigDecimal("10.00"), ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK));
+
+        mockMvc.perform(get(URL + "/" + id).headers(asUser("INVENTORY_WORKER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("NOT_ACTIVE"));
     }
 
     @Test
     void getProduct_notFound_returns404() throws Exception {
         UUID id = UUID.randomUUID();
-        when(productService.getActiveProduct(id)).thenThrow(new ProductNotFoundException(id));
+        when(productService.getProduct(id, null)).thenThrow(new ProductNotFoundException(id));
 
         mockMvc.perform(get(URL + "/" + id))
                 .andExpect(status().isNotFound())
@@ -422,7 +435,7 @@ class ProductControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]"));
 
-        verify(productService, never()).getActiveProduct(any());
+        verify(productService, never()).getProduct(any(), any());
     }
 
     @Test
