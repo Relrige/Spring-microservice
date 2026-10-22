@@ -48,3 +48,5 @@ Every service with gateway-routed endpoints publishes an OpenAPI 3.1 document. A
 - **`orderIds` documented as required.** The controller binds it with `required = false` and `ShipmentService` answers `400` (`errors.orderIds`) when it is missing or empty, so the parameter is required in practice. `@Parameter(required = true)` makes the document say what the endpoint does; the binding is unchanged, so the error stays the service's own `400` with `errors`.
 - **`400` on the path-only operations** (cancel and retry): the table lists none, but a non-UUID path value answers `400` (spec: "a non-UUID path or query value"); the customizer adds it, as agreed in the pilot.
 - **Code vs. task table:** no other difference.
+
+*Spec sync (2026-10-22):* no spec change needed: EP-DEL-01 and `api-contracts.md` already require `orderIds` (1–100) and answer `400` without it; the pilot details are in `openapi-conventions.md` (*Building blocks per service*).
