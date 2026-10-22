@@ -67,7 +67,7 @@ test('staff login lands in its area', async ({ page }) => {
   const cases = [
     { account: manager, path: '/manage', heading: 'Catalog console' },
     { account: worker, path: '/warehouse', heading: 'Stock' },
-    { account: adminAccount(), path: '/admin', heading: 'Administration' },
+    { account: adminAccount(), path: '/admin', heading: 'Staff accounts' },
   ];
   for (const { account, path, heading } of cases) {
     await page.goto('/login');
