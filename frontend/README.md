@@ -83,7 +83,13 @@ Result of the last live run: see *Live verification* below.
 
 ## Live verification
 
-Last run: 2026-10-22, branch `new-feature` (change `customer-checkout-orders`), Compose stack of the repository root with the catalog and order images rebuilt after Catalog tasks 27–29 and Order tasks 19–20.
+Last run: 2026-10-22, branch `catalog-manager-console` (change `catalog-manager-console`), Compose stack of the repository root with the catalog, gateway and inventory images rebuilt at `4551bbe` (Catalog tasks 27–29, gateway task 12, Inventory tasks 22–24).
+
+- `npm run seed`: `Result: seeded.` (only the demo cart and profile were set again); storefront 42 active products with the expected stock status.
+- BL-01 through the gateway, `GET /api/catalog/products/{id}` for the inactive fixture "Xiaomi 14T, 512 GB": with the manager's token `200` with `description` and `status: NOT_ACTIVE`; without a token `404`; with a malformed token `401`. BL-01 is `Done`.
+- Stack setup on that machine: the stopped containers of another Compose project (a worktree) held the fixed container names and were removed (their volumes kept).
+
+Previous run: 2026-10-22, branch `new-feature` (change `customer-checkout-orders`), Compose stack of the repository root with the catalog and order images rebuilt after Catalog tasks 27–29 and Order tasks 19–20.
 
 - `npm run seed`, first run: `Result: seeded.` with `demo profile: set`; second run: `Result: unchanged`, `demo cart: kept, demo profile: kept`. Storefront: 42 active products with the expected stock status.
 - `npm run test:e2e:live`: 9 of 9 journeys passed (about 30 s), including checkout with a declined (`…0002`) and an approved (`…4242`) card and cancelling an unpaid order. `npm run check:e2e` against the mock: 9 of 9.

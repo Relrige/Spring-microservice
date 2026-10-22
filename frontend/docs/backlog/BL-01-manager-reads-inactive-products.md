@@ -1,7 +1,7 @@
 ---
 id: BL-01
 title: Catalog managers can read any product by id
-status: In progress
+status: Done
 importance: Blocker
 services: [catalog-service, api-gateway]
 blocks: iteration 4 (catalog-manager-console)
@@ -75,6 +75,15 @@ Backend tasks: Catalog [27](../../../docs/tasks/catalog-service/27-staff-product
 - **Same visibility rule on the list:** `GET /catalog/products` follows the same staff rule, so the frontend needs no separate rule per endpoint.
 - **New `409` on save:** not asked for in this item. It came with the product version from Catalog task 29.
 - Otherwise implemented as requested: option A, one response shape, route `OPTIONAL`.
+
+## Frontend verification (2026-10-22)
+
+Checked through the gateway on the seeded Compose stack (catalog and gateway images rebuilt at `4551bbe`), for the inactive fixture "Xiaomi 14T, 512 GB" (change `catalog-manager-console`, task 1.1):
+- with the manager's token: `200`, the full view with `description` and `status: NOT_ACTIVE`;
+- without a token: `404` (`type` `not-found`, `catalog-service`);
+- with a malformed token: `401` (`type` `unauthorized`, `api-gateway`).
+
+The item is `Done`.
 
 ## Notes
 

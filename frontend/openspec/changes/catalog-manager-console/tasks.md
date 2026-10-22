@@ -4,7 +4,7 @@ Apply on a branch that contains `customer-checkout-orders`, Catalog tasks 27–2
 
 ## 1. Backlog gate, contracts and mock backend
 
-- [ ] 1.1 With the Compose stack up and `npm run seed` done, check BL-01 through the gateway for the inactive fixture "Xiaomi 14T, 512 GB" (design D1). Expected answers to `GET /api/catalog/products/{id}`:
+- [x] 1.1 With the Compose stack up and `npm run seed` done, check BL-01 through the gateway for the inactive fixture "Xiaomi 14T, 512 GB" (design D1). Expected answers to `GET /api/catalog/products/{id}`:
   - with the manager's token: `200` with `description` and `status: NOT_ACTIVE`;
   - without a token: `404`;
   - with a malformed token: `401`.
