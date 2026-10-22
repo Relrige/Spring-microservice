@@ -23,7 +23,7 @@ Every service with gateway-routed endpoints publishes an OpenAPI 3.1 document. A
   `401`/`403`/`404` without a schema name use `Problem`. The EP cards win where they differ; record any difference under *Deviations*.
 - [x] The carrier delivery report (EP-DEL-04) is a Java interface, not an HTTP endpoint, and does not appear in any document.
 - [x] `OpenApiDocumentTest` compares `/v3/api-docs/public` and `/v3/api-docs/internal` with the committed `delivery-service/openapi/public.json` and `internal.json`, and rewrites them with `-Dopenapi.update=true`. Both directions are checked by hand once.
-- [ ] `delivery-service` in `docker-compose.yml` gets the two `SPRINGDOC_*` entries; `http://localhost:8083/swagger-ui.html` works and is read-only. Kubernetes is unchanged.
+- [x] `delivery-service` in `docker-compose.yml` gets the two `SPRINGDOC_*` entries; `http://localhost:8083/swagger-ui.html` works and is read-only. Kubernetes is unchanged.
 - [x] All existing Delivery tests still pass.
 
 ## Technical Notes / Constraints
@@ -40,6 +40,8 @@ Every service with gateway-routed endpoints publishes an OpenAPI 3.1 document. A
 - `@InternalApi` on `getShipmentStatuses` and `cancelShipment`, so they are only in `internal.json`; `retryTtnGeneration` is the only public operation (`Role: INVENTORY_WORKER.`, `bearerAuth`). The carrier delivery report (EP-DEL-04) is a Java interface with no controller, so it appears in neither document.
 - D5: `RetryTtnResponse.ttn` and `ShipmentStatusResponse.orderId` are `REQUIRED`; `status`, `ttn` and `failureReason` of the batch items stay unmarked (`null` without a shipment).
 - **Verified:** removing the `REQUIRED` mark from `RetryTtnResponse.ttn` failed `OpenApiDocumentTest` ("public.json differs from the code. ..."); restoring it passed. `OpenApiDisabledByDefaultTest`: the documentation paths answer `404` with springdoc off. Read both documents: 1 public and 2 internal operations, `424 TtnGenerationFailedProblem` on the retry, `204` without a body for the cancel, no `[T, "null"]`. Full suite `mvnw.cmd clean test`: 20 test classes, 164 tests, all green.
+- **Compose check (2026-10-22):** with the whole stack up, `http://localhost:8083/swagger-ui.html` answers `200` and lists both groups; `/v3/api-docs/swagger-config` has `supportedSubmitMethods: []` (read-only); every runtime document equals the committed file as a JSON tree. The gateway answers `404` for `/v3/api-docs/public`. `k8s/` is unchanged.
+  Order and Delivery needed a local workaround for the check, which is not part of this change: the local `.env` files of both lack `AUTH_INTERNAL_TOKEN`, and the local Order database volume holds an older `orders` table, so Flyway V1 fails. A temporary Compose override supplied the token and a fresh volume.
 
 ## Deviations from spec / task
 - **Pilot details carried over:** `@Tag` per controller, and the `default-produces-media-type` and `override-with-generic-response` properties (reasons in the Catalog task).

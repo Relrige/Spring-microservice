@@ -22,7 +22,7 @@ Every service with gateway-routed endpoints publishes an OpenAPI 3.1 document. A
 
   The EP cards win where they differ; record any difference under *Deviations*.
 - [x] `OpenApiDocumentTest` compares `/v3/api-docs/public` with the committed `auth-service/openapi/public.json` and rewrites it with `-Dopenapi.update=true`. Both directions are checked by hand once.
-- [ ] `auth-service` in `docker-compose.yml` gets the two `SPRINGDOC_*` entries; `http://localhost:8086/swagger-ui.html` works and is read-only. Kubernetes is unchanged.
+- [x] `auth-service` in `docker-compose.yml` gets the two `SPRINGDOC_*` entries; `http://localhost:8086/swagger-ui.html` works and is read-only. Kubernetes is unchanged.
 - [x] All existing Auth tests still pass.
 
 ## Technical Notes / Constraints
@@ -39,6 +39,7 @@ Every service with gateway-routed endpoints publishes an OpenAPI 3.1 document. A
 - Controllers: `@Tag` (`Authentication`, `Users`), `@Operation` per method (EP number; `Public.` or `Role: ADMIN.`), `@SecurityRequirement(name = BEARER_AUTH)` on `POST /user/non-customer` only, and the error responses of the task table.
 - D5: `LoginResponse.token` and `RegisterUserResponse.userId` are `REQUIRED`. The request fields already have `@NotBlank`/`@NotNull`, so they are required in the document without extra marks. `CreateNonCustomerUserRequest` extends `RegisterUserRequest`; springdoc inlines the inherited `email` and `password`, so the schema lists all three fields as required. `role` got a description ("Any role except CUSTOMER"), because the enum also lists `CUSTOMER`. No `example` values on any request field.
 - **Verified:** removing the `REQUIRED` mark from `LoginResponse.token` failed `OpenApiDocumentTest` with "public.json differs from the code. Regenerate with: ..."; restoring it passed. `OpenApiDisabledByDefaultTest`: `/v3/api-docs`, `/v3/api-docs/public`, `/swagger-ui.html` and `/swagger-ui/index.html` answer `404` with springdoc off. Read `openapi/public.json`: 3 operations, security only on `non-customer`, named problem schemas, no `[T, "null"]`. Full suite `mvnw.cmd clean test`: 17 test classes, 98 tests, all green.
+- **Compose check (2026-10-22):** with the whole stack up, `http://localhost:8086/swagger-ui.html` answers `200` and lists the public group; `/v3/api-docs/swagger-config` has `supportedSubmitMethods: []` (read-only); every runtime document equals the committed file as a JSON tree. The gateway answers `404` for `/v3/api-docs/public`. `k8s/` is unchanged.
 
 ## Deviations from spec / task
 - **Pilot details carried over:** `@Tag` per controller, and the `default-produces-media-type` and `override-with-generic-response` properties (reasons in the Catalog task).

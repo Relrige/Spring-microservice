@@ -28,7 +28,7 @@ Every service with gateway-routed endpoints publishes an OpenAPI 3.1 document. A
 
   `401`/`403`/`404` without a schema name use `Problem`. The EP cards and `GlobalExceptionHandler` win where they differ from this table; record any difference under *Deviations*.
 - [x] `OpenApiDocumentTest` compares `/v3/api-docs/public` with the committed `order-service/openapi/public.json` and rewrites it with `-Dopenapi.update=true`. Both directions are checked by hand once.
-- [ ] `order-service` in `docker-compose.yml` gets the two `SPRINGDOC_*` entries; `http://localhost:8082/swagger-ui.html` works and is read-only. Kubernetes is unchanged.
+- [x] `order-service` in `docker-compose.yml` gets the two `SPRINGDOC_*` entries; `http://localhost:8082/swagger-ui.html` works and is read-only. Kubernetes is unchanged.
 - [x] All existing Order tests still pass.
 
 ## Technical Notes / Constraints
@@ -47,6 +47,8 @@ Every service with gateway-routed endpoints publishes an OpenAPI 3.1 document. A
 - Controllers: `@Tag` (`Orders`, `Fulfillment`), `@SecurityRequirement(name = BEARER_AUTH)` and a description starting with the role on all eight operations, `Retry-After` on every `503`, the `Location` header on the `201` of `POST /orders`, `202` for the cancel and `204` for the soft check. The history's `page`/`size` got parameter descriptions. No `example` values anywhere, so there are no card-like numbers in the document.
 - D5: every response field that is never null is `REQUIRED`, checked against the code and the `orders` table (see *Deviations* for `reservationExpiresAt` and the queue's `paidAt`). Unmarked: details `paidAt`, `ttn`, `deliveryStatus`; queue `deliveryStatus`, `ttn`, `failureReason`. Request records already carry Bean Validation constraints.
 - **Verified:** removing a `REQUIRED` mark from `PaidOrderResponse` failed `OpenApiDocumentTest` ("public.json differs from the code. ..."); restoring it passed. `OpenApiDisabledByDefaultTest`: the documentation paths answer `404` with springdoc off. Read `openapi/public.json`: 8 operations, all with `bearerAuth`, the `oneOf` lists as above, nested schemas with distinct names, no `[T, "null"]`, no `example`. Full suite `mvnw.cmd clean test`: 36 test classes, 336 tests, all green.
+- **Compose check (2026-10-22):** with the whole stack up, `http://localhost:8082/swagger-ui.html` answers `200` and lists the public group; `/v3/api-docs/swagger-config` has `supportedSubmitMethods: []` (read-only); every runtime document equals the committed file as a JSON tree. The gateway answers `404` for `/v3/api-docs/public`. `k8s/` is unchanged.
+  Order and Delivery needed a local workaround for the check, which is not part of this change: the local `.env` files of both lack `AUTH_INTERNAL_TOKEN`, and the local Order database volume holds an older `orders` table, so Flyway V1 fails. A temporary Compose override supplied the token and a fresh volume.
 
 ## Deviations from spec / task
 - **Pilot details carried over:** `@Tag` per controller, and the `default-produces-media-type` and `override-with-generic-response` properties (reasons in the Catalog task).

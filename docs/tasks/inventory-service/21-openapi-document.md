@@ -26,7 +26,7 @@ Every service with gateway-routed endpoints publishes an OpenAPI 3.1 document. A
 
   `401`/`403`/`404`/`409` without a schema name use `Problem`. The EP cards win where they differ; record any difference under *Deviations*.
 - [x] `OpenApiDocumentTest` compares `/v3/api-docs/public` and `/v3/api-docs/internal` with the committed `inventory-service/openapi/public.json` and `internal.json`, and rewrites them with `-Dopenapi.update=true`. Both directions are checked by hand once.
-- [ ] `inventory-service` in `docker-compose.yml` gets the two `SPRINGDOC_*` entries; `http://localhost:8084/swagger-ui.html` works and is read-only. Kubernetes is unchanged.
+- [x] `inventory-service` in `docker-compose.yml` gets the two `SPRINGDOC_*` entries; `http://localhost:8084/swagger-ui.html` works and is read-only. Kubernetes is unchanged.
 - [x] All existing Inventory tests still pass.
 
 ## Technical Notes / Constraints
@@ -44,6 +44,7 @@ Every service with gateway-routed endpoints publishes an OpenAPI 3.1 document. A
 - D5: every component of `PageResponse`, `StockBalanceResponse`, `AdjustStockResponse`, `PackagingResponse` and `InsufficientItem` is `REQUIRED` (all primitives or always set). The request records already had `@NotNull`/`@NotEmpty`, so no request field needed a mark.
 - The stock list's `@RequestParam`s appear as four query parameters with descriptions; springdoc takes the defaults (`page` 0, `size` 20) from `defaultValue`.
 - **Verified:** removing a `REQUIRED` mark from `PackagingResponse` failed `OpenApiDocumentTest` ("internal.json differs from the code. ..."); restoring it passed. `OpenApiDisabledByDefaultTest`: the documentation paths answer `404` with springdoc off. Read both documents: 3 public operations with `bearerAuth`, 4 internal with `internalToken`, `Retry-After` on both `503`s, `204` responses without a body, no `[T, "null"]`. Full suite `mvnw.cmd clean test`: 42 test classes, 335 tests, all green.
+- **Compose check (2026-10-22):** with the whole stack up, `http://localhost:8084/swagger-ui.html` answers `200` and lists both groups; `/v3/api-docs/swagger-config` has `supportedSubmitMethods: []` (read-only); every runtime document equals the committed file as a JSON tree. The gateway answers `404` for `/v3/api-docs/public`. `k8s/` is unchanged.
 
 ## Deviations from spec / task
 - **Pilot details carried over:** `@Tag` per controller, and the `default-produces-media-type` and `override-with-generic-response` properties (reasons in the Catalog task).

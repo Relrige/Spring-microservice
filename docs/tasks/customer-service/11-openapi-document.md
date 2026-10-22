@@ -29,7 +29,7 @@ Every service with gateway-routed endpoints publishes an OpenAPI 3.1 document. A
 
   The EP cards win where they differ; record any difference under *Deviations*.
 - [x] `OpenApiDocumentTest` compares `/v3/api-docs/public` with the committed `customer-service/openapi/public.json` and rewrites it with `-Dopenapi.update=true`. Both directions are checked by hand once.
-- [ ] `customer-service` in `docker-compose.yml` gets the two `SPRINGDOC_*` entries; `http://localhost:8087/swagger-ui.html` works and is read-only. Kubernetes is unchanged.
+- [x] `customer-service` in `docker-compose.yml` gets the two `SPRINGDOC_*` entries; `http://localhost:8087/swagger-ui.html` works and is read-only. Kubernetes is unchanged.
 - [x] All existing Customer tests still pass.
 
 ## Technical Notes / Constraints
@@ -46,6 +46,7 @@ Every service with gateway-routed endpoints publishes an OpenAPI 3.1 document. A
 - Controllers: `@Tag` (`Profile`, `Cart`), and on all nine operations `@SecurityRequirement(name = BEARER_AUTH)`, a description starting with `Role: CUSTOMER.`, and `401`/`403` plus the error responses of the task table. The cart rules (10 products, quantity 1 to 10) are named in the descriptions of the operations that check them.
 - D5: `CartItemResponse.productId` and `quantity` are `REQUIRED`. `ProfileResponse` stays unmarked (all `null` for a customer without a profile). The request records already have Bean Validation constraints, so `firstName`, `lastName`, `phone`, `items`, `productId` and `quantity` are required, and `defaultAddress` is optional, with no extra marks.
 - **Verified:** removing a `REQUIRED` mark from `CartItemResponse` failed `OpenApiDocumentTest` ("public.json differs from the code. ..."); restoring it passed. `OpenApiDisabledByDefaultTest`: the documentation paths answer `404` with springdoc off. Read `openapi/public.json`: 9 operations, each with `bearerAuth`, cart answers as arrays of `CartItemResponse`, `CartRuleProblem` on every `422`, no `[T, "null"]`. Full suite `mvnw.cmd clean test`: 15 test classes, 130 tests, all green.
+- **Compose check (2026-10-22):** with the whole stack up, `http://localhost:8087/swagger-ui.html` answers `200` and lists the public group; `/v3/api-docs/swagger-config` has `supportedSubmitMethods: []` (read-only); every runtime document equals the committed file as a JSON tree. The gateway answers `404` for `/v3/api-docs/public`. `k8s/` is unchanged.
 
 ## Deviations from spec / task
 - **Pilot details carried over:** `@Tag` per controller, and the `default-produces-media-type` and `override-with-generic-response` properties (reasons in the Catalog task).
