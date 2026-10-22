@@ -68,3 +68,5 @@ Builds on task 22 (columns and entity mapping). It can be done before task 23; r
 - **The type-mismatch handler is general.** The task asks for `errors.productStatus`; overriding `handleTypeMismatch` gives every unconvertible query parameter its `errors.<parameter>`, including `packagingConfigured`, which before answered `400` without `errors`. The other option, binding `productStatus` as a string and parsing it by hand, would have documented it as a free string in OpenAPI rather than an enum.
 - **An empty `productStatus=` means no filter**, not `400`: Spring's enum conversion turns an empty value into `null`. This matches how a blank `search` behaves.
 - **`search` is trimmed** before matching, as Catalog does for its `search`, so surrounding spaces typed into a search box don't hide every row.
+
+*Spec sync (2026-10-22):* now part of the Inventory spec (EP-INV-01 edge cases: `errors.<parameter>`, trimmed `search`, empty `productStatus`; revision 2026-10-22, implementation note).

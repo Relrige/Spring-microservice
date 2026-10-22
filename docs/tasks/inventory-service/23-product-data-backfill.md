@@ -63,3 +63,5 @@ Builds on task 22 (columns, upsert, `ProductCatalog` returning product data) and
 - **The first run waits one interval.** The spec measures the interval "from the end of the previous run" and says nothing about startup. An immediate run at startup would call Catalog while it may still be starting, and in tests it would race with the WireMock stubs. The outbox cleanup job waits the same way.
 - **A cursor instead of re-selecting from the start.** The task says "continues after the last processed ID", and that is implemented literally. Without it, a batch of products Catalog doesn't know would be selected again and again, and the run would never reach the rows after them; the 1100-row test covers this.
 - **The test properties push the schedule to `1d`** instead of disabling scheduling. The other scheduled jobs (outbox relay) must keep running in the integration tests, so a global switch would not work.
+
+*Spec sync (2026-10-22):* now part of the Inventory spec (EP-INV-JOB-01: first run after one interval, the cursor past unknown products; revision 2026-10-22, implementation note).
