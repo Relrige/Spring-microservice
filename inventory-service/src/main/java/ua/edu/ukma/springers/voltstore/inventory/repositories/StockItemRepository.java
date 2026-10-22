@@ -1,6 +1,7 @@
 package ua.edu.ukma.springers.voltstore.inventory.repositories;
 
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -41,6 +42,12 @@ public interface StockItemRepository extends JpaRepository<StockItemEntity, UUID
     @Query(value = "INSERT INTO stock_items (product_id) VALUES (:id) ON CONFLICT (product_id) DO NOTHING",
             nativeQuery = true)
     int insertIfAbsent(@Param("id") UUID id);
+
+    // EP-INV-JOB-01: the next IDs whose copy of the product data is missing, in a stable order, so the job can
+    // continue after the last ID it processed (rows Catalog does not know stay null and must not be read again)
+    @Query("select s.productId from StockItemEntity s where s.title is null and s.productId > :after "
+            + "order by s.productId")
+    List<UUID> findIdsWithoutTitleAfter(@Param("after") UUID after, Limit limit);
 
     /**
      * The only write of the copied product data (D8): creates the row if it is missing (zero quantities, no

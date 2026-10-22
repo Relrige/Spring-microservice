@@ -68,6 +68,10 @@ inventory:
     # Published events are deleted after this long by a job running every cleanup-interval
     retention: 7d
     cleanup-interval: 1h
+  product-data-backfill:
+    # EP-INV-JOB-01: pause between two runs that fill missing copies of product data from Catalog (also the delay
+    # of the first run after startup)
+    interval: ${PRODUCT_DATA_BACKFILL_INTERVAL:60s}
   idempotency:
     # processed_events keys are kept far longer than any redelivery window (retry topics: seconds;
     # Catalog's outbox: minutes to hours during an outage), then deleted

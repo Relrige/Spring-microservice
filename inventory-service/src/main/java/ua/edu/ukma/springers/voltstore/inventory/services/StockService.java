@@ -169,6 +169,18 @@ public class StockService {
     }
 
     /**
+     * EP-INV-JOB-01: writes the product data Catalog's batch-get returned, in a short transaction of its own. An event
+     * applied in the meantime wins if it is newer (the version check).
+     *
+     * @return whether the copy was written
+     */
+    @Transactional
+    public boolean applyCatalogProductData(CatalogProductData product) {
+        return storeProductData(product.productId(), product.title(), product.status(), product.version(),
+                "Product data backfill");
+    }
+
+    /**
      * Creates the StockItem if it is missing and writes the copy of the product data with the version-guarded upsert
      * (D8), so an older or repeated state changes nothing. Without a version (a source older than Catalog's task 29),
      * without a title, or with a status Inventory does not know, only a missing row is created and the copy is left
