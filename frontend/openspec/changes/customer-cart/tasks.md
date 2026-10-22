@@ -25,8 +25,8 @@ Apply after `api-contract-types`: `src/api/generated/customer.ts`, `src/api/cont
 
 ## 4. Guest cart on login
 
-- [ ] 4.1 Implement the guest-cart resolver state machine with its start rules and guard (design D6), including the silent replace and the emptying of the guest cart; verify with tests for *Empty account cart*, *Empty guest cart*, *Logout after merge*, *Customer Service down at login*, no start for a session from another tab, and a single `PUT` under StrictMode
-- [ ] 4.2 Build the replace/keep/merge dialog (no close button, Escape and outside clicks ignored, both carts listed with titles, inline `422` message, re-read after a failed choice); verify with component tests for *Merge*, *Keep account cart*, *Merge breaks a limit* and replace
+- [x] 4.1 Implement the guest-cart resolver state machine with its start rules and guard (design D6), including the silent replace and the emptying of the guest cart; verify with tests for *Empty account cart*, *Empty guest cart*, *Logout after merge*, *Customer Service down at login*, no start for a session from another tab, and a single `PUT` under StrictMode
+- [x] 4.2 Build the replace/keep/merge dialog (no close button, Escape and outside clicks ignored, both carts listed with titles, inline `422` message, re-read after a failed choice); verify with component tests for *Merge*, *Keep account cart*, *Merge breaks a limit* and replace
 
 ## 5. Demo data, browser journeys and docs
 

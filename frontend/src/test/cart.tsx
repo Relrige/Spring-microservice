@@ -1,5 +1,6 @@
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { CartProvider, useCart } from '../features/cart/CartProvider';
+import { GuestCartResolver } from '../features/cart/GuestCartResolver';
 import { SessionProvider, useSession } from '../session/SessionProvider';
 import { renderWithProviders } from './render';
 import { server } from './server';
@@ -22,6 +23,7 @@ export function renderCartProbe() {
         <SessionProvider>
           <CartProvider>
             <Probe />
+            <GuestCartResolver />
           </CartProvider>
         </SessionProvider>
       ),
