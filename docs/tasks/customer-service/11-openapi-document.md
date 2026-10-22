@@ -53,3 +53,5 @@ Every service with gateway-routed endpoints publishes an OpenAPI 3.1 document. A
 - **Nested request schema named `CartItemsRequestItem`.** Springdoc names the nested record `CartItemsRequest.Item` just `Item`, which is too generic for generated client types. `@Schema(name = "CartItemsRequestItem")` on the record fixes the name; the JSON shape is unchanged.
 - **`400` on `DELETE /customers/cart/items/{productId}`.** The table lists no `400`, but a non-UUID `productId` answers one. The customizer adds it, as agreed for path-only operations in the pilot.
 - **Code vs. task table:** no other difference.
+
+*Spec sync (2026-10-22):* the nested-schema naming is now part of `openapi-conventions.md` (D5); the pilot details are in its *Building blocks per service*.
