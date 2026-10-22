@@ -62,7 +62,7 @@ Apply on a branch that contains `customer-checkout-orders`, Catalog tasks 27–2
 
 - [x] 5.1 Write `e2e/manage.spec.ts` with the three journeys of design D11, plus the 375 px check on the product list; verify `npm run check:e2e` passes, including the existing journeys
 - [x] 5.2 Run `npm run test:e2e:live` against the seeded Compose stack. Fix any mismatch between the mock and Catalog; a generated type that disagrees with the service spec is a backlog item (`AGENTS.md` §3). Record the run in *Live verification* of `README.md`, and describe the manager console where `README.md` lists what each demo account can do. Verify that the live run passes and that a second run reuses "E2E draft product" instead of creating another.
-- [ ] 5.3 Check the product list, the new and edit pages, and the categories page in the preview pane, on desktop and at 375 px, in light and dark, against the design system README's staff rules and `WarehouseStock.dc.html`. Verify by screenshots that layout and colours match and that the page has no horizontal scroll.
+- [x] 5.3 Check the product list, the new and edit pages, and the categories page in the preview pane, on desktop and at 375 px, in light and dark, against the design system README's staff rules and `WarehouseStock.dc.html`. Verify by screenshots that layout and colours match and that the page has no horizontal scroll.
 
 ## Workflow follow-up
 

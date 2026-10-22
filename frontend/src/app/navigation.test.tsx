@@ -102,9 +102,11 @@ describe('Role-aware navigation', () => {
     expect(products).toHaveAttribute('href', '/manage/products');
     // Nested manager pages highlight their link (design D4).
     expect(products).toHaveAttribute('aria-current', 'page');
+    expect(products.getAttribute('style')).toContain('var(--vs-primary-soft)');
     const categories = screen.getByRole('link', { name: 'Categories' });
     expect(categories).toHaveAttribute('href', '/manage/categories');
     expect(categories).not.toHaveAttribute('aria-current');
+    expect(categories.getAttribute('style')).not.toContain('var(--vs-primary-soft)');
     expect(currentUserText()).toBe(`${manager.email} · Catalog manager`);
     expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument();
     for (const name of [

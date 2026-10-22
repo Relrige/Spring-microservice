@@ -34,29 +34,40 @@ function isStorefront(pathname: string): boolean {
   return pathname === '/' || pathname.startsWith('/products/');
 }
 
+/** NavLink's rule: the link's path or a page below it; `/` only by itself. */
+function isActiveLink(to: string, pathname: string): boolean {
+  return to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(`${to}/`);
+}
+
 function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
+  const { pathname } = useLocation();
   return (
     <>
-      {items.map((item) => (
-        <Anchor
-          key={item.to}
-          component={NavLink}
-          to={item.to}
-          end={item.to === '/'}
-          onClick={onNavigate}
-          underline="never"
-          fw={600}
-          px="sm"
-          py={9}
-          style={({ isActive }: { isActive: boolean }) => ({
-            borderRadius: 6,
-            color: isActive ? 'var(--vs-primary)' : 'var(--vs-ink)',
-            background: isActive ? 'var(--vs-primary-soft)' : undefined,
-          })}
-        >
-          {item.label}
-        </Anchor>
-      ))}
+      {items.map((item) => {
+        // Mantine reads a function `style` as a theme callback, so the active state is
+        // computed here rather than taken from NavLink's style argument.
+        const active = isActiveLink(item.to, pathname);
+        return (
+          <Anchor
+            key={item.to}
+            component={NavLink}
+            to={item.to}
+            end={item.to === '/'}
+            onClick={onNavigate}
+            underline="never"
+            fw={600}
+            px="sm"
+            py={9}
+            style={{
+              borderRadius: 6,
+              color: active ? 'var(--vs-primary)' : 'var(--vs-ink)',
+              background: active ? 'var(--vs-primary-soft)' : undefined,
+            }}
+          >
+            {item.label}
+          </Anchor>
+        );
+      })}
     </>
   );
 }

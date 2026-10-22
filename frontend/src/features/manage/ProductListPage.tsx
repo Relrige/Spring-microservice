@@ -190,7 +190,7 @@ export function ProductListPage() {
                     <Table.Td w={72}>
                       <ProductImage categoryName={categoryName} size={40} radius={6} />
                     </Table.Td>
-                    <Table.Td>
+                    <Table.Td miw={220}>
                       <Anchor
                         component={Link}
                         to={`/manage/products/${product.productId}`}

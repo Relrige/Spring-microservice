@@ -144,7 +144,7 @@ export function CategoriesPage() {
           <>
             <StaffTable
               label="Categories"
-              minWidth={480}
+              minWidth={340}
               columns={[{ label: 'Name' }, { label: 'Id' }, { label: 'Actions', hidden: true }]}
             >
               {categories.data.content.map((category) => (
