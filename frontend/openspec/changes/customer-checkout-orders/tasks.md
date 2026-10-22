@@ -13,7 +13,7 @@ Apply on a branch that contains `customer-cart` and the backend's Catalog tasks 
 ## 2. Routes, navigation and profile
 
 - [x] 2.1 Add the routes of design D3, `/checkout` in `AREAS`, the `/account` redirect and the customer header links "Orders" and "Profile"; verify with navigation tests for *Worker opens the checkout*, *Customer opens the account*, *Customer header* and *Visitor opens the checkout*, and that the existing navigation tests pass
-- [ ] 2.2 Build `ProfilePage` (load, empty profile, client rules, save with phone normalization, server field errors); verify with component tests for *Saved profile is shown*, *No profile yet*, *Profile saved*, *Invalid phone* and *Server field errors*
+- [x] 2.2 Build `ProfilePage` (load, empty profile, client rules, save with phone normalization, server field errors); verify with component tests for *Saved profile is shown*, *No profile yet*, *Profile saved*, *Invalid phone* and *Server field errors*
 
 ## 3. Checkout
 
