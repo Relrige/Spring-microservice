@@ -1,5 +1,5 @@
 ---
-status: IN_PROGRESS
+status: DONE
 service: catalog-service
 ---
 # Align Containerization and Kubernetes Deployment
@@ -14,7 +14,7 @@ Catalog Service already has a Dockerfile, Compose entry and Kubernetes manifests
 - [x] `k8s/catalog/app-deployment.yaml` loads both secrets and the ConfigMap; no secret values are in ConfigMaps or images.
 - [x] Liveness/readiness probes still work against Actuator and are not blocked by the security chain.
 - [x] `docker-compose.yml` and `catalog-service/.env.example` contain every variable the application needs, with comments; `.env` stays untracked.
-- [ ] Manual smoke test recorded in the PR: create a category and a product with the `X-User-Id` / `X-User-Role` headers set by hand, list products anonymously, and confirm `denyAll()` blocks unknown routes.
+- [x] Manual smoke test recorded in the PR: create a category and a product with the `X-User-Id` / `X-User-Role` headers set by hand, list products anonymously, and confirm `denyAll()` blocks unknown routes.
 - [x] `k8s.txt` build/load commands still include `catalog-service` (already present; verify, do not duplicate).
 
 ## Technical Notes / Constraints
@@ -30,3 +30,16 @@ Catalog Service already has a Dockerfile, Compose entry and Kubernetes manifests
 - **Not done yet:** the minikube run (2 replicas sharing the outbox) was not performed, because the cluster was stopped. That and the PR record of the smoke test keep this task open. Flyway's own schema-history lock serializes migrations when both replicas start together.
 - `NetworkPolicy` is not in place for any service; mention it in the PR (cross-service concern, Security Model). The current Ingress still bypasses the gateway; per this task it was not extended.
 - `k8s.txt` already builds and loads `catalog-service` (verified, not duplicated).
+
+## Implementation Notes (2026-10-23)
+- **Smoke test:** the manual smoke test of the Compose run (2026-10-11, notes above) covers the criterion: category and product `201` with hand-set `X-User-Id` / `X-User-Role`, anonymous listing `200`, anonymous write `401`, unknown route `403`. It is recorded in this PR, which closes the task. Since then the same calls are made through the gateway by the [Compose gateway runbook](../../../e2e/manual/docker-compose-gateway.md) (step 4), run again on 2026-10-23.
+- **Minikube run with 2 replicas (2026-10-23):** on a minikube profile with Calico (`voltstore-np`), every service deployed from the current images, Catalog scaled temporarily to 2 replicas (`kubectl scale deployment/catalog-service -n voltstore --replicas=2`, back to 1 afterwards; the manifest keeps 1 replica, see below).
+  - Both pods became ready. The second pod started on an already migrated database, so concurrent migrations were not exercised; that relies on Flyway's schema-history lock, as noted above.
+  - The stock-events consumer is one group: `kafka-consumer-groups.sh --describe --group catalog-service` showed `inventory.stock-events` partitions 0 and 1 on one pod and 2 on the other.
+  - Outbox with two relays: 10 products created through the Ingress; `catalog.product-events` held exactly one `ProductCreated` for each of them (`FOR UPDATE SKIP LOCKED` in `OutboxRepository`).
+- **Verified:** the checks above; no code changed apart from one comment, so the test suite was not re-run.
+
+## Deviations from spec / task
+- **One replica instead of two.** The task notes say Catalog uses `replicas: 2`; `k8s/catalog/app-deployment.yaml` now has `replicas: 1`, like every service (`k8s.txt`: "Every service runs with 1 replica… scale up temporarily"). The two-replica behaviour was therefore checked by scaling up for the run rather than by changing the manifest. The comment in `OutboxRepository` that said "the Deployment runs 2 replicas" now says "when the Deployment is scaled up".
+- **Kafka admin commands under the network policies.** Since the `NetworkPolicy` objects exist, `kubectl exec kafka-0 -- kafka-consumer-groups.sh --bootstrap-server kafka:9092` times out: the broker pod is not a `service` and so may not reach the `kafka` Service. The run used a throw-away pod with the broker's image and the label `app.kubernetes.io/component=service`. The [Catalog ↔ Inventory runbook](../../../e2e/manual/k8s-catalog-inventory.md) predates the policies and still uses `kubectl exec kafka-0`; on a Calico cluster it needs the same workaround (open point in the PR).
+- **Superseded notes above:** `NetworkPolicy` is now in place for every service (`k8s/network/`), and the Ingress no longer bypasses the gateway (it reaches it through the frontend's `/api` proxy).
