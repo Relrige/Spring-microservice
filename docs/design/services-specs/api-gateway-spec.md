@@ -15,7 +15,7 @@ Services do not validate JWTs. They trust the identity headers set by the gatewa
 | **Events emitted / consumed** | none |
 | **Secrets** | `AUTH_JWT_SECRET` — the HS256 key used by Auth Service to sign tokens (the gateway only verifies with it); same variable name as in Auth Service |
 | **Upstreams** | Auth, Catalog, Inventory (routed); Order, Delivery, Customer (routes added once those services implement the contract paths, see [Route Table](#route-table)). Payment and Notification have no externally routed endpoints |
-| **Deployment** | Kubernetes `Service` `api-gateway` (ClusterIP, port `8080`); the Ingress sends all external traffic here. Docker Compose: host port `8080`. Actuator on a separate management port `8090` (not exposed) |
+| **Deployment** | Kubernetes `Service` `api-gateway` (ClusterIP, port `8080`); external traffic reaches it through the Ingress and the frontend's `/api` proxy (see *Relation to the Kubernetes Ingress*). Docker Compose: host port `8080`. Actuator on a separate management port `8090` (not exposed) |
 
 ---
 
@@ -77,7 +77,7 @@ Responses of upstreams, including their `4xx`/`5xx` problem details, are passed 
 
 The model is safe only if all of these hold:
 
-- **Services are unreachable except through the gateway** (and other services): ClusterIP services only, a single Ingress rule (`/` → `api-gateway`, path unchanged), and `NetworkPolicy` objects in `k8s/network/`: default deny ingress in the namespace; the gateway accepts only the Ingress controller (namespace `ingress-nginx`); services accept the gateway and other services; Kafka accepts services; each database accepts only its own service. Pods are selected by the label `app.kubernetes.io/component` (`gateway`, `service`, `database`, `broker`). Policies are enforced only by a policy-capable CNI, so minikube runs with `--cni=calico`.
+- **Services are unreachable except through the gateway** (and other services): ClusterIP services only, a single Ingress rule (`/` → `frontend`, whose nginx forwards `/api/*` to `api-gateway`), and `NetworkPolicy` objects in `k8s/network/`: default deny ingress in the namespace; the frontend accepts only the Ingress controller (namespace `ingress-nginx`); the gateway accepts the frontend and the Ingress controller; services accept the gateway and other services; Kafka accepts services; each database accepts only its own service. Pods are selected by the label `app.kubernetes.io/component` (`frontend`, `gateway`, `service`, `database`, `broker`). Policies are enforced only by a policy-capable CNI, so minikube runs with `--cni=calico`.
 - **Identity headers are stripped** on every incoming request (pipeline step 1), including `X-Internal-Token`.
 - **Internal endpoints are never routed.** Routes are an allowlist of method + path pairs; there is no wildcard such as `/payments/**`.
 - **`AUTH_JWT_SECRET` is a secret** shared only by Auth Service and the gateway (Kubernetes Secrets `auth-secrets` and `gateway-secrets`, which must hold the same value). Anyone holding it can mint tokens.
@@ -151,11 +151,11 @@ Derived from the [API Contracts](../services-requirements/api-contracts.md). Row
 | `management.server.port` | — | Actuator and health probes; `8090` |
 | Route definitions | — | `spring.cloud.gateway.server.webmvc.routes` in `application.yml`: one entry per configured row of the route table, with `Method` and `Path` predicates, the `TrustBoundary` filter and `metadata.authMode` / `metadata.roles` |
 
-Upstream cluster addresses at the time of writing: auth `8086`, catalog `8081`, order `8082`, delivery `8083`, inventory `8084`, payment `8085`; customer-service is not deployed yet.
+Upstream cluster addresses at the time of writing: auth `8086`, catalog `8081`, order `8082`, delivery `8083`, inventory `8084`, payment `8085`, customer `8087`.
 
 ### Relation to the Kubernetes Ingress
 
-The Ingress (`k8s/ingress/ingress.yaml`) forwards **all** external traffic, with the path unchanged, to the `api-gateway` Service; per-service routing lives only in the gateway. TLS is not terminated in the local setup (plain HTTP via `minikube tunnel`); terminating TLS at the Ingress remains the target for a real deployment.
+The Ingress (`k8s/ingress/ingress.yaml`) forwards **all** external traffic to the `frontend` Service (the web app, `k8s/frontend/`). The frontend's nginx serves the app and forwards `/api/*` to the `api-gateway` Service with the `/api` prefix removed and the rest of the path unchanged (`frontend/deploy/nginx.conf`); per-service routing lives only in the gateway. API clients therefore call `http://<ingress>/api/<gateway path>`; Docker Compose publishes the gateway directly on host port `8080` and the frontend on `3000`. TLS is not terminated in the local setup (plain HTTP via `minikube tunnel`); terminating TLS at the Ingress remains the target for a real deployment.
 
 ---
 
