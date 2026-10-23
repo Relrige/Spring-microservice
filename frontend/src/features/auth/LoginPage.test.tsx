@@ -49,7 +49,7 @@ describe('Login', () => {
   it('Already logged in: sent to the role landing area', async () => {
     loginAs('CATALOG_MANAGER');
     const { router } = renderApp('/login');
-    await waitFor(() => expect(currentUrl(router)).toBe('/manage'));
+    await waitFor(() => expect(currentUrl(router)).toBe('/manage/products'));
   });
 
   it('Unreadable token: no session starts and a generic error is shown', async () => {

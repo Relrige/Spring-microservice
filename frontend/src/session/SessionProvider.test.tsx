@@ -43,18 +43,18 @@ describe('Session expiry', () => {
   it('Expiry while idle on a protected page: login page with notice and return page', async () => {
     loginAs('CATALOG_MANAGER', { lifetimeSeconds: 2 });
     const { router } = renderApp('/manage');
-    expect(await screen.findByRole('heading', { name: 'Catalog console' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Products' })).toBeInTheDocument();
 
     expect(
       await screen.findByText(/Your session has expired/, {}, { timeout: 4000 }),
     ).toBeInTheDocument();
-    expect(currentUrl(router)).toBe('/login?expired=1&returnTo=%2Fmanage');
+    expect(currentUrl(router)).toBe('/login?expired=1&returnTo=%2Fmanage%2Fproducts');
     expect(window.localStorage.getItem(SESSION_STORAGE_KEY)).toBeNull();
 
     await userEvent.type(screen.getByLabelText('Email'), manager.email);
     await userEvent.type(screen.getByLabelText('Password'), manager.password);
     await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
-    await waitFor(() => expect(currentUrl(router)).toBe('/manage'));
+    await waitFor(() => expect(currentUrl(router)).toBe('/manage/products'));
   });
 
   it('Expiry while idle on the storefront: the user stays and becomes a visitor', async () => {

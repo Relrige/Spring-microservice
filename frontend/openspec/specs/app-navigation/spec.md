@@ -7,7 +7,7 @@ Defines the application shell shared by all pages: the URL areas per role, what 
 ## Requirements
 
 ### Requirement: URL areas per role
-The application SHALL organize its pages into areas by URL prefix. The storefront (`/`, `/products/...`, `/login`, `/register`) is open to everyone. The cart `/cart` is open to visitors and customers; catalog managers, inventory workers and admins get the access-denied page there. `/account/...` and `/checkout/...` require `CUSTOMER`, `/manage/...` requires `CATALOG_MANAGER`, `/warehouse/...` requires `INVENTORY_WORKER`, and `/admin/...` requires `ADMIN`. `/account` itself leads to the order history. Roles are not hierarchical: `ADMIN` has no access to the other protected areas.
+The application SHALL organize its pages into areas by URL prefix. The storefront (`/`, `/products/...`, `/login`, `/register`) is open to everyone. The cart `/cart` is open to visitors and customers; catalog managers, inventory workers and admins get the access-denied page there. `/account/...` and `/checkout/...` require `CUSTOMER`, `/manage/...` requires `CATALOG_MANAGER`, `/warehouse/...` requires `INVENTORY_WORKER`, and `/admin/...` requires `ADMIN`. `/account` itself leads to the order history, and `/manage` itself leads to the product list `/manage/products`. Roles are not hierarchical: `ADMIN` has no access to the other protected areas.
 
 #### Scenario: Admin cannot open the manager area
 - **WHEN** a user with role `ADMIN` opens a `/manage/...` URL
@@ -28,6 +28,14 @@ The application SHALL organize its pages into areas by URL prefix. The storefron
 #### Scenario: Customer opens the account
 - **WHEN** a customer opens `/account`
 - **THEN** the order history at `/account/orders` is shown
+
+#### Scenario: Manager opens the manager area
+- **WHEN** a catalog manager opens `/manage`
+- **THEN** the product list at `/manage/products` is shown
+
+#### Scenario: Unknown manager page
+- **WHEN** a catalog manager opens `/manage/no-such-page`
+- **THEN** the not-found page is shown
 
 ### Requirement: Landing area per role
 After login, and when a logged-in user opens `/login` or `/register`, the frontend SHALL take the user to their role's landing area: `CUSTOMER` → storefront `/`, `CATALOG_MANAGER` → `/manage`, `INVENTORY_WORKER` → `/warehouse`, `ADMIN` → `/admin`.
@@ -52,7 +60,7 @@ Opening a protected page without a session SHALL take the user to the login page
 - **THEN** the access-denied page is shown with a link back to the storefront
 
 ### Requirement: Role-aware navigation
-The header SHALL show navigation that matches the current user: visitors see the catalog, the cart, "Log in" and "Register"; customers see the catalog, "Orders", "Profile", the cart and "Log out"; each logged-in staff role sees links to the pages of its own area that exist, plus "Log out", and no cart. An inventory worker's links are "Stock" and "Fulfillment queue", the latter with the number of orders waiting for dispatch. Links to areas the user cannot open SHALL NOT be shown. The cart control SHALL stay in the header on narrow screens.
+The header SHALL show navigation that matches the current user: visitors see the catalog, the cart, "Log in" and "Register"; customers see the catalog, "Orders", "Profile", the cart and "Log out"; catalog managers see "Products", "Categories" and "Log out"; each other logged-in staff role sees links to the pages of its own area that exist, plus "Log out". An inventory worker's links are "Stock" and "Fulfillment queue", the latter with the number of orders waiting for dispatch. Staff see no cart. Links to areas the user cannot open SHALL NOT be shown. The cart control SHALL stay in the header on narrow screens.
 
 #### Scenario: Visitor header
 - **WHEN** no one is logged in
@@ -60,7 +68,7 @@ The header SHALL show navigation that matches the current user: visitors see the
 
 #### Scenario: Manager header
 - **WHEN** a catalog manager is logged in
-- **THEN** the header shows links to the manager area and "Log out", and no cart and no links to the customer, warehouse or admin areas
+- **THEN** the header shows "Products" linking to `/manage/products`, "Categories" linking to `/manage/categories` and "Log out", and no cart and no links to the customer, warehouse or admin areas
 
 #### Scenario: Customer header on a phone
 - **WHEN** a customer is logged in and the page is 375 px wide

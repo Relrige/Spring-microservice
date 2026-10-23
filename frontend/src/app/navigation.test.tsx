@@ -45,11 +45,24 @@ describe('Protected pages need a login', () => {
     );
   });
 
-  it('shows the placeholder landing page of a staff area without screens yet', async () => {
+  it('Manager opens the manager area: the product list at /manage/products', async () => {
     loginAs('CATALOG_MANAGER');
-    renderApp('/manage');
-    expect(await screen.findByRole('heading', { name: 'Catalog console' })).toBeInTheDocument();
-    expect(screen.getByText(/iteration 4/)).toBeInTheDocument();
+    const { router } = renderApp('/manage');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Products' })).toBeInTheDocument();
+    expect(currentUrl(router)).toBe('/manage/products');
+  });
+
+  it('Unknown manager page: the not-found page', async () => {
+    loginAs('CATALOG_MANAGER');
+    renderApp('/manage/no-such-page');
+    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+  });
+
+  it('Admin cannot open a nested manager page either', async () => {
+    loginAs('ADMIN');
+    renderApp('/manage/categories');
+    expect(await screen.findByText('You do not have access to this page')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Categories' })).not.toBeInTheDocument();
   });
 
   it("worker's landing: /warehouse is the stock page", async () => {
@@ -82,16 +95,30 @@ describe('Role-aware navigation', () => {
     }
   });
 
-  it('Manager header: manager area, email and role, Log out; no other areas', async () => {
+  it('Manager header: Products, Categories, email and role, Log out; no cart or other areas', async () => {
     loginAs('CATALOG_MANAGER');
-    renderApp('/');
-    expect(await screen.findByRole('link', { name: 'Catalog console' })).toHaveAttribute(
-      'href',
-      '/manage',
-    );
+    renderApp('/manage/products/00000000-0000-4000-8000-000000000001');
+    const products = await screen.findByRole('link', { name: 'Products' });
+    expect(products).toHaveAttribute('href', '/manage/products');
+    // Nested manager pages highlight their link (design D4).
+    expect(products).toHaveAttribute('aria-current', 'page');
+    expect(products.getAttribute('style')).toContain('var(--vs-primary-soft)');
+    const categories = screen.getByRole('link', { name: 'Categories' });
+    expect(categories).toHaveAttribute('href', '/manage/categories');
+    expect(categories).not.toHaveAttribute('aria-current');
+    expect(categories.getAttribute('style')).not.toContain('var(--vs-primary-soft)');
     expect(currentUserText()).toBe(`${manager.email} · Catalog manager`);
     expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument();
-    for (const name of ['Stock', /^Fulfillment queue/, 'Admin', 'Log in', 'Register', /^Cart/]) {
+    for (const name of [
+      'Catalog console',
+      'Orders',
+      'Stock',
+      /^Fulfillment queue/,
+      'Admin',
+      'Log in',
+      'Register',
+      /^Cart/,
+    ]) {
       expect(screen.queryByRole('link', { name })).not.toBeInTheDocument();
     }
   });
@@ -142,7 +169,7 @@ describe('Cart area', () => {
   it('a staff login with returnTo=/cart lands in the staff area', async () => {
     const { router } = renderApp('/login?returnTo=%2Fcart');
     await submitLogin(manager.email, manager.password);
-    await waitFor(() => expect(currentUrl(router)).toBe('/manage'));
+    await waitFor(() => expect(currentUrl(router)).toBe('/manage/products'));
   });
 });
 
