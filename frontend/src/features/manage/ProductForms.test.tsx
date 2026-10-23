@@ -247,3 +247,89 @@ describe('Edit a product', () => {
     expect(titleInput()).toHaveValue('Typed but not saved');
   });
 });
+
+describe('Product image field', () => {
+  const imageInput = () => screen.getByRole('textbox', { name: /^Image/ });
+  const inactive = () => db.products.find((p) => p.status === 'NOT_ACTIVE')!;
+
+  it('Image set on create: sent trimmed, shown in the field and the preview of the edit page', async () => {
+    loginAs('CATALOG_MANAGER');
+    const writes = recordWrites('POST', /^\/api\/catalog\/products$/);
+    renderApp('/manage/products/new');
+    await fillNewProduct();
+    await userEvent.type(imageInput(), ' /images/products/laptop.svg ');
+    expect(screen.getByTestId('image-preview')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Create product' }));
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect((await writes[0]!.json()).imageUrl).toBe('/images/products/laptop.svg');
+    expect(await screen.findByText(CREATED_NOTICE)).toBeInTheDocument();
+    expect(await screen.findByRole('textbox', { name: /^Image/ })).toHaveValue(
+      '/images/products/laptop.svg',
+    );
+    expect(screen.getByTestId('image-preview').querySelector('img')).toHaveAttribute(
+      'src',
+      '/images/products/laptop.svg',
+    );
+  });
+
+  it('Invalid image value: the rule at the field, no preview, no request sent', async () => {
+    loginAs('CATALOG_MANAGER');
+    const writes = recordWrites('POST', /^\/api\/catalog\/products$/);
+    renderApp('/manage/products/new');
+    await fillNewProduct();
+    await userEvent.type(imageInput(), 'http://example.com/a.png');
+    expect(screen.queryByTestId('image-preview')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Create product' }));
+    expect(
+      await screen.findByText('Use an https:// link or a path under /images/'),
+    ).toBeInTheDocument();
+    expect(writes).toHaveLength(0);
+  });
+
+  it('Image removed: the update carries no image and the product shows its placeholder', async () => {
+    loginAs('CATALOG_MANAGER');
+    const product = inactive();
+    expect(product.imageUrl).not.toBeNull();
+    const writes = recordWrites('PUT', /^\/api\/catalog\/products\//);
+    renderApp(`/manage/products/${product.productId}`);
+    expect(await screen.findByRole('textbox', { name: /^Image/ })).toHaveValue(product.imageUrl);
+    await userEvent.clear(imageInput());
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findByText('Changes saved')).toBeInTheDocument();
+    expect(await writes[0]!.json()).not.toHaveProperty('imageUrl');
+    expect(db.products.find((p) => p.productId === product.productId)!.imageUrl).toBeNull();
+  });
+
+  it('Image kept on save: changing only the price sends the unchanged image', async () => {
+    loginAs('CATALOG_MANAGER');
+    const product = inactive();
+    const image = product.imageUrl;
+    const writes = recordWrites('PUT', /^\/api\/catalog\/products\//);
+    renderApp(`/manage/products/${product.productId}`);
+    await screen.findByRole('textbox', { name: 'Title' });
+    await userEvent.clear(priceInput());
+    await userEvent.type(priceInput(), '555');
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findByText('Changes saved')).toBeInTheDocument();
+    expect((await writes[0]!.json()).imageUrl).toBe(image);
+    expect(db.products.find((p) => p.productId === product.productId)!.imageUrl).toBe(image);
+  });
+
+  it('a 400 with errors.imageUrl is shown at the image field', async () => {
+    loginAs('CATALOG_MANAGER');
+    server.use(
+      http.post('*/api/catalog/products', () =>
+        problem(400, 'One or more fields are invalid.', {
+          errors: { imageUrl: ['must be an https URL or a path under /images/'] },
+        }),
+      ),
+    );
+    renderApp('/manage/products/new');
+    await fillNewProduct();
+    await userEvent.click(screen.getByRole('button', { name: 'Create product' }));
+    expect(
+      await screen.findByText('must be an https URL or a path under /images/'),
+    ).toBeInTheDocument();
+  });
+});

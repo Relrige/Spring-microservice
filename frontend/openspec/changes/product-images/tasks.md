@@ -11,7 +11,7 @@
 
 ## 3. Manager form
 
-- [ ] 3.1 Add the Image field with its rule, preview and `400` mapping to the create and edit forms (design D3); verify with tests for *Image set on create*, *Invalid image value*, *Image removed* and *Image kept on save*
+- [x] 3.1 Add the Image field with its rule, preview and `400` mapping to the create and edit forms (design D3); verify with tests for *Image set on create*, *Invalid image value*, *Image removed* and *Image kept on save*
 
 ## 4. Seed and docs
 

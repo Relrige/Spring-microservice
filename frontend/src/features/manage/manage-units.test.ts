@@ -4,6 +4,7 @@ import { ApiError, PROBLEM_TYPE_PREFIX } from '../../api/errors';
 import {
   categoryError,
   categoryNameError,
+  imageUrlError,
   descriptionError,
   priceError,
   titleError,
@@ -161,6 +162,23 @@ describe('product and category field rules', () => {
     expect(categoryNameError('Tablets')).toBeNull();
   });
 
+  it('image: optional; an https link or a path under /images/, at most 2048 characters', () => {
+    expect(imageUrlError('  ')).toBeNull();
+    expect(imageUrlError(' https://cdn.example.com/a.jpg ')).toBeNull();
+    expect(imageUrlError('/images/products/a.svg')).toBeNull();
+    for (const bad of [
+      'http://cdn.example.com/a.jpg',
+      '/images/../a.svg',
+      'a.png',
+      'https://a b',
+    ]) {
+      expect(imageUrlError(bad), bad).toBe('Use an https:// link or a path under /images/');
+    }
+    expect(imageUrlError(`https://a.example/${'a'.repeat(2048)}`)).toBe(
+      'Use at most 2048 characters',
+    );
+  });
+
   it('the form fields are the ProductInput fields, sent trimmed', () => {
     expectTypeOf<keyof ProductFormValues>().toEqualTypeOf<keyof ProductInput>();
     expect(
@@ -180,7 +198,13 @@ describe('product and category field rules', () => {
     });
     // An empty image field sends no image.
     expect(
-      toProductInput({ title: 'A', description: 'B', categoryId: 'c', basePrice: 5, imageUrl: ' ' }),
+      toProductInput({
+        title: 'A',
+        description: 'B',
+        categoryId: 'c',
+        basePrice: 5,
+        imageUrl: ' ',
+      }),
     ).not.toHaveProperty('imageUrl');
   });
 });
