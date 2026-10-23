@@ -8,8 +8,8 @@ Testcontainers `ComposeContainer` module).
 |---|---|---|
 | [docker-compose-catalog-inventory.md](docker-compose-catalog-inventory.md) | Docker Compose | Run successfully on 2026-10-12; updated 2026-10-13 after merging main (Catalog security headers, outbox, stock-event consumer, Inventory retry/DLT topics), not re-run since |
 | [k8s-catalog-inventory.md](k8s-catalog-inventory.md) | minikube | Run successfully on 2026-10-13; updated the same day after merging main, not re-run since |
-| [docker-compose-gateway.md](docker-compose-gateway.md) | Docker Compose | Run successfully on 2026-10-14 |
-| [k8s-gateway.md](k8s-gateway.md) | minikube (Calico CNI) | Run successfully on 2026-10-14 (separate minikube profile) |
+| [docker-compose-gateway.md](docker-compose-gateway.md) | Docker Compose | Run successfully on 2026-10-23 with the Customer and Delivery step (gateway task 10; gateway published on host port 18080 through a local override because 8080 was taken) |
+| [k8s-gateway.md](k8s-gateway.md) | minikube (Calico CNI) | Run successfully on 2026-10-23 with every service and the frontend behind the Ingress (API under `/api`; separate minikube profile `voltstore-np`) |
 | [docker-compose-order.md](docker-compose-order.md) | Docker Compose (all services) | Run successfully on 2026-10-17 (scripted equivalent with `jq`; the runbook's helpers were checked against the same stack) |
 | [docker-compose-notification.md](docker-compose-notification.md) | Docker Compose (all services + Mailpit) | Run successfully on 2026-10-19 (the runbook's commands executed as a script, fresh volumes) |
 

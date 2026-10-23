@@ -1,28 +1,29 @@
-# API Gateway with Auth, Catalog and Inventory: Docker Compose
+# API Gateway with Auth, Catalog, Inventory, Customer and Delivery: Docker Compose
 
 Checks the edge of the system: every request goes **through the gateway only** (`http://localhost:8080`). Auth
 Service issues the tokens, the gateway verifies them, enforces the route table and sets the trusted headers, and
-Catalog and Inventory rely on those headers.
+the services rely on those headers. Order's routes are checked by the [Order runbook](docker-compose-order.md),
+which also goes through the gateway.
 
 ```
-client --JWT--> api-gateway :8080 --X-User-Id / X-User-Role--> auth | catalog | inventory
+client --JWT--> api-gateway :8080 --X-User-Id / X-User-Role--> auth | catalog | inventory | customer | delivery
 ```
 
 Shell: **Git Bash**, from the repository root (see [README](README.md)). `G` holds the gateway address.
 
 ## 0. Prerequisites
 - Docker Desktop is running; minikube is stopped (`minikube stop`) to free memory.
-- Local `.env` files exist for `api-gateway`, `auth-service`, `catalog-service` and `inventory-service` (copy each
-  `.env.example` if missing). The JWT key must be **identical** in the gateway and Auth Service, and the internal
-  token identical in the three services:
+- Local `.env` files exist for `api-gateway`, `auth-service`, `catalog-service`, `inventory-service`,
+  `customer-service` and `delivery-service` (copy each `.env.example` if missing). The JWT key must be **identical**
+  in the gateway and Auth Service, and the internal token identical in the services:
 
 ```bash
 grep -h AUTH_JWT_SECRET api-gateway/.env auth-service/.env
-grep -h "INTERNAL_TOKEN" auth-service/.env catalog-service/.env inventory-service/.env
+grep -h "INTERNAL_TOKEN" auth-service/.env catalog-service/.env inventory-service/.env customer-service/.env delivery-service/.env
 grep GATEWAY_UPSTREAMS api-gateway/.env
 ```
 
-Expected: two equal `AUTH_JWT_SECRET` lines; three equal tokens; upstreams `http://<service>:8080` (inside Compose
+Expected: two equal `AUTH_JWT_SECRET` lines; equal tokens; six upstreams `http://<service>:8080` (inside Compose
 the container port, not the published host port).
 
 - If a service fails with a Flyway error such as `relation "..." already exists`, its volume predates the
@@ -31,20 +32,20 @@ the container port, not the published host port).
 ## 1. Start the stack
 
 ```bash
-docker compose up -d --build kafka api-gateway auth-service catalog-service inventory-service
+docker compose up -d --build kafka api-gateway auth-service catalog-service inventory-service customer-service delivery-service
 ```
 
 The gateway does not wait for anything (it is stateless); until an upstream is up, its routes answer `502`.
 Wait until the services are ready (their host ports are used only for the readiness check):
 
 ```bash
-for port in 8086 8081 8084; do
+for port in 8086 8081 8084 8087 8083; do
   echo "port $port: $(curl -sf --retry 40 --retry-delay 3 --retry-all-errors --max-time 5 http://localhost:$port/actuator/health/readiness)"
 done
 G=http://localhost:8080
 ```
 
-Expected: `{"status":"UP"}` three times.
+Expected: `{"status":"UP"}` five times.
 
 ## 2. Auth through the gateway
 `code` prints only the status; `body` prints the status line and the body.
@@ -168,24 +169,67 @@ A guest now reads it; `stockStatus` is `IN_STOCK` (set from Inventory's `Product
 body $G/catalog/products/$PRODUCT_ID
 ```
 
-## 5. Optional vs Public routes with a bad token
-`GET /catalog/products` is Optional: a stale or garbled token is rejected (`401`) instead of silently becoming a
-guest. `GET /catalog/products/{id}` is Public: the token is ignored (`200`).
+## 5. Customer and Delivery through the gateway
+Every Customer route needs role `CUSTOMER`; the TTN retry needs `INVENTORY_WORKER`. Other roles are stopped at the
+gateway, and `{productId}` / `{id}` must be UUIDs:
+
+```bash
+AUTHC=(-H "Authorization: Bearer $CUSTOMER")
+code $G/customers/me/profile                                                          # 401
+code $G/customers/cart -H "Authorization: Bearer $WORKER"                             # 403
+code $G/customers/cart -H "Authorization: Bearer $ADMIN"                              # 403
+code -X POST $G/delivery/orders/$PRODUCT_ID/ttn/retry "${AUTHC[@]}"                   # 403
+code -X PATCH $G/customers/cart/items/not-a-uuid "${json[@]}" "${AUTHC[@]}" -d '{"quantity":2}'  # 404 (no route)
+```
+
+The customer's profile and cart. Customer Service sees the customer only through `X-User-Id`; a profile that was
+never saved reads as all `null`, an empty cart as `[]`:
+
+```bash
+body $G/customers/me/profile "${AUTHC[@]}"
+body -X PUT $G/customers/me/profile "${json[@]}" "${AUTHC[@]}" \
+  -d '{"firstName":"Olena","lastName":"Kovalenko","phone":"+380501234567","defaultAddress":"Kyiv, branch No. 12"}'
+body -X PUT $G/customers/me/profile "${json[@]}" "${AUTHC[@]}" -d '{"firstName":"Olena","lastName":"Kovalenko","phone":"0501234567"}'
+body $G/customers/cart "${AUTHC[@]}"
+body -X POST $G/customers/cart/items "${json[@]}" "${AUTHC[@]}" -d '{"productId":"'$PRODUCT_ID'","quantity":2}'
+body -X PATCH $G/customers/cart/items/$PRODUCT_ID "${json[@]}" "${AUTHC[@]}" -d '{"quantity":3}'
+body -X DELETE $G/customers/cart/items/$PRODUCT_ID "${AUTHC[@]}"
+```
+
+Expected: profile `200` with `null` fields, `200` with the saved values, `400` with an `errors.phone` entry (not
+E.164); cart `200 []`, then `quantity` 2, then 3, then `200 []` again.
+
+The worker asks Delivery to retry the TTN of an order that has no shipment: the request passes the gateway and
+Delivery Service answers `404`:
+
+```bash
+body -X POST $G/delivery/orders/00000000-0000-4000-8000-000000000000/ttn/retry "${AUTHW[@]}"
+```
+
+The full TTN flow (paid order, generated TTN, shipping) is in the [Order runbook](docker-compose-order.md).
+
+## 6. Optional vs Public routes with a bad token
+`GET /catalog/products` and `GET /catalog/products/{id}` are Optional: a stale or garbled token is rejected (`401`)
+instead of silently becoming a guest (the details route is Optional since gateway task 12, so staff can read inactive
+products). `GET /catalog/categories` is Public: the token is ignored (`200`).
 
 ```bash
 code $G/catalog/products -H 'Authorization: Bearer garbage.token.value'                  # 401
-code $G/catalog/products/$PRODUCT_ID -H 'Authorization: Bearer garbage.token.value'      # 200
+code $G/catalog/products/$PRODUCT_ID -H 'Authorization: Bearer garbage.token.value'      # 401
+code $G/catalog/categories -H 'Authorization: Bearer garbage.token.value'                # 200
 code $G/catalog/products                                                                 # 200 (guest)
+code $G/catalog/products/$PRODUCT_ID                                                     # 200 (guest)
 ```
 
-## 6. Internal and unrouted paths are `404`
+## 7. Internal and unrouted paths are `404`
 Internal endpoints exist in the services but are not in the gateway's route table; Actuator is on the gateway's
 unpublished management port:
 
 ```bash
 for req in "GET /catalog/products/batch-get" "GET /inventory/stock/$PRODUCT_ID/readiness" \
            "GET /inventory/stock/$PRODUCT_ID/packaging" "POST /inventory/reservations" \
-           "POST /payments/charge" "GET /actuator/health" "GET /actuator/env" "GET /no/such/path" \
+           "POST /payments/charge" "GET /delivery/shipments" "DELETE /delivery/shipments/$PRODUCT_ID" \
+           "GET /actuator/health" "GET /actuator/env" "GET /no/such/path" \
            "DELETE /catalog/products/$PRODUCT_ID" "GET /catalog/products/not-a-uuid"; do
   set -- $req; echo "$req -> $(code -X $1 "$G$2" "${json[@]}" -H "Authorization: Bearer $ADMIN" -d '{}')"
 done
@@ -193,7 +237,7 @@ done
 
 Expected: `404` for every line, also with an admin token.
 
-## 7. Upstream down
+## 8. Upstream down
 With Inventory stopped, its routes answer `502` with a generic gateway problem (no host names):
 
 ```bash
@@ -202,7 +246,7 @@ body $G/inventory/stock "${AUTHW[@]}"
 docker compose start inventory-service
 ```
 
-## 8. Stop
+## 9. Stop
 
 ```bash
 docker compose stop
