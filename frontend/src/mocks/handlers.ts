@@ -958,11 +958,203 @@ const workerHandlers: HttpHandler[] = [
   }),
 ];
 
+// Catalog spec EP-CAT-01…03, 06…08: the catalog manager's writes (gateway: Required,
+// CATALOG_MANAGER). Messages, titles and check order follow the live Catalog Service.
+const CATALOG = 'catalog-service';
+const MANAGER_ONLY: AuthMode = { required: ['CATALOG_MANAGER'] };
+const MONEY = /^\d{1,10}(\.\d{1,2})?$/;
+
+const catalogValidation = (errors: Record<string, string[]>) =>
+  problem(400, 'One or more fields are invalid.', { title: 'Validation failed', errors }, CATALOG);
+const productNotFound = (id: string) =>
+  problem(404, `Product with ID ${id} not found`, { title: 'Resource not found' }, CATALOG);
+const categoryNotFound = (id: string) =>
+  problem(404, `Category with ID ${id} not found`, { title: 'Resource not found' }, CATALOG);
+const nameInUse = () => problem(409, 'Category name already in use', {}, CATALOG);
+const categoryMissing = (categoryId: string) =>
+  problem(422, `Category not found: ${categoryId}`, { title: 'Category not found' }, CATALOG);
+
+function textErrors(value: unknown, field: string, max: number, errors: Record<string, string[]>) {
+  if (typeof value !== 'string' || !value.trim()) errors[field] = ['must not be blank'];
+  else if (value.length > max) errors[field] = [`size must be between 0 and ${max}`];
+}
+
+/** EP-CAT-01/02 body rules: title ≤ 200, description ≤ 5000, a UUID category, 0 < price with 2 decimals. */
+function productInput(body: Record<string, unknown> | undefined) {
+  const errors: Record<string, string[]> = {};
+  textErrors(body?.title, 'title', 200, errors);
+  textErrors(body?.description, 'description', 5000, errors);
+  const categoryId = body?.categoryId;
+  if (categoryId == null) errors.categoryId = ['must not be null'];
+  else if (typeof categoryId !== 'string' || !UUID.test(categoryId)) {
+    errors.categoryId = ['Invalid value'];
+  }
+  const price = body?.basePrice;
+  if (price == null) errors.basePrice = ['must not be null'];
+  else if (typeof price !== 'number') errors.basePrice = ['Invalid value'];
+  else if (price <= 0) errors.basePrice = ['must be greater than 0'];
+  else if (!MONEY.test(String(price))) {
+    errors.basePrice = ['numeric value out of bounds (<10 digits>.<2 digits> expected)'];
+  }
+  if (Object.keys(errors).length > 0) return { errors };
+  return {
+    errors,
+    input: {
+      title: String(body!.title),
+      description: String(body!.description),
+      categoryId: String(categoryId),
+      basePrice: Number(price),
+    },
+  };
+}
+
+function productView(product: MockProduct) {
+  return {
+    productId: product.productId,
+    title: product.title,
+    description: product.description,
+    categoryId: product.categoryId,
+    basePrice: product.basePrice,
+    status: product.status,
+    stockStatus: product.stockStatus,
+  } satisfies CatalogSchemas['ProductResponse'];
+}
+
+function categoryName(body: Record<string, unknown> | undefined) {
+  const errors: Record<string, string[]> = {};
+  textErrors(body?.name, 'name', 100, errors);
+  return { errors, name: Object.keys(errors).length > 0 ? undefined : String(body!.name) };
+}
+
+const nameTaken = (name: string, exceptId?: string) =>
+  db.categories.some(
+    (c) => c.categoryId !== exceptId && c.name.toLowerCase() === name.toLowerCase(),
+  );
+
+const catalogManagerHandlers: HttpHandler[] = [
+  // EP-CAT-01: create a product; it starts NOT_ACTIVE, OUT_OF_STOCK and without packaging.
+  http.post(api('/catalog/products'), async ({ request }) => {
+    const { denied } = authenticate(request, MANAGER_ONLY);
+    if (denied) return denied;
+    const { errors, input } = productInput(await readJson(request));
+    if (!input) return catalogValidation(errors);
+    if (!db.categories.some((c) => c.categoryId === input.categoryId)) {
+      return categoryMissing(input.categoryId);
+    }
+    const product: MockProduct = {
+      productId: crypto.randomUUID(),
+      ...input,
+      status: 'NOT_ACTIVE',
+      stockStatus: 'OUT_OF_STOCK',
+      packaging: null,
+      available: 0,
+    };
+    db.products.push(product);
+    return HttpResponse.json(
+      { productId: product.productId } satisfies CatalogSchemas['CreateProductResponse'],
+      { status: 201 },
+    );
+  }),
+
+  // EP-CAT-02: replace the four fields; 404 is checked before the body (as live).
+  http.put(api('/catalog/products/:productId'), async ({ request, params }) => {
+    const { denied } = authenticate(request, MANAGER_ONLY);
+    if (denied) return denied;
+    const id = String(params.productId);
+    const product = db.products.find((p) => p.productId === id);
+    if (!product) return productNotFound(id);
+    const { errors, input } = productInput(await readJson(request));
+    if (!input) return catalogValidation(errors);
+    if (!db.categories.some((c) => c.categoryId === input.categoryId)) {
+      return categoryMissing(input.categoryId);
+    }
+    Object.assign(product, input);
+    return HttpResponse.json(productView(product));
+  }),
+
+  // EP-CAT-03: activate or deactivate; the body is checked before 404 (as live). Readiness
+  // (Inventory) = packaging is set. The mock always has a stock record, so
+  // `stock_item_not_found`, the overlap 409 and the 503 come only from server.use in tests.
+  http.patch(api('/catalog/products/:productId/status'), async ({ request, params }) => {
+    const { denied } = authenticate(request, MANAGER_ONLY);
+    if (denied) return denied;
+    const status = (await readJson(request))?.status;
+    if (status !== 'ACTIVE' && status !== 'NOT_ACTIVE') {
+      return catalogValidation({ status: ['Invalid value'] });
+    }
+    const id = String(params.productId);
+    const product = db.products.find((p) => p.productId === id);
+    if (!product) return productNotFound(id);
+    if (status === 'ACTIVE' && !product.packaging) {
+      return problem(
+        422,
+        'The product is not ready for activation.',
+        {
+          title: 'Product cannot be activated',
+          reason: 'packaging_data_missing',
+        } satisfies Partial<CatalogSchemas['ActivationRejectedProblem']>,
+        CATALOG,
+        'activation-rejected',
+      );
+    }
+    product.status = status;
+    return new HttpResponse(null, { status: 200 });
+  }),
+
+  // EP-CAT-06: create a category; names are unique ignoring case.
+  http.post(api('/catalog/categories'), async ({ request }) => {
+    const { denied } = authenticate(request, MANAGER_ONLY);
+    if (denied) return denied;
+    const { errors, name } = categoryName(await readJson(request));
+    if (name === undefined) return catalogValidation(errors);
+    if (nameTaken(name)) return nameInUse();
+    const category = { categoryId: crypto.randomUUID(), name };
+    db.categories.push(category);
+    return HttpResponse.json(category satisfies CatalogSchemas['CategoryResponse'], {
+      status: 201,
+    });
+  }),
+
+  // EP-CAT-07: rename a category; 404 is checked before the body (as live).
+  http.put(api('/catalog/categories/:categoryId'), async ({ request, params }) => {
+    const { denied } = authenticate(request, MANAGER_ONLY);
+    if (denied) return denied;
+    const id = String(params.categoryId);
+    const category = db.categories.find((c) => c.categoryId === id);
+    if (!category) return categoryNotFound(id);
+    const { errors, name } = categoryName(await readJson(request));
+    if (name === undefined) return catalogValidation(errors);
+    if (nameTaken(name, id)) return nameInUse();
+    category.name = name;
+    return HttpResponse.json({ ...category } satisfies CatalogSchemas['CategoryResponse']);
+  }),
+
+  // EP-CAT-08: delete a category without products; 200 with no body.
+  http.delete(api('/catalog/categories/:categoryId'), ({ request, params }) => {
+    const { denied } = authenticate(request, MANAGER_ONLY);
+    if (denied) return denied;
+    const id = String(params.categoryId);
+    const index = db.categories.findIndex((c) => c.categoryId === id);
+    if (index < 0) return categoryNotFound(id);
+    if (db.products.some((p) => p.categoryId === id)) {
+      return problem(
+        409,
+        'Category has associated products. Reassign or remove all products before deletion.',
+        {},
+        CATALOG,
+      );
+    }
+    db.categories.splice(index, 1);
+    return new HttpResponse(null, { status: 200 });
+  }),
+];
+
 export const handlers: HttpHandler[] = [
   ...cartHandlers,
   ...profileHandlers,
   ...workerHandlers,
   ...orderHandlers,
+  ...catalogManagerHandlers,
 
   // Auth spec EP-AUTH-01: register a customer.
   http.post(api('/user/register'), async ({ request }) => {
@@ -1088,21 +1280,19 @@ export const handlers: HttpHandler[] = [
     } satisfies CatalogSchemas['PageResponseProductSummaryResponse']);
   }),
 
-  // Catalog spec EP-CAT-05: product details (gateway: Public; non-UUID ids have no route).
-  http.get(api('/catalog/products/:productId'), ({ params }) => {
+  // Catalog spec EP-CAT-05: product details (gateway: Optional; non-UUID ids have no route).
+  // Product visibility: staff see every status, everyone else only ACTIVE (the same 404).
+  http.get(api('/catalog/products/:productId'), ({ request, params }) => {
+    const { claims, denied } = authenticate(request, 'optional');
+    if (denied) return denied;
     const id = String(params.productId);
     if (!UUID.test(id)) return problem(404, 'No route matches the request.', {}, 'api-gateway');
-    const product = db.products.find((p) => p.productId === id && p.status === 'ACTIVE');
-    if (!product) return problem(404, 'Product not found', {}, 'catalog-service');
-    return HttpResponse.json({
-      productId: product.productId,
-      title: product.title,
-      description: product.description,
-      categoryId: product.categoryId,
-      basePrice: product.basePrice,
-      status: product.status,
-      stockStatus: product.stockStatus,
-    } satisfies CatalogSchemas['ProductResponse']);
+    const isStaff = claims?.role === 'CATALOG_MANAGER' || claims?.role === 'INVENTORY_WORKER';
+    const product = db.products.find(
+      (p) => p.productId === id && (isStaff || p.status === 'ACTIVE'),
+    );
+    if (!product) return productNotFound(id);
+    return HttpResponse.json(productView(product));
   }),
 
   // Catalog spec EP-CAT-10: categories ordered by name (gateway: Public).

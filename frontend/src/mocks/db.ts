@@ -29,7 +29,7 @@ export interface MockProduct {
   basePrice: number;
   status: ProductStatus;
   stockStatus: StockStatus;
-  /** `null` when never set (tests); the fixtures always have it. */
+  /** `null` until a worker sets it; products created in the mock have none (activation readiness). */
   packaging: DemoPackaging | null;
   available: number;
 }
