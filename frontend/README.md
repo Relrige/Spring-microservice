@@ -24,7 +24,7 @@ The web app of VoltStore: one React + TypeScript single-page app for customers, 
 | `npm run gen:api` | Regenerate the API types in `src/api/generated/` from the services' OpenAPI documents (below). |
 | `npm run check:api` | Fail if the generated API types differ from what the current OpenAPI documents produce. |
 | `npm run check:e2e` | Browser journeys (Playwright, project `mock`) against `dev:mock`; starts the server itself. |
-| `npm run test:e2e:live` | The same journeys (project `live`) against the Compose stack through `npm run dev`. Seed first. |
+| `npm run test:e2e:live` | The same journeys (project `live`) against the Compose stack through `npm run dev`, or against a deployment when `E2E_BASE_URL` is set (no dev server then). Seed first. |
 | `npm run seed` | Fill a running stack with the demo data (below). |
 | `npm run format` | Format with Prettier. |
 | `npm test`, `npm run test:watch`, `npm run lint`, `npm run typecheck` | The parts of `check` alone. |
@@ -81,9 +81,40 @@ On PowerShell: `$env:SEED_ADMIN_PASSWORD='<admin password>'; npm run seed`.
 
 Result of the last live run: see *Live verification* below.
 
+## Deployment
+
+The image ([`Dockerfile`](Dockerfile)) builds the app with Vite and serves it with nginx on port 8080 as an unprivileged user. [`deploy/nginx.conf`](deploy/nginx.conf) forwards `/api/*` to `api-gateway:8080` with `/api` stripped (the same as the dev proxy), answers every other path with `index.html` so deep links survive a reload, caches `/assets/` for a year and answers `/healthz` for probes. The image has no build-time API address: `api-gateway` is the gateway's name in both Compose and Kubernetes.
+
+**Docker Compose.** The root [`docker-compose.yml`](../docker-compose.yml) has a `frontend` service on <http://localhost:3000>:
+
+```bash
+docker compose up -d --build frontend
+E2E_BASE_URL=http://localhost:3000 E2E_ADMIN_PASSWORD=<admin password> npm run test:e2e:live
+```
+
+The seed keeps targeting the gateway directly (`SEED_API_URL` default `http://localhost:8080`).
+
+**Kubernetes (minikube).** [`../k8s/frontend/`](../k8s/frontend/) holds the Deployment and the Service `frontend:8080`. The Ingress sends `/` to the frontend, so with `minikube tunnel` running the app is at <http://localhost/> and the API at `http://localhost/api/…` (no longer at the Ingress root; BL-14 tracks the gateway docs). Build and load the image, apply the manifests and run the journeys through the Ingress (commands in [`../k8s.txt`](../k8s.txt)):
+
+```bash
+docker build -t voltstore/frontend:latest .
+minikube image load voltstore/frontend:latest
+kubectl apply -f ../k8s/frontend/
+SEED_API_URL=http://localhost/api SEED_ADMIN_PASSWORD=<admin password> npm run seed
+E2E_BASE_URL=http://localhost E2E_ADMIN_PASSWORD=<admin password> npm run test:e2e:live
+```
+
+The cluster's admin password is `AUTH_ADMIN_PASSWORD` in the Secret `auth-secrets`. `minikube image load` does not refresh images on its own: when journeys fail on a contract detail, compare the cluster's service images with the current builds first.
+
 ## Live verification
 
-Last run: 2026-10-22, branch `admin-staff-accounts` (change `admin-staff-accounts`), the same Compose stack as the previous run (no service changed).
+Last run: 2026-10-22, branch `frontend-deployment` (change `frontend-deployment`).
+
+- **Compose.** Through the `frontend` container on port 3000: `/api/catalog/products?size=1` returned the gateway's JSON, `/api/no/such/route` the gateway's `404` problem. `E2E_BASE_URL=http://localhost:3000 npm run test:e2e:live`: 11 of 11 journeys passed (about 41 s).
+- **Kubernetes.** minikube with `minikube tunnel`; the Ingress served the app (`/healthz` 200, `/account/orders` with `Cache-Control: no-cache`) and the API under `/api`. The first run failed two journeys because the cluster's service images were 21 hours old (Catalog answered without `size`, BL-05); after loading the current Compose builds and restarting the services, `npm run seed` through `http://localhost/api` twice and `E2E_BASE_URL=http://localhost npm run test:e2e:live`: 11 of 11 passed (about 41 s). A reload of `/account/orders` as the demo customer kept the orders page.
+- The image was checked on its own first: deep links get `index.html` with `no-cache`, `/assets/` files `max-age=31536000, immutable`, and the container runs as uid 101.
+
+Previous run: 2026-10-22, branch `admin-staff-accounts` (change `admin-staff-accounts`), the same Compose stack as the previous run (no service changed).
 
 - `npm run test:e2e:live`: 11 of 11 journeys passed (about 55 s), including the admin journey: the admin created an inventory worker through `POST /user/non-customer`, and the new worker logged in and landed on the stock page. Each run leaves one `e2e-worker-…@example.com` account (accounts cannot be removed, BL-09). `npm run check:e2e` against the mock: 11 of 11.
 - No mismatch between the mock and Auth Service.

@@ -17,6 +17,7 @@ docker build -t  voltstore/inventory-service:latest .\inventory-service
 docker build -t  voltstore/notification-service:latest .\notification-service
 docker build -t  voltstore/order-service:latest .\order-service
 docker build -t  voltstore/payment-service:latest .\payment-service
+docker build -t  voltstore/frontend:latest .\frontend
 
 
 
@@ -29,6 +30,7 @@ minikube image load voltstore/inventory-service:latest
 minikube image load voltstore/notification-service:latest
 minikube image load voltstore/order-service:latest
 minikube image load voltstore/payment-service:latest
+minikube image load voltstore/frontend:latest
 
 # Ordering: "apply -R" goes through folders alphabetically, so "auth" comes before "base" (the namespace).
 # Apply the namespace first, then the Kafka broker (services start without it, but log connection
@@ -60,8 +62,10 @@ kubectl get pods -n voltstore
 
 
 
-# External traffic: Ingress -> api-gateway only (k8s\ingress\). With "minikube tunnel" running the gateway is at
-# http://127.0.0.1/ (see e2e\manual\k8s-gateway.md)
+# External traffic: Ingress -> frontend only (k8s\ingress\); the frontend forwards /api/* to api-gateway with
+# /api stripped. With "minikube tunnel" running the web app is at http://127.0.0.1/ and the gateway at
+# http://127.0.0.1/api/ (see e2e\manual\k8s-gateway.md, written before the /api prefix).
+# The frontend is applied by "apply -R" above; on its own: kubectl apply -f k8s\frontend\
 minikube addons enable ingress
 
 minikube tunnel
