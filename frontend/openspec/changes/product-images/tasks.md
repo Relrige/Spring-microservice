@@ -6,7 +6,7 @@
 
 ## 2. Images
 
-- [x] 2.1 Give every fixture product a linked Wikimedia Commons photo and credit it in `docs/image-credits.md` (design D1, D4); verify every fixture has an `https://upload.wikimedia.org/` image that passes Catalog's rule and a credits entry (a unit test)
+- [x] 2.1 Give every fixture product a linked product image and name its source in `docs/image-credits.md` (design D1, D4); verify every fixture has an `https://` image that passes Catalog's rule and a credits entry (a unit test)
 - [x] 2.2 `ProductImage` shows `imageUrl` on the category ground with the placeholder as fallback, and its callers pass it (design D2); verify with component tests for *Product with an image*, *Image fails to load* and the placeholder scenarios
 
 ## 3. Manager form

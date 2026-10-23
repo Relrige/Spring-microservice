@@ -1,4 +1,4 @@
-// A product's image (Catalog imageUrl) on its category's ground; without an image, or when
+// A product's image (Catalog imageUrl) on a white tile; without an image, or when
 // it fails to load, a placeholder per category (design-system README "Product images";
 // change product-images, design D2).
 import { useState } from 'react';
@@ -93,14 +93,15 @@ export function ProductImage({
 
   if (imageUrl && imageUrl !== failed) {
     return (
-      <div data-image={imageUrl} style={box}>
-        {/* Decorative: the title is always shown next to it. Photos fill the box (cover). */}
+      // Product shots come on white, so the box is white in both themes and shows the whole product.
+      <div data-image={imageUrl} style={{ ...box, background: '#fff' }}>
+        {/* Decorative: the title is always shown next to it. */}
         <img
           src={imageUrl}
           alt=""
           loading="lazy"
           onError={() => setFailed(imageUrl)}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '6%' }}
         />
       </div>
     );

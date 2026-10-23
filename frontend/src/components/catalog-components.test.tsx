@@ -50,12 +50,12 @@ describe('Product image placeholder', () => {
     expect(image.style.background).toBe('var(--vs-surface-sunken)');
   });
 
-  it('Product with an image: the image on the category ground, decorative', () => {
+  it('Product with an image: the whole image on a white tile, decorative', () => {
     const { container } = renderWithProviders(
       <ProductImage categoryName="Phones" imageUrl="/images/products/phone.svg" />,
     );
     const box = container.querySelector('[data-image]') as HTMLElement;
-    expect(box.style.background).toBe('var(--vs-art-blue)');
+    expect(box.style.background).toBe('rgb(255, 255, 255)');
     expect(box.querySelector('img')).toHaveAttribute('src', '/images/products/phone.svg');
     expect(box.querySelector('img')).toHaveAttribute('alt', '');
     expect(screen.queryByRole('img', { name: 'Phones placeholder image' })).not.toBeInTheDocument();
