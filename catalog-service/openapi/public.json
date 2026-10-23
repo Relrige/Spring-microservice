@@ -1020,6 +1020,12 @@
             "maxLength" : 5000,
             "minLength" : 0
           },
+          "imageUrl" : {
+            "type" : "string",
+            "maxLength" : 2048,
+            "minLength" : 0,
+            "pattern" : "^(https://\\S+|/images/(?!.*\\.\\.)[A-Za-z0-9._/-]+)$"
+          },
           "title" : {
             "type" : "string",
             "maxLength" : 200,
@@ -1039,6 +1045,9 @@
             "format" : "uuid"
           },
           "description" : {
+            "type" : "string"
+          },
+          "imageUrl" : {
             "type" : "string"
           },
           "productId" : {
@@ -1078,6 +1087,9 @@
           "categoryId" : {
             "type" : "string",
             "format" : "uuid"
+          },
+          "imageUrl" : {
+            "type" : "string"
           },
           "productId" : {
             "type" : "string",

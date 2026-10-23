@@ -20,6 +20,7 @@ import java.util.UUID;
 public class Product {
     public static final int TITLE_MAX_LENGTH = 200;
     public static final int DESCRIPTION_MAX_LENGTH = 5000;
+    public static final int IMAGE_URL_MAX_LENGTH = 2048;
     // NUMERIC(12, 2): up to 9 999 999 999.99
     public static final int PRICE_INTEGER_DIGITS = 10;
     public static final int PRICE_FRACTION_DIGITS = 2;
@@ -44,6 +45,10 @@ public class Product {
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private ProductStatus status;
+
+    // Optional: an https URL or a path under /images/ (task 30); Catalog only stores the reference
+    @Column(length = IMAGE_URL_MAX_LENGTH)
+    private String imageUrl;
 
     // Read-model maintained asynchronously from Inventory events
     @Column(nullable = false)
@@ -75,6 +80,10 @@ public class Product {
         this.categoryId = categoryId;
         // Same scale as the column; throws instead of rounding if more fraction digits slip past validation
         this.basePrice = basePrice.setScale(PRICE_FRACTION_DIGITS);
+    }
+
+    public void changeImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 
     public void activate() {
