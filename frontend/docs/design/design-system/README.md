@@ -61,7 +61,9 @@ VoltStore is the online shop of a single consumer-electronics retailer. One web 
 
 ## Product images
 
-Products have no photos yet. Every product shows a placeholder tile: a 4:3 box (1:1 in the cart and tables) in `radius-md` (`radius-lg` on the product page), filled with one of `art-blue`, `art-yellow`, `art-mint`, `art-coral` chosen by category, with a centred 1.5px-stroke line icon for the category at 40% of the box height in the matching ink (`primary`, `art-yellow-ink`, `success`, `art-coral-ink`). Products of one category always share ground and icon. An unknown category uses `surface-sunken` with an `ink-muted` box icon. No text inside the placeholder.
+A product with an image (Catalog `imageUrl`) shows it in a 4:3 box (1:1 in the cart and tables) in `radius-md` (`radius-lg` on the product page), filling the box (`object-fit: cover`) on its category ground, which shows while the photo loads. The image is decorative (`alt=""`): the title is always next to it. The demo products link freely licensed Wikimedia Commons photos, credited in `docs/image-credits.md`.
+
+A product without an image, or whose image fails to load, shows a placeholder tile: a 4:3 box (1:1 in the cart and tables) in `radius-md` (`radius-lg` on the product page), filled with one of `art-blue`, `art-yellow`, `art-mint`, `art-coral` chosen by category, with a centred 1.5px-stroke line icon for the category at 40% of the box height in the matching ink (`primary`, `art-yellow-ink`, `success`, `art-coral-ink`). Products of one category always share ground and icon. An unknown category uses `surface-sunken` with an `ink-muted` box icon. No text inside the placeholder.
 
 ## Iconography
 

@@ -44,6 +44,8 @@ When a service changes its document, `npm run check` fails at `check:api`. Run `
 
 The mock backend and `npm run seed` use the same fixtures ([`src/fixtures/demo-data.ts`](src/fixtures/demo-data.ts)): 4 categories and 45 products (42 active, of which 5 are out of stock; 3 inactive), and these accounts. The passwords are fixed demo values for local stacks only.
 
+Every demo product links a freely licensed photo on Wikimedia Commons (credits and licences in [`docs/image-credits.md`](docs/image-credits.md)). The photos load from Commons, so showing them needs internet access; without it every product shows its category placeholder. `npm run seed` sets the photo on products it creates and on fixture products that have another image.
+
 | Role | Email | Password |
 |---|---|---|
 | Customer | `customer@voltstore.com` | `customer-demo` |

@@ -15,7 +15,7 @@
 
 ## 4. Seed and docs
 
-- [ ] 4.1 `npm run seed` creates products with their image and sets the image of existing fixture products (design D4); update the design-system README and the frontend README (design D5); verify with the live run in 5.1
+- [x] 4.1 `npm run seed` creates products with their image and sets the image of existing fixture products (design D4); update the design-system README and the frontend README (design D5); verify with the live run in 5.1
 
 ## 5. Live run
 
