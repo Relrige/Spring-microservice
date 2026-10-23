@@ -140,6 +140,17 @@ spring:
               metadata:
                 authMode: REQUIRED
                 roles: INVENTORY_WORKER
+            # One stock item with its packaging (EP-INV-08, task 13)
+            - id: inventory-view-stock-item
+              uri: ${gateway.upstreams.inventory}
+              predicates:
+                - Method=GET
+                - Path=/inventory/stock/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}
+              filters:
+                - TrustBoundary
+              metadata:
+                authMode: REQUIRED
+                roles: INVENTORY_WORKER
             - id: inventory-adjust-stock
               uri: ${gateway.upstreams.inventory}
               predicates:
