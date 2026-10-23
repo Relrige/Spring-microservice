@@ -1,5 +1,5 @@
 ---
-status: IN_PROGRESS
+status: DONE
 service: order-service
 ---
 # Align Containerization and Kubernetes Deployment
@@ -15,7 +15,7 @@ Order Service has a Dockerfile, a Compose entry and Kubernetes manifests written
 - [x] Probes work and are not blocked by security.
 - [x] Gateway routes for Order added ([gateway task 10](../api-getaway/10-remaining-service-routes.md)): customer routes `Required` + `CUSTOMER`, worker routes `INVENTORY_WORKER`.
 - [x] **End-to-end smoke test through the gateway** with a registered customer's JWT: validate → submit (`201`, stock reserved in Inventory) → pay with `4242` (`PAID`; Delivery creates a shipment; Customer clears the cart) → `TTNGenerated` moves the order to `PENDING_SHIPPING` → worker ships (`SHIPPED`; Inventory consumes the reservation) → the mock carrier reports delivery (`DELIVERED`). Plus: pay with `0002` → `402`; cancel a paid order → stock released, shipment cancelled, refund made; an unpaid order expires; without a token every `/orders` route is `401`; another customer's order is `404`.
-- [ ] The old Compose volume of the draft (`ddl-auto: update` table) is reset before the run (a destructive step for the team, as in Payment task 09).
+- [x] The old Compose volume of the draft (`ddl-auto: update` table) is reset before the run (a destructive step for the team, as in Payment task 09).
 
 ## Technical Notes / Constraints
 - The run needs Auth ([task 09](../auth-service/09-email-claim-in-jwt.md)), the gateway ([task 11](../api-getaway/11-forward-user-email-header.md)) and Catalog ([task 24](../catalog-service/24-stock-status-in-batch-get.md)) done first.
@@ -43,3 +43,13 @@ Prerequisites done the same day: [Auth task 09](../auth-service/09-email-claim-i
   - Old pods of the same deployment keep running until the new ones are ready; the draft's `ddl-auto: update` recreated its tables in a freshly reset database. Scale the app to 0 before resetting its database.
   - **minikube's hostpath storage keeps the data of a deleted PVC**: the directory is `/tmp/hostpath-provisioner/<namespace>/<pvc name>`, and a new PVC with the same name gets the same directory (Postgres then logs "directory appears to contain a database; Skipping initialization"). A real reset is: scale the app to 0, delete the Postgres deployment and the PVC, `minikube ssh -- "sudo rm -rf /tmp/hostpath-provisioner/voltstore/order-postgres-pvc"`, re-apply `db-deployment.yaml`, scale the app to 1.
 - While Delivery's topic does not exist, the consumer logs an `UNKNOWN_TOPIC_OR_PARTITION` warning about once a second; it stops as soon as Delivery declares the topic (in the full Compose setup, at Delivery's start).
+
+## Implementation Notes (2026-10-23)
+- **Old data, done:** the team's Compose volume `spring-microservice_order-service-postgres` was deleted and re-created on 2026-10-22 (Docker reports it created at 16:27 UTC that day), when Order Service refused to start on the old schema during the frontend's checkout work (recorded in `frontend/README.md`, *Live verification*). Order has run on the new volume since: Flyway applied its migrations and the frontend's live checkout, payment, cancel and shipping journeys passed against it the same day. In minikube the Order database was already empty on 2026-10-18 (notes above).
+- **Kubernetes through the Ingress (2026-10-22/23):** Order runs in minikube behind the Ingress → frontend → `/api` → gateway path; the frontend's live journeys exercise every Order route there, and [gateway task 10](../api-getaway/10-remaining-service-routes.md) closed the gateway side of the end-to-end checks.
+- **Verified:** documentation only; no code changed, so no tests were run.
+
+## Deviations from spec / task
+- The reset was done during other work rather than as a separate step before this task's run; the run itself used isolated Compose projects with empty volumes, so it did not depend on the reset.
+
+*Spec sync (2026-10-23):* no change needed; nothing in the Order spec depends on this task's remaining step.
