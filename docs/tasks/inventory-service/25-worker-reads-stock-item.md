@@ -14,7 +14,7 @@ The worker's packaging form replaces all four values at once (EP-INV-03), but a 
 - [x] No stock item for the product → `404`; the read creates nothing and calls no other service.
 - [x] Other roles → `403`; an internal service call → `403`. EP-INV-05 keeps its internal contract unchanged.
 - [x] `openapi/public.json` regenerated.
-- [ ] Inventory spec and `api-contracts.md` updated (spec sync).
+- [x] Inventory spec and `api-contracts.md` updated (spec sync).
 
 ## Decisions (2026-10-23)
 1. Option A of BL-03, chosen by the user: a new worker read, routed by the gateway; EP-INV-05 stays internal with its `422` contract for Delivery and Catalog.
@@ -36,3 +36,5 @@ The worker's packaging form replaces all four values at once (EP-INV-03), but a 
 ## Deviations from spec / task
 - **Packaging values are absent rather than `null` in the JSON** when unset, because the service serializes like the other optional fields (`title`, `productStatus`). Clients treat missing and `null` alike (frontend rule "optional means missing or null").
 - **The `404` for a missing stock item** is the same as EP-INV-05's; the worker reaches this read only from a row of the stock list, where the item exists.
+
+*Spec sync (2026-10-23):* EP-INV-08 is now part of the Inventory spec (new section) and of `api-contracts.md` (Inventory table).
