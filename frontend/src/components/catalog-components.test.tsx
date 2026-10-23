@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { renderWithProviders } from '../test/render';
 import { formatPrice, Price } from './Price';
@@ -48,6 +48,26 @@ describe('Product image placeholder', () => {
     const image = screen.getByRole('img', { name: 'Product placeholder image' });
     expect(image.dataset.placeholder).toBe('unknown');
     expect(image.style.background).toBe('var(--vs-surface-sunken)');
+  });
+
+  it('Product with an image: the image on the category ground, decorative', () => {
+    const { container } = renderWithProviders(
+      <ProductImage categoryName="Phones" imageUrl="/images/products/phone.svg" />,
+    );
+    const box = container.querySelector('[data-image]') as HTMLElement;
+    expect(box.style.background).toBe('var(--vs-art-blue)');
+    expect(box.querySelector('img')).toHaveAttribute('src', '/images/products/phone.svg');
+    expect(box.querySelector('img')).toHaveAttribute('alt', '');
+    expect(screen.queryByRole('img', { name: 'Phones placeholder image' })).not.toBeInTheDocument();
+  });
+
+  it('Image fails to load: the category placeholder instead', () => {
+    const { container } = renderWithProviders(
+      <ProductImage categoryName="Phones" imageUrl="/images/products/missing.svg" />,
+    );
+    fireEvent.error(container.querySelector('img')!);
+    expect(screen.getByRole('img', { name: 'Phones placeholder image' })).toBeInTheDocument();
+    expect(container.querySelector('[data-image]')).toBeNull();
   });
 
   it('gives other category names a stable slot', () => {

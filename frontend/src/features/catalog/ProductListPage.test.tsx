@@ -269,7 +269,17 @@ describe('List state in the URL', () => {
 });
 
 describe('Product image placeholder in the list', () => {
-  it('shows the category placeholder on every tile', async () => {
+  it('Product with an image: every tile shows its image', async () => {
+    renderApp(`/?category=${categoryId('Phones')}`);
+    await tiles();
+    const images = document.querySelectorAll('[data-testid="product-tile"] [data-image]');
+    expect(images.length).toBe(screen.getAllByTestId('product-tile').length);
+    const shown = [...images].map((image) => image.getAttribute('data-image'));
+    expect(shown.every((url) => db.products.some((p) => p.imageUrl === url))).toBe(true);
+  });
+
+  it('Same category, same placeholder: products without an image show the category placeholder', async () => {
+    for (const product of db.products) product.imageUrl = null;
     renderApp(`/?category=${categoryId('Phones')}`);
     await tiles();
     await waitFor(() => {

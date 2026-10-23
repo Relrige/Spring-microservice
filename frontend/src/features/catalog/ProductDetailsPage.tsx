@@ -79,7 +79,7 @@ export function ProductDetailsPage() {
 
         <Group align="flex-start" gap={40} wrap="wrap">
           <Box style={{ flex: '1 1 420px', minWidth: 0, maxWidth: '100%' }}>
-            <ProductImage categoryName={categoryName} radius={16} />
+            <ProductImage categoryName={categoryName} imageUrl={data.imageUrl} radius={16} />
           </Box>
 
           <Stack gap={20} style={{ flex: '1 1 380px', minWidth: 0 }}>

@@ -1,6 +1,7 @@
-// BL-06: Catalog has no product images yet; every product shows a placeholder per
-// category (design D15, design-system README "Product images"). When imageUrl
-// exists, show it here and keep the placeholder as the fallback.
+// A product's image (Catalog imageUrl) on its category's ground; without an image, or when
+// it fails to load, a placeholder per category (design-system README "Product images";
+// change product-images, design D2).
+import { useState } from 'react';
 import {
   IconBox,
   IconDeviceLaptop,
@@ -56,6 +57,8 @@ export function placeholderFor(categoryName: string | null | undefined): Placeho
 
 interface ProductImageProps {
   categoryName: string | null | undefined;
+  /** Catalog's `imageUrl`; missing or `null` = no image. */
+  imageUrl?: string | null;
   /** CSS aspect ratio: 4:3 on tiles and the product page, 1:1 in rows. */
   ratio?: string;
   radius?: number;
@@ -65,29 +68,49 @@ interface ProductImageProps {
 
 export function ProductImage({
   categoryName,
+  imageUrl,
   ratio = '4 / 3',
   radius = 10,
   size,
 }: ProductImageProps) {
+  // The URL that failed to load; a new URL is tried again.
+  const [failed, setFailed] = useState<string | null>(null);
   const { kind, slot, icon: CategoryIcon } = placeholderFor(categoryName);
+  const box = {
+    width: size ?? '100%',
+    height: size,
+    flex: size ? `0 0 ${size}px` : undefined,
+    aspectRatio: size ? undefined : ratio,
+    borderRadius: radius,
+    background: slot.ground,
+    color: slot.ink,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    containerType: 'size',
+    overflow: 'hidden',
+  } as const;
+
+  if (imageUrl && imageUrl !== failed) {
+    return (
+      <div data-image={imageUrl} style={box}>
+        {/* Decorative: the title is always shown next to it. Photos fill the box (cover). */}
+        <img
+          src={imageUrl}
+          alt=""
+          loading="lazy"
+          onError={() => setFailed(imageUrl)}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+      </div>
+    );
+  }
   return (
     <div
       role="img"
       aria-label={categoryName ? `${categoryName} placeholder image` : 'Product placeholder image'}
       data-placeholder={kind}
-      style={{
-        width: size ?? '100%',
-        height: size,
-        flex: size ? `0 0 ${size}px` : undefined,
-        aspectRatio: size ? undefined : ratio,
-        borderRadius: radius,
-        background: slot.ground,
-        color: slot.ink,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        containerType: 'size',
-      }}
+      style={box}
     >
       <CategoryIcon stroke={1.5} style={{ width: '40cqh', height: '40cqh' }} aria-hidden />
     </div>
