@@ -12,7 +12,7 @@ import java.util.UUID;
 interface OutboxRepository extends JpaRepository<OutboxEvent, UUID> {
     /**
      * Claims due, unpublished events, oldest first, by locking their rows until the caller's transaction ends.
-     * SKIP LOCKED makes another relay instance (the Deployment runs 2 replicas) skip rows that are already
+     * SKIP LOCKED makes another relay instance (when the Deployment is scaled up) skip rows that are already
      * claimed instead of waiting for them or publishing them a second time.
      */
     @NativeQuery("""
