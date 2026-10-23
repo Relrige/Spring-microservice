@@ -6,7 +6,7 @@
 
 ## 2. Seed and live check
 
-- [ ] 2.1 The seed sets packaging only when it differs from the fixture (design D2); live run on Compose with #37/#38: seed twice (second run unchanged), the dialog shows stored values, live journeys pass; BL-03 `Done`
+- [x] 2.1 The seed sets packaging only when it differs from the fixture (design D2); live run on Compose with #37/#38: seed twice (second run unchanged), the dialog shows stored values, live journeys pass; BL-03 `Done`
 
 ## Workflow follow-up
 

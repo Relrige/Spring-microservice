@@ -1,7 +1,7 @@
 ---
 id: BL-03
 title: Inventory workers can read current packaging values
-status: Open
+status: Done
 importance: Important
 services: [inventory-service, api-gateway]
 blocks: iteration 5 (inventory-worker-console)
@@ -37,3 +37,7 @@ Options (team to decide):
 
 - Until done: the packaging form starts empty and says that current values cannot be shown. Marked in code with `BL-03`.
 - After: the form is pre-filled.
+
+## Resolution (2026-10-23)
+
+Option A, chosen by the user: Inventory task 25 (PR #37) adds `GET /inventory/stock/{productId}` (EP-INV-08) for `INVENTORY_WORKER`, the stock row plus the four packaging values (missing while not set, `200` when incomplete); gateway task 13 (PR #38) routes it. EP-INV-05 stays internal. Verified from the frontend on 2026-10-23 (change `packaging-prefill`): the packaging dialog opens with the stored values on the Compose stack, and the seed now compares stored packaging with the fixtures.
