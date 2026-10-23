@@ -41,3 +41,5 @@ Products have no images, so the storefront looks bare and products are hard to t
 - **Not in batch-get or events** (technical note): nothing consumes the image there yet.
 
 *Spec sync (2026-10-23):* `imageUrl` is now part of the Catalog spec (owned entities, EP-CAT-01/02/04/05, decision D8), `api-contracts.md` (Catalog rows) and `entities.md` (`Product`).
+
+*Update (2026-10-23):* the demo now links freely licensed Wikimedia Commons photos by `https` URL instead of bundled illustrations (decided with the user during the frontend change). Accepting `/images/` paths stays, so images served by the frontend remain possible.
