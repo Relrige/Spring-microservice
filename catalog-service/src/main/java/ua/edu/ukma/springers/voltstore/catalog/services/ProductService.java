@@ -70,6 +70,7 @@ public class ProductService {
 
         Product product = Product.createNew(request.getTitle().trim(), request.getDescription().trim(),
                 request.getCategoryId(), request.getBasePrice());
+        product.changeImageUrl(request.getImageUrl());
         saveAndFlush(product);
 
         // Same transaction as the product: the event is stored if and only if the product is (outbox)
@@ -96,6 +97,7 @@ public class ProductService {
 
         product.updateDetails(request.getTitle().trim(), request.getDescription().trim(),
                 request.getCategoryId(), request.getBasePrice());
+        product.changeImageUrl(request.getImageUrl());
         // The flush runs the UPDATE now: an overlapping save fails here (409) before any event is stored, and the
         // event below carries the incremented version. An update that changes nothing issues no UPDATE; its event
         // repeats the current version, which consumers ignore.

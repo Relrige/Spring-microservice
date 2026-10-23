@@ -2,6 +2,8 @@ package ua.edu.ukma.springers.voltstore.catalog.integration;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -29,6 +31,7 @@ import java.util.concurrent.CompletableFuture;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doReturn;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -277,6 +280,68 @@ class ProductIntegrationTest {
         assertThatThrownBy(() -> productRepository.saveAndFlush(stale))
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class);
         assertThat(jdbc.queryForObject("SELECT title FROM products WHERE id = ?", String.class, id)).isEqualTo("Laptop");
+    }
+
+    // --- Task 30: imageUrl ---
+
+    @ParameterizedTest
+    @ValueSource(strings = {"https://cdn.example.com/laptop.png", "/images/products/laptop-1.svg"})
+    void create_withImageUrl_isReturnedByDetailsAndList(String imageUrl) throws Exception {
+        String body = mockMvc.perform(post(URL).headers(asManager()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json("Laptop", "A laptop", categoryId, "10", imageUrl)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String id = body.replaceAll(".*\"productId\":\"([^\"]+)\".*", "$1");
+
+        assertThat(jdbc.queryForObject("SELECT image_url FROM products", String.class)).isEqualTo(imageUrl);
+        mockMvc.perform(get(URL + "/" + id).headers(asManager()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imageUrl").value(imageUrl));
+        mockMvc.perform(get(URL).headers(asManager()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].imageUrl").value(imageUrl));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"http://cdn.example.com/laptop.png", "/images/../secret", "laptop.png",
+            "/static/laptop.png", "https://cdn.example.com/a b.png", ""})
+    void create_invalidImageUrl_returns400(String imageUrl) throws Exception {
+        mockMvc.perform(post(URL).headers(asManager()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json("Laptop", "A laptop", categoryId, "10", imageUrl)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.imageUrl").isNotEmpty());
+
+        assertThat(countProducts()).isZero();
+    }
+
+    @Test
+    void create_tooLongImageUrl_returns400() throws Exception {
+        String imageUrl = "https://cdn.example.com/" + "a".repeat(Product.IMAGE_URL_MAX_LENGTH);
+        mockMvc.perform(post(URL).headers(asManager()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json("Laptop", "A laptop", categoryId, "10", imageUrl)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.imageUrl").isNotEmpty());
+    }
+
+    @Test
+    void update_setsThenClearsImageUrl() throws Exception {
+        UUID id = insertProduct(jdbc, categoryId, ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK);
+
+        mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json("Laptop", "A laptop", categoryId, "10", "/images/products/laptop.svg")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imageUrl").value("/images/products/laptop.svg"));
+
+        // PUT replaces every field: without imageUrl the image is removed
+        mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json("Laptop", "A laptop", categoryId, "10")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imageUrl").doesNotExist());
+        assertThat(jdbc.queryForObject("SELECT image_url FROM products WHERE id = ?", String.class, id)).isNull();
+    }
+
+    private static String json(String title, String description, UUID categoryId, String basePrice, String imageUrl) {
+        return json(title, description, categoryId, basePrice).replaceFirst("}$", ",\"imageUrl\":\"" + imageUrl + "\"}");
     }
 
     private Integer countProducts() {

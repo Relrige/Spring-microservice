@@ -145,7 +145,7 @@ class ProductControllerTest {
     void update_valid_returns200WithProduct() throws Exception {
         UUID id = UUID.randomUUID();
         when(productService.updateProduct(eq(id), any())).thenReturn(new ProductResponse(id, "Phone", "A phone",
-                CATEGORY_ID, new BigDecimal("10.00"), ProductStatus.ACTIVE, StockStatus.IN_STOCK));
+                CATEGORY_ID, new BigDecimal("10.00"), ProductStatus.ACTIVE, StockStatus.IN_STOCK, null));
 
         mockMvc.perform(put(URL + "/" + id).headers(asManager()).contentType(MediaType.APPLICATION_JSON).content(json("Phone", "A phone", CATEGORY_ID, "10")))
                 .andExpect(status().isOk())
@@ -306,7 +306,7 @@ class ProductControllerTest {
     void getProduct_anonymous_returnsFullViewWithStatus() throws Exception {
         UUID id = UUID.randomUUID();
         when(productService.getProduct(id, null)).thenReturn(new ProductResponse(id, "Phone", "A phone",
-                CATEGORY_ID, new BigDecimal("10.00"), ProductStatus.ACTIVE, StockStatus.IN_STOCK));
+                CATEGORY_ID, new BigDecimal("10.00"), ProductStatus.ACTIVE, StockStatus.IN_STOCK, null));
 
         mockMvc.perform(get(URL + "/" + id))
                 .andExpect(status().isOk())
@@ -323,7 +323,7 @@ class ProductControllerTest {
     void getProduct_passesTheCallersRole() throws Exception {
         UUID id = UUID.randomUUID();
         when(productService.getProduct(id, UserRole.INVENTORY_WORKER)).thenReturn(new ProductResponse(id, "Phone",
-                "A phone", CATEGORY_ID, new BigDecimal("10.00"), ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK));
+                "A phone", CATEGORY_ID, new BigDecimal("10.00"), ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK, null));
 
         mockMvc.perform(get(URL + "/" + id).headers(asUser("INVENTORY_WORKER")))
                 .andExpect(status().isOk())
@@ -354,7 +354,7 @@ class ProductControllerTest {
         UUID id = UUID.randomUUID();
         when(productService.browseProducts(any(), any())).thenReturn(new PageResponse<>(List.of(
                 new ProductSummaryResponse(id, "Phone", new BigDecimal("10.00"), CATEGORY_ID,
-                        ProductStatus.ACTIVE, StockStatus.OUT_OF_STOCK)), 0, 20, 1));
+                        ProductStatus.ACTIVE, StockStatus.OUT_OF_STOCK, null)), 0, 20, 1));
 
         mockMvc.perform(get(URL))
                 .andExpect(status().isOk())

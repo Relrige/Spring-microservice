@@ -30,9 +30,12 @@ public class ProductResponse {
     private ProductStatus status;
     @Schema(requiredMode = REQUIRED)
     private StockStatus stockStatus;
+    // null when the product has no image (task 30)
+    private String imageUrl;
 
     public static ProductResponse from(Product product) {
         return new ProductResponse(product.getId(), product.getTitle(), product.getDescription(),
-                product.getCategoryId(), product.getBasePrice(), product.getStatus(), product.getStockStatus());
+                product.getCategoryId(), product.getBasePrice(), product.getStatus(), product.getStockStatus(),
+                product.getImageUrl());
     }
 }

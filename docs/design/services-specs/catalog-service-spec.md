@@ -10,7 +10,7 @@ The stock-availability read-model (`Product.stockStatus`) is updated asynchronou
 
 | | |
 |---|---|
-| **Owned entities** | `Category` (`id`, `name`); `Product` (`id`, `title`, `description`, `categoryId`, `basePrice`, `status`, `stockStatus`, `version`) |
+| **Owned entities** | `Category` (`id`, `name`); `Product` (`id`, `title`, `description`, `categoryId`, `basePrice`, `imageUrl` (optional), `status`, `stockStatus`, `version`) |
 | **Key enums** | `ProductStatus { ACTIVE, NOT_ACTIVE }`; `StockStatus { IN_STOCK, OUT_OF_STOCK }` |
 | **Events emitted** | `ProductCreated`, `ProductUpdated` (see *Product Events*) |
 | **Events consumed** | `ProductStockReplenished`, `ProductStockDepleted` (both from Inventory Service) |
@@ -62,9 +62,9 @@ The stock-status update from Inventory's events (EP-CAT-EVT-01/02) is a bulk JPQ
 **Auth:** `ROLE_CATALOG_MANAGER`
 
 **Steps:**
-1. Validate request body: `title` non-empty; `description` non-empty; `categoryId` valid UUID; `basePrice` > 0.
+1. Validate request body: `title` non-empty; `description` non-empty; `categoryId` valid UUID; `basePrice` > 0; `imageUrl` optional: an `https://` URL or a path under `/images/` (no `..`), at most 2048 characters.
 2. Verify that `categoryId` exists in the `categories` table. If not → `422`.
-3. Persist `Product(id=UUID, title, description, categoryId, basePrice, status=NOT_ACTIVE, stockStatus=OUT_OF_STOCK, version=0)`.
+3. Persist `Product(id=UUID, title, description, categoryId, basePrice, imageUrl, status=NOT_ACTIVE, stockStatus=OUT_OF_STOCK, version=0)`.
 4. In the same transaction, store the event `ProductCreated { eventId, productId, title, categoryId, basePrice, status, version, timestamp }` in the outbox table; a relay publishes it to the message broker (topic `catalog.product-events`, key `productId`) after the commit (see *Product Events*). Delivery is at-least-once (transactional outbox), so consumers deduplicate by `eventId` or by `version`.
 5. Return `201 Created { productId }`.
 
@@ -73,6 +73,7 @@ The stock-status update from Inventory's events (EP-CAT-EVT-01/02) is a bulk JPQ
 **Edge cases:**
 - `categoryId` does not exist in the database → `422 Unprocessable Entity` ("Category not found")
 - `basePrice` ≤ 0 → `400 Bad Request`
+- `imageUrl` neither an `https://` URL nor an `/images/` path, or longer than 2048 characters → `400 Bad Request`
 - `title` or `description` blank → `400 Bad Request`
 
 **External calls:** none (synchronous); event published asynchronously
@@ -89,11 +90,11 @@ The stock-status update from Inventory's events (EP-CAT-EVT-01/02) is a bulk JPQ
 
 **Steps:**
 1. Verify that the product with `id` exists. If not → `404`.
-2. Validate request body: `title` and `description` non-empty; `categoryId` valid UUID; `basePrice` > 0.
+2. Validate request body: `title` and `description` non-empty; `categoryId` valid UUID; `basePrice` > 0; `imageUrl` optional: an `https://` URL or a path under `/images/` (no `..`), at most 2048 characters.
 3. Verify that the target `categoryId` exists. If not → `422`.
-4. Update `Product.title`, `Product.description`, `Product.categoryId`, `Product.basePrice`, and flush (the version increases if a value changed).
+4. Update `Product.title`, `Product.description`, `Product.categoryId`, `Product.basePrice`, `Product.imageUrl` (a request without `imageUrl` clears it, like any field of this full replacement), and flush (the version increases if a value changed).
 5. In the same transaction, store `ProductUpdated` with the product's state after the change in the outbox (see *Product Events*).
-6. Return `200 OK` with the updated product (the full view `{ productId, title, description, categoryId, basePrice, status, stockStatus }`).
+6. Return `200 OK` with the updated product (the full view `{ productId, title, description, categoryId, basePrice, status, stockStatus, imageUrl }`).
 
 > Price changes affect **only future orders**. Past orders retain their `OrderItemSnapshot` prices unchanged.
 
@@ -101,6 +102,7 @@ The stock-status update from Inventory's events (EP-CAT-EVT-01/02) is a bulk JPQ
 - Product `id` not found → `404 Not Found`
 - `categoryId` not found → `422 Unprocessable Entity`
 - `basePrice` ≤ 0 → `400 Bad Request`
+- `imageUrl` neither an `https://` URL nor an `/images/` path, or longer than 2048 characters → `400 Bad Request`
 - An overlapping save of the same product committed first → `409 Conflict`; nothing is changed and no event is stored (*Product version*)
 - No value changed → `200 OK`; the event repeats the stored version and consumers ignore it
 
@@ -162,7 +164,7 @@ The stock-status update from Inventory's events (EP-CAT-EVT-01/02) is a bulk JPQ
    - **Staff (`CATALOG_MANAGER`, `INVENTORY_WORKER`)**: no status filter — all products (`ACTIVE` and `NOT_ACTIVE`) are returned. An additional optional `status` query param may be used to filter.
 3. Execute the filtered, paginated query against the `products` table. All filters, `ids` included, are combined with AND, together with the visibility filter.
 4. For each product in the result, include the `stockStatus` read-model field (`IN_STOCK` or `OUT_OF_STOCK`) directly from the stored column (no Inventory call required).
-5. Return `200 OK { content: [ { productId, title, basePrice, categoryId, status, stockStatus } ], page, size, totalElements }` — the shared paging envelope ([api-contracts.md](../services-requirements/api-contracts.md#shared-conventions)); `size` is the effective page size (the requested one, or `20`).
+5. Return `200 OK { content: [ { productId, title, basePrice, categoryId, status, stockStatus, imageUrl } ], page, size, totalElements }` — the shared paging envelope ([api-contracts.md](../services-requirements/api-contracts.md#shared-conventions)); `size` is the effective page size (the requested one, or `20`).
 
 **Edge cases:**
 - `minPrice` > `maxPrice` → `400 Bad Request`
@@ -190,7 +192,7 @@ The stock-status update from Inventory's events (EP-CAT-EVT-01/02) is a bulk JPQ
 1. Look up `Product` by `id`.
 2. If the product does not exist → `404 Not Found`.
 3. If the product exists, `status = NOT_ACTIVE`, and the caller is not staff → `404 Not Found` (hidden from customers).
-4. Return `200 OK { productId, title, description, categoryId, basePrice, status, stockStatus }` — the full view, the same shape for every caller (D2). Customers only ever get `status: ACTIVE`.
+4. Return `200 OK { productId, title, description, categoryId, basePrice, status, stockStatus, imageUrl }` (`imageUrl` is `null` when unset) — the full view, the same shape for every caller (D2). Customers only ever get `status: ACTIVE`.
 
 **Edge cases:**
 - Product not found → `404 Not Found`
@@ -385,6 +387,7 @@ Prompted by the frontend backlog items BL-01 (catalog managers cannot load an in
 | D5 | `Product.version` with JPA `@Version`; overlapping saves → `409`; `@DynamicUpdate` on `Product` | Orders product events for consumers; closes the lost update where a save could write back a stale `stockStatus` |
 | D6 | Product events carry the full state `{ eventId, productId, title, categoryId, basePrice, status, version, timestamp }`; new `ProductUpdated` after EP-CAT-02 and after an EP-CAT-03 that changes the status | Inventory keeps a copy of title and status (D8) for searching and sorting stock rows. A full-state event is idempotent by content and serves later needs without a new event type (preferred over a narrow `ProductRenamed`) |
 | D7 | EP-CAT-09 adds `version` to its answer (additive) | Inventory fills missing copies from batch-get with the same "newer version wins" rule as for events (D9) |
+| D8 | Optional `Product.imageUrl` (task 30): an `https://` URL or a path under `/images/`, returned by EP-CAT-02/04/05, not by batch-get or events | Images for the storefront without storing files in Catalog; relative paths let the demo images ship with the frontend (host differs between Compose and Kubernetes). Batch-get and events stay as they are until a consumer needs the image |
 
 **Changes from the earlier version of this spec:**
 
