@@ -19,7 +19,7 @@
 
 ## 5. Live run
 
-- [ ] 5.1 Live run: rebuild Catalog (PR #35) and the frontend image in Compose, seed twice (second run unchanged), run the live journeys, check images in the browser; mark BL-06 `Done` and record the run in *Live verification*
+- [x] 5.1 Live run: rebuild Catalog (PR #35) and the frontend image in Compose, seed twice (second run unchanged), run the live journeys, check images in the browser; mark BL-06 `Done` and record the run in *Live verification*
 
 ## Workflow follow-up
 
