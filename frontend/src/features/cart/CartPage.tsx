@@ -107,7 +107,11 @@ function CartLine({ line, view, categoryName, busy, last, onQuantity, onRemove }
         background: unavailable ? 'var(--vs-surface)' : undefined,
       }}
     >
-      <ProductImage categoryName={view.kind === 'gone' ? null : categoryName} size={72} />
+      <ProductImage
+        categoryName={view.kind === 'gone' ? null : categoryName}
+        imageUrl={product?.imageUrl}
+        size={72}
+      />
       <Stack gap={6} style={{ flex: '1 1 220px', minWidth: 0 }}>
         {view.kind === 'gone' && (
           <Text fw={600} c="dimmed">

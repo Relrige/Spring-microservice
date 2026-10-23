@@ -44,6 +44,8 @@ When a service changes its document, `npm run check` fails at `check:api`. Run `
 
 The mock backend and `npm run seed` use the same fixtures ([`src/fixtures/demo-data.ts`](src/fixtures/demo-data.ts)): 4 categories and 45 products (42 active, of which 5 are out of stock; 3 inactive), and these accounts. The passwords are fixed demo values for local stacks only.
 
+Every demo product links a product image from the manufacturer's or a retailer's image server (sources in [`docs/image-credits.md`](docs/image-credits.md); the rights stay with the owners). The images load from those servers, so showing them needs internet access; without it every product shows its category placeholder. `npm run seed` sets the photo on products it creates and on fixture products that have another image.
+
 | Role | Email | Password |
 |---|---|---|
 | Customer | `customer@voltstore.com` | `customer-demo` |
@@ -110,7 +112,15 @@ The cluster's admin password is `AUTH_ADMIN_PASSWORD` in the Secret `auth-secret
 
 ## Live verification
 
-Last run: 2026-10-22, branch `frontend-deployment` (change `frontend-deployment`).
+Last run: 2026-10-23, branch `frontend-product-images` (change `product-images`), Compose stack of the repository root with Catalog (task 30, PR #35) and the frontend image rebuilt from this branch; the gateway published on host port 18080 through a local override, because another program held 8080.
+
+- `npm run seed` (`SEED_API_URL=http://localhost:18080`): first run `images set: 45` (the existing fixture products got their Commons photo through `PUT`), second run `Result: unchanged`. Before the first run Catalog answered `"imageUrl": null` for products without an image.
+- `E2E_BASE_URL=http://localhost:3000 npm run test:e2e:live`: 15 of 15 journeys passed (about 46 s). `npm run check:e2e` against the mock: 15 of 15.
+- The storefront, the product page and the manager list on port 3000 show the photos; the manager form shows the image field with its preview (checked in the mock).
+- No mismatch between the mock and Catalog for `imageUrl` (validation message, `null` when unset, `PUT` clears a missing value).
+- Later the same day, after resetting all Compose volumes (only demo data left) and switching to linked shop images: `npm run seed` reported `images set: 44` (the Acer Nitro V keeps its Commons photo), then `Result: unchanged`; the storefront shows the images on white tiles.
+
+Previous run: 2026-10-22, branch `frontend-deployment` (change `frontend-deployment`).
 
 - **Compose.** Through the `frontend` container on port 3000: `/api/catalog/products?size=1` returned the gateway's JSON, `/api/no/such/route` the gateway's `404` problem. `E2E_BASE_URL=http://localhost:3000 npm run test:e2e:live`: 11 of 11 journeys passed (about 41 s).
 - **Kubernetes.** minikube with `minikube tunnel`; the Ingress served the app (`/healthz` 200, `/account/orders` with `Cache-Control: no-cache`) and the API under `/api`. The first run failed two journeys because the cluster's service images were 21 hours old (Catalog answered without `size`, BL-05); after loading the current Compose builds and restarting the services, `npm run seed` through `http://localhost/api` twice and `E2E_BASE_URL=http://localhost npm run test:e2e:live`: 11 of 11 passed (about 41 s). A reload of `/account/orders` as the demo customer kept the orders page.

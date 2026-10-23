@@ -188,7 +188,12 @@ export function ProductListPage() {
                 return (
                   <Table.Tr key={product.productId} data-testid="product-row">
                     <Table.Td w={72}>
-                      <ProductImage categoryName={categoryName} size={40} radius={6} />
+                      <ProductImage
+                        categoryName={categoryName}
+                        imageUrl={product.imageUrl}
+                        size={40}
+                        radius={6}
+                      />
                     </Table.Td>
                     <Table.Td miw={220}>
                       <Anchor

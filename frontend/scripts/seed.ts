@@ -10,9 +10,11 @@ import { createNonCustomer, login, register, type Credentials } from '../src/api
 import {
   createCategory,
   createProduct,
+  getProduct,
   listCategories,
   listProducts,
   setProductStatus,
+  updateProduct,
   type Category,
   type ProductSummary,
 } from '../src/api/catalog';
@@ -42,6 +44,7 @@ const summary = {
   accountsCreated: [] as string[],
   categoriesCreated: 0,
   productsCreated: 0,
+  imagesSet: 0,
   packagingSet: 0,
   stockAdjusted: 0,
   activated: 0,
@@ -177,6 +180,7 @@ async function ensureProducts(
           description: product.description,
           categoryId: categoryIds.get(product.category)!,
           basePrice: product.price,
+          imageUrl: product.image,
         },
         manager,
       ),
@@ -192,7 +196,27 @@ async function ensureProducts(
     const found = existing.get(product.title);
     if (!found) throw new SeedError(`product "${product.title}" is missing after creation`);
     result.set(product, found);
+    // Products seeded before images existed (or changed since): set the fixture image. PUT replaces
+    // every field, so the current values are read first and sent back unchanged.
+    if ((found.imageUrl ?? null) !== product.image) {
+      await withRetry(`set image of ${product.title}`, async () => {
+        const current = await getProduct(found.productId, { auth: manager });
+        await updateProduct(
+          found.productId,
+          {
+            title: current.title,
+            description: current.description,
+            categoryId: current.categoryId,
+            basePrice: current.basePrice,
+            imageUrl: product.image,
+          },
+          manager,
+        );
+      });
+      summary.imagesSet += 1;
+    }
   }
+  if (summary.imagesSet > 0) log(`  images set: ${summary.imagesSet}`);
   return result;
 }
 
@@ -353,6 +377,7 @@ async function main() {
     summary.accountsCreated.length +
     summary.categoriesCreated +
     summary.productsCreated +
+    summary.imagesSet +
     summary.packagingSet +
     summary.stockAdjusted +
     summary.activated +
@@ -363,7 +388,7 @@ async function main() {
   log(changed === 0 ? 'Result: unchanged (everything was already seeded).' : 'Result: seeded.');
   log(
     `  accounts created: ${summary.accountsCreated.length}, categories created: ${summary.categoriesCreated}, ` +
-      `products created: ${summary.productsCreated}, packaging set: ${summary.packagingSet}, ` +
+      `products created: ${summary.productsCreated}, images set: ${summary.imagesSet}, packaging set: ${summary.packagingSet}, ` +
       `stock adjusted: ${summary.stockAdjusted}, activated: ${summary.activated}, deactivated: ${summary.deactivated}, ` +
       `demo cart: ${summary.demoCart}, demo profile: ${summary.demoProfile}`,
   );

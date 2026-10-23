@@ -79,6 +79,7 @@ describe('Staff product list', () => {
     loginAs('CATALOG_MANAGER');
     const product = db.products[0]!;
     product.categoryId = '00000000-0000-4000-a000-0000000000ff';
+    product.imageUrl = null;
     renderApp(`/manage/products?search=${encodeURIComponent(product.title)}`);
     await rows();
     const cells = within(row(product.title)).getAllByRole('cell');

@@ -29,6 +29,8 @@ export interface MockProduct {
   basePrice: number;
   status: ProductStatus;
   stockStatus: StockStatus;
+  /** `null` without an image (Catalog task 30). */
+  imageUrl: string | null;
   /** `null` until a worker sets it; products created in the mock have none (activation readiness). */
   packaging: DemoPackaging | null;
   available: number;
@@ -107,6 +109,7 @@ export function createDb(): MockDb {
       basePrice: product.price,
       status: product.active ? 'ACTIVE' : 'NOT_ACTIVE',
       stockStatus: product.targetStock > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK',
+      imageUrl: product.image,
       packaging: product.packaging,
       available: product.targetStock,
     })),

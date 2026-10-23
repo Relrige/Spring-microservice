@@ -150,6 +150,20 @@ describe('mock catalog: products', () => {
     expect(invalid.problem?.errors).toEqual({ title: ['must not be blank'] });
   });
 
+  it('stores, returns and clears imageUrl; 400 at imageUrl outside the rule (Catalog task 30)', async () => {
+    const image = '/images/products/speaker.svg';
+    const { productId } = await createProduct({ ...validInput(), imageUrl: image }, manager());
+    expect((await getProduct(productId, { auth: manager() })).imageUrl).toBe(image);
+    // PUT replaces every field: without imageUrl the image is removed.
+    expect((await updateProduct(productId, validInput(), manager())).imageUrl ?? null).toBeNull();
+    for (const bad of ['http://cdn.example.com/a.png', '/images/../a.svg', 'a.png']) {
+      const error = await failure(createProduct({ ...validInput(), imageUrl: bad }, manager()));
+      expect(error.problem?.errors).toEqual({
+        imageUrl: ['must be an https URL or a path under /images/'],
+      });
+    }
+  });
+
   it('rejects activating a product created in the mock: activation-rejected, packaging_data_missing', async () => {
     const { productId } = await createProduct(validInput(), manager());
     const error = await failure(setProductStatus(productId, 'ACTIVE', manager()));

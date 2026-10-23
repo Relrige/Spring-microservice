@@ -119,7 +119,7 @@ export function createProduct(
 }
 
 /**
- * EP-CAT-02 (`updateProduct`): replace the four product fields (manager).
+ * EP-CAT-02 (`updateProduct`): replace the product fields (manager); without `imageUrl` the image is removed.
  * `409` = an overlapping save, `422` = the category does not exist.
  */
 export function updateProduct(

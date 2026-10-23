@@ -5,6 +5,9 @@ import type { ProductInput } from '../../api/catalog';
 export const TITLE_MAX = 200;
 export const DESCRIPTION_MAX = 5000;
 export const CATEGORY_NAME_MAX = 100;
+export const IMAGE_URL_MAX = 2048;
+/** Catalog's `imageUrl` pattern (public.json): an https URL, or a path under /images/ without "..". */
+export const IMAGE_URL_PATTERN = /^(https:\/\/\S+|\/images\/(?!.*\.\.)[A-Za-z0-9._/-]+)$/;
 
 /** The product form; field names are the schema's, so `400` `errors` keys match (design D6). */
 export interface ProductFormValues {
@@ -13,6 +16,8 @@ export interface ProductFormValues {
   categoryId: string | null;
   /** `''` while the price input is empty. */
   basePrice: number | string;
+  /** `''` for no image. */
+  imageUrl: string;
 }
 
 const text = (label: string, max: number) => (value: string) =>
@@ -35,12 +40,22 @@ export function priceError(value: number | string): string | null {
 
 export const categoryNameError = text('a name', CATEGORY_NAME_MAX);
 
-/** The trimmed request body of valid form values. */
+/** Optional; checked like Catalog's `imageUrl` rule after trimming. */
+export function imageUrlError(value: string): string | null {
+  const url = value.trim();
+  if (!url) return null;
+  if (url.length > IMAGE_URL_MAX) return `Use at most ${IMAGE_URL_MAX} characters`;
+  return IMAGE_URL_PATTERN.test(url) ? null : 'Use an https:// link or a path under /images/';
+}
+
+/** The trimmed request body of valid form values; an empty image is left out (no image). */
 export function toProductInput(values: ProductFormValues): ProductInput {
+  const imageUrl = values.imageUrl.trim();
   return {
     title: values.title.trim(),
     description: values.description.trim(),
     categoryId: values.categoryId!,
     basePrice: Number(values.basePrice),
+    ...(imageUrl ? { imageUrl } : {}),
   };
 }

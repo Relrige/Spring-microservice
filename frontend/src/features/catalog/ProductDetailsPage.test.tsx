@@ -6,7 +6,7 @@ import { renderApp } from '../../test/render';
 import { server } from '../../test/server';
 
 describe('Product details page', () => {
-  it('Active product: title, description, price, category name and stock status', async () => {
+  it('Active product: title, description, price, category name, stock status and its image', async () => {
     const product = db.products.find((p) => p.title === 'Sony WH-1000XM5 headphones')!;
     renderApp(`/products/${product.productId}`);
     expect(
@@ -16,7 +16,9 @@ describe('Product details page', () => {
     expect(screen.getByText('UAH 12,999.00')).toBeInTheDocument();
     expect(screen.getByText('In stock')).toBeInTheDocument();
     expect(await screen.findByTestId('product-category')).toHaveTextContent('Audio');
-    expect(screen.getByRole('img', { name: 'Audio placeholder image' })).toBeInTheDocument();
+    // Product with an image: the image on the category ground instead of the placeholder.
+    expect(document.querySelector('[data-image]')).toHaveAttribute('data-image', product.imageUrl);
+    expect(screen.queryByRole('img', { name: 'Audio placeholder image' })).not.toBeInTheDocument();
   });
 
   it('Missing or inactive product: "This product is not available" with a link back', async () => {
@@ -33,6 +35,7 @@ describe('Product details page', () => {
 
   it('Unknown category: the category is omitted and the neutral placeholder shown', async () => {
     const product = db.products.find((p) => p.status === 'ACTIVE')!;
+    product.imageUrl = null;
     server.use(
       http.get('*/api/catalog/categories', () =>
         HttpResponse.json({ content: [], page: 0, size: 20, totalElements: 0 }),

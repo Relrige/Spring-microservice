@@ -1,7 +1,7 @@
 ---
 id: BL-06
 title: Product image URL
-status: Open
+status: Done
 importance: Nice to have
 services: [catalog-service]
 blocks: —
@@ -37,3 +37,7 @@ The images live elsewhere (any public URL). Uploading and storing images (object
 
 - Until done: every product shows a placeholder derived from its category (iteration 1).
 - After: the storefront shows the image when `imageUrl` is set, the placeholder otherwise; the manager form gets an image URL field. The demo seed script can set URLs.
+
+## Resolution (2026-10-23)
+
+Done in Catalog task 30 (PR #35): optional `imageUrl` on create and update, returned by the list and the details; `400 errors.imageUrl` for other values. Decided with the team: besides `https://` URLs Catalog also accepts paths under `/images/`, so images can be served by the frontend. The internal batch-get and the product events do not carry the image. Verified from the frontend on 2026-10-23 (change `product-images`): the seed set the demo product images through the gateway, and the storefront, cart and manager pages show them.

@@ -15,11 +15,13 @@ import { useState } from 'react';
 import type { ProductInput } from '../../api/catalog';
 import { ApiError } from '../../api/errors';
 import { applyServerErrors, FormError } from '../../components/form-errors';
+import { ProductImage } from '../../components/ProductImage';
 import { catalogKeys, useCategories } from '../catalog/queries';
 import {
   categoryError,
   descriptionError,
   DESCRIPTION_MAX,
+  imageUrlError,
   priceError,
   titleError,
   toProductInput,
@@ -27,21 +29,22 @@ import {
 } from './field-rules';
 import { CATEGORY_GONE_FOR_PRODUCT, isConflict } from './messages';
 
-const FIELDS = ['title', 'description', 'categoryId', 'basePrice'] as const;
+const FIELDS = ['title', 'description', 'categoryId', 'basePrice', 'imageUrl'] as const;
 
 export const EMPTY_PRODUCT: ProductFormValues = {
   title: '',
   description: '',
   categoryId: null,
   basePrice: '',
+  imageUrl: '',
 };
 
 interface ProductFormProps {
   /** Read once at mount: the edit page re-mounts the form only on "Reload product" (design D6). */
   initialValues: ProductFormValues;
   submitLabel: string;
-  /** Sends the trimmed body; may return the saved values to show (the `PUT` answer). */
-  onSubmit: (input: ProductInput) => Promise<ProductInput | void>;
+  /** Sends the trimmed body; may return the saved values to show (from the `PUT` answer). */
+  onSubmit: (input: ProductInput) => Promise<ProductFormValues | void>;
   /** A `409` overlapping save: the page shows its alert; the entered values stay. */
   onConflict?: () => void;
 }
@@ -63,6 +66,7 @@ export function ProductForm({
       description: descriptionError,
       categoryId: categoryError,
       basePrice: priceError,
+      imageUrl: imageUrlError,
     },
   });
 
@@ -88,6 +92,8 @@ export function ProductForm({
   });
 
   const description = form.values.description;
+  const image = form.values.imageUrl.trim();
+  const categoryName = categories.data?.find((c) => c.categoryId === form.values.categoryId)?.name;
   return (
     <form onSubmit={submit} noValidate>
       <Stack gap="md">
@@ -131,6 +137,17 @@ export function ProductForm({
             {...form.getInputProps('basePrice')}
           />
         </Group>
+        <TextInput
+          label="Image"
+          description="Optional: an https:// link or a path under /images/"
+          placeholder="https://…"
+          {...form.getInputProps('imageUrl')}
+        />
+        {image && !imageUrlError(image) && (
+          <div data-testid="image-preview" style={{ width: 160 }}>
+            <ProductImage categoryName={categoryName} imageUrl={image} radius={8} />
+          </div>
+        )}
         <Group>
           <Button type="submit" loading={pending}>
             {submitLabel}

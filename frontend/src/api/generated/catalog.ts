@@ -194,6 +194,7 @@ export interface components {
             /** Format: uuid */
             categoryId: string;
             description: string;
+            imageUrl?: string;
             title: string;
         };
         ProductResponse: {
@@ -201,6 +202,7 @@ export interface components {
             /** Format: uuid */
             categoryId: string;
             description: string;
+            imageUrl?: string;
             /** Format: uuid */
             productId: string;
             /** @enum {string} */
@@ -217,6 +219,7 @@ export interface components {
             basePrice: number;
             /** Format: uuid */
             categoryId: string;
+            imageUrl?: string;
             /** Format: uuid */
             productId: string;
             /** @enum {string} */

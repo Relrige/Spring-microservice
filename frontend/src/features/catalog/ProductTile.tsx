@@ -23,9 +23,14 @@ export function ProductTile({ product, categoryName, compact = false }: ProductT
       data-testid="product-tile"
     >
       {compact ? (
-        <ProductImage categoryName={categoryName} size={88} radius={6} />
+        <ProductImage
+          categoryName={categoryName}
+          imageUrl={product.imageUrl}
+          size={88}
+          radius={6}
+        />
       ) : (
-        <ProductImage categoryName={categoryName} radius={0} />
+        <ProductImage categoryName={categoryName} imageUrl={product.imageUrl} radius={0} />
       )}
       <Stack gap="sm" p={compact ? 0 : 'md'} style={{ flex: '1 1 auto', minWidth: 0 }}>
         <Text component="h2" className={classes.title} m={0}>
