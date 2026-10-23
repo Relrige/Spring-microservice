@@ -109,7 +109,7 @@ export function createDb(): MockDb {
       basePrice: product.price,
       status: product.active ? 'ACTIVE' : 'NOT_ACTIVE',
       stockStatus: product.targetStock > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK',
-      imageUrl: null,
+      imageUrl: product.image,
       packaging: product.packaging,
       available: product.targetStock,
     })),

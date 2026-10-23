@@ -6,7 +6,7 @@
 
 ## 2. Images
 
-- [ ] 2.1 Add the SVG illustrations in `public/images/products/` and an `image` for every fixture product (design D1, D4); verify every fixture's file exists (a unit test)
+- [x] 2.1 Add the SVG illustrations in `public/images/products/` and an `image` for every fixture product (design D1, D4); verify every fixture's file exists (a unit test)
 - [ ] 2.2 `ProductImage` shows `imageUrl` on the category ground with the placeholder as fallback, and its callers pass it (design D2); verify with component tests for *Product with an image*, *Image fails to load* and the placeholder scenarios
 
 ## 3. Manager form
