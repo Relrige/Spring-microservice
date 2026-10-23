@@ -90,9 +90,8 @@ test('manager prepares a draft product: activation rejected, edit saved and load
 
   // Live: created once and reused by later runs (Catalog has no hard delete). Mock: every run.
   const existing = managerRow(page, DRAFT);
-  await expect(
-    page.getByTestId('product-row').or(page.getByText('No products match')),
-  ).toBeVisible();
+  // Wait for the filtered answer: the draft's own row, or none (the unfiltered list may show first).
+  await expect(existing.or(page.getByText('No products match')).first()).toBeVisible();
   if ((await existing.count()) > 0) {
     await existing.first().getByRole('link', { name: DRAFT }).click();
   } else {
