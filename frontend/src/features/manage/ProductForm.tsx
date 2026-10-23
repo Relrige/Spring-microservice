@@ -34,14 +34,15 @@ export const EMPTY_PRODUCT: ProductFormValues = {
   description: '',
   categoryId: null,
   basePrice: '',
+  imageUrl: '',
 };
 
 interface ProductFormProps {
   /** Read once at mount: the edit page re-mounts the form only on "Reload product" (design D6). */
   initialValues: ProductFormValues;
   submitLabel: string;
-  /** Sends the trimmed body; may return the saved values to show (the `PUT` answer). */
-  onSubmit: (input: ProductInput) => Promise<ProductInput | void>;
+  /** Sends the trimmed body; may return the saved values to show (from the `PUT` answer). */
+  onSubmit: (input: ProductInput) => Promise<ProductFormValues | void>;
   /** A `409` overlapping save: the page shows its alert; the entered values stay. */
   onConflict?: () => void;
 }

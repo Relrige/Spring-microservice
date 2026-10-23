@@ -29,6 +29,7 @@ const valuesOf = (product: ProductDetails) => ({
   description: product.description,
   categoryId: product.categoryId,
   basePrice: product.basePrice,
+  imageUrl: product.imageUrl ?? '',
 });
 
 export function ProductEditPage() {

@@ -27,6 +27,7 @@ import {
   checkCart,
   type RuleResult,
 } from '../features/cart/cart-rules';
+import { IMAGE_URL_MAX, IMAGE_URL_PATTERN } from '../features/manage/field-rules';
 import { db, type MockOrder, type MockProduct, type MockUser } from './db';
 import { createMockToken, readMockToken, type MockClaims } from './tokens';
 
@@ -996,6 +997,16 @@ function productInput(body: Record<string, unknown> | undefined) {
   else if (!MONEY.test(String(price))) {
     errors.basePrice = ['numeric value out of bounds (<10 digits>.<2 digits> expected)'];
   }
+  // Catalog task 30: optional; a missing value means "no image" (PUT clears it).
+  const imageUrl = body?.imageUrl;
+  if (imageUrl != null) {
+    if (typeof imageUrl !== 'string') errors.imageUrl = ['Invalid value'];
+    else if (imageUrl.length > IMAGE_URL_MAX) {
+      errors.imageUrl = [`size must be between 0 and ${IMAGE_URL_MAX}`];
+    } else if (!IMAGE_URL_PATTERN.test(imageUrl)) {
+      errors.imageUrl = ['must be an https URL or a path under /images/'];
+    }
+  }
   if (Object.keys(errors).length > 0) return { errors };
   return {
     errors,
@@ -1004,6 +1015,7 @@ function productInput(body: Record<string, unknown> | undefined) {
       description: String(body!.description),
       categoryId: String(categoryId),
       basePrice: Number(price),
+      imageUrl: (imageUrl as string | null | undefined) ?? null,
     },
   };
 }
@@ -1017,6 +1029,7 @@ function productView(product: MockProduct) {
     basePrice: product.basePrice,
     status: product.status,
     stockStatus: product.stockStatus,
+    imageUrl: product.imageUrl ?? undefined,
   } satisfies CatalogSchemas['ProductResponse'];
 }
 
@@ -1273,6 +1286,7 @@ export const handlers: HttpHandler[] = [
         categoryId: p.categoryId,
         status: p.status,
         stockStatus: p.stockStatus,
+        imageUrl: p.imageUrl ?? undefined,
       })),
       page: page!,
       size: size!,

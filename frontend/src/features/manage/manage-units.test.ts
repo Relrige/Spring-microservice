@@ -164,7 +164,23 @@ describe('product and category field rules', () => {
   it('the form fields are the ProductInput fields, sent trimmed', () => {
     expectTypeOf<keyof ProductFormValues>().toEqualTypeOf<keyof ProductInput>();
     expect(
-      toProductInput({ title: ' A ', description: ' B ', categoryId: 'c', basePrice: 5 }),
-    ).toEqual({ title: 'A', description: 'B', categoryId: 'c', basePrice: 5 });
+      toProductInput({
+        title: ' A ',
+        description: ' B ',
+        categoryId: 'c',
+        basePrice: 5,
+        imageUrl: ' /images/a.svg ',
+      }),
+    ).toEqual({
+      title: 'A',
+      description: 'B',
+      categoryId: 'c',
+      basePrice: 5,
+      imageUrl: '/images/a.svg',
+    });
+    // An empty image field sends no image.
+    expect(
+      toProductInput({ title: 'A', description: 'B', categoryId: 'c', basePrice: 5, imageUrl: ' ' }),
+    ).not.toHaveProperty('imageUrl');
   });
 });
