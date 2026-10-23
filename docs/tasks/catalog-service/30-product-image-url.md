@@ -13,7 +13,7 @@ Products have no images, so the storefront looks bare and products are hard to t
 - [x] Create (EP-CAT-01) and update (EP-CAT-02) accept `imageUrl`: either an absolute `https://` URL or a path under `/images/` (no `..`, no whitespace). Anything else → `400` with `errors.imageUrl`. Update replaces it like every other field, so an update without `imageUrl` clears it.
 - [x] Details (EP-CAT-05), the update answer and the list rows (EP-CAT-04) return `imageUrl`, or `null` when unset.
 - [x] `openapi/public.json` regenerated; the field is optional in every schema.
-- [ ] Spec, `api-contracts.md` and `entities.md` updated (spec sync).
+- [x] Spec, `api-contracts.md` and `entities.md` updated (spec sync).
 
 ## Decisions (2026-10-23)
 1. The demo images are illustrations bundled into the frontend image and served under `/images/…` by the frontend's nginx, so the demo needs no internet and has no licensing questions. Catalog therefore accepts a relative `/images/…` path as well as an `https` URL (the backlog item proposed `https` only).
@@ -39,3 +39,5 @@ Products have no images, so the storefront looks bare and products are hard to t
 - **The pattern is anchored** (`^…$`). Java's `@Pattern` matches the whole value anyway, but the OpenAPI document copies the pattern, and JSON Schema matches a pattern anywhere in the string; anchoring keeps both readings the same.
 - **PUT clears a missing `imageUrl`.** The update replaces all editable fields (EP-CAT-02), so omitting the field removes the image. Clients must send the current value to keep it. Alternative: keep the old value when the field is absent; rejected because it would make `PUT` partial for one field only.
 - **Not in batch-get or events** (technical note): nothing consumes the image there yet.
+
+*Spec sync (2026-10-23):* `imageUrl` is now part of the Catalog spec (owned entities, EP-CAT-01/02/04/05, decision D8), `api-contracts.md` (Catalog rows) and `entities.md` (`Product`).

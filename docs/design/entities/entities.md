@@ -58,6 +58,7 @@ Owns the product catalog, categorisation, and current active prices.
 - `description`: String
 - `categoryId`: UUID (Foreign Key)
 - `basePrice`: Decimal
+- `imageUrl`: String, optional *(an `https://` URL or a path under `/images/` served by the frontend; at most 2048 characters)*
 - `status`: Enum `[ACTIVE, NOT_ACTIVE]` (Determined by Catalog Manager)
 - `stockStatus`: Enum `[IN_STOCK, OUT_OF_STOCK]` *(Read-model field updated asynchronously via `ProductStockReplenished` / `ProductStockDepleted` events from Inventory)*
 - `version`: Long *(JPA `@Version`, starts at `0`, increased on every update of the product; carried by the product events so consumers can order them. Not increased by `stockStatus` updates.)*
