@@ -15,6 +15,9 @@ Events are not sent from the request thread. The business transaction writes an 
 
 Question to settle before coding: store the raw `traceparent` string, or trace id + span id columns? And should the relay's producer span be a child of the request (one tree, but the gap between commit and publish shows as a long idle stretch) or a span *linked* to it (separate trace)? The assignment requires one tree.
 
+## Decisions (2026-10-24)
+1. The outbox stores the raw `traceparent` string in a nullable column; the relay's producer span is a **child** of the request's span, so the whole flow is one tree (the gap between commit and publish shows as idle time).
+
 ## Acceptance Criteria
 - [ ] Outbox tables of Order, Inventory, Delivery and Catalog get a nullable `traceparent` column (Flyway migration per service); rows written outside a trace (jobs) leave it `null`.
 - [ ] Each `OutboxRelay` sets the `traceparent` header from the row; a producer span appears in the original trace.

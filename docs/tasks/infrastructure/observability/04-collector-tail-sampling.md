@@ -8,6 +8,9 @@ service: infrastructure
 The collector receives all spans over OTLP, decides per complete trace which ones to keep (every trace with an error must be kept), and exports the kept traces to Tempo.
 *References:* [Overview](00-overview.md), [Task 01](01-deploy-collector-tempo-loki-grafana.md)
 
+## Decisions (2026-10-24)
+1. No extra policy for `402` (declined card): by the OpenTelemetry HTTP conventions a 4xx is not an error, so such traces are kept only by the 25 % baseline. The incident demo (task 07) uses a real failure (a service down → 5xx), which the `errors` policy keeps.
+
 ## Acceptance Criteria
 - [ ] Receiver `otlp` with gRPC (4317) and HTTP (4318).
 - [ ] Traces pipeline: `otlp` → `memory_limiter` → `tail_sampling` → `batch` → `otlp` exporter to Tempo. Order matters: `memory_limiter` first, `batch` after sampling.
