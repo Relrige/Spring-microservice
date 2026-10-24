@@ -355,6 +355,27 @@ Lists use the shared paging envelope `{ content, page, size, totalElements }` (`
 
 ---
 
+## EP-INV-08: View One Stock Item with Packaging
+
+**Type:** `HTTP GET /inventory/stock/{productId}`
+**Caller:** Inventory Worker (via API Gateway)
+**Auth:** `ROLE_INVENTORY_WORKER`
+
+**Steps:**
+1. Look up `StockItem` by `productId` (read-only; no Catalog call, nothing is created).
+2. If not found → `404 Not Found`.
+3. Return `200 OK { productId, title, productStatus, availableQuantity, reservedQuantity, totalQuantity, packagingConfigured, grossWeightGrams, lengthCm, widthCm, heightCm }`. A packaging value that is not set is missing (`null`); incomplete packaging is still `200`, unlike EP-INV-05.
+
+**Edge cases:**
+- Non-UUID `productId` → `400` (the gateway already answers `404`, since the route requires a UUID)
+- Other roles, including internal service calls → `403`
+
+**External calls:** none
+**Emits:** none
+**Refs:** frontend backlog BL-03 (the packaging form is pre-filled from this read), task 25
+
+---
+
 ## EP-INV-EVT-01: Consume `ProductCreated`
 
 **Type:** Event consumer (consumer group `inventory-service`)

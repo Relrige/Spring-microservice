@@ -127,6 +127,16 @@ public class StockService {
     }
 
     /**
+     * EP-INV-08: the worker's read of one StockItem, packaging values included whether complete or not.
+     * Read-only: a missing StockItem is reported, never created, and Catalog is not called.
+     */
+    @Transactional(readOnly = true)
+    public StockItemEntity getStockItem(UUID productId) {
+        return stockItemRepository.findById(productId)
+                .orElseThrow(() -> new StockItemNotFoundException(productId));
+    }
+
+    /**
      * EP-INV-EVT-01: makes sure a StockItem exists for a product Catalog just created (zero quantities, no
      * packaging). Race-safe against a duplicate event and against adjust/packaging creating the row at the same
      * time ({@code INSERT … ON CONFLICT DO NOTHING}); an existing row is never touched. Emits no event.

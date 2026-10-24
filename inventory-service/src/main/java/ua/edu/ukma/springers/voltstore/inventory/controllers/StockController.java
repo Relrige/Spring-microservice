@@ -25,6 +25,7 @@ import ua.edu.ukma.springers.voltstore.inventory.dto.AdjustStockResponse;
 import ua.edu.ukma.springers.voltstore.inventory.dto.PackagingResponse;
 import ua.edu.ukma.springers.voltstore.inventory.dto.SetPackagingRequest;
 import ua.edu.ukma.springers.voltstore.inventory.dto.StockBalanceResponse;
+import ua.edu.ukma.springers.voltstore.inventory.dto.StockItemResponse;
 import ua.edu.ukma.springers.voltstore.inventory.entities.ProductStatus;
 import ua.edu.ukma.springers.voltstore.inventory.openapi.InternalApi;
 import ua.edu.ukma.springers.voltstore.inventory.openapi.PackagingNotConfiguredProblem;
@@ -87,6 +88,22 @@ public class StockController {
                 stockService.listStock(packagingConfigured, search, productStatus,
                         PAGEABLE_PARSER.parse(page, size, sortBy)),
                 StockBalanceResponse::from);
+    }
+
+    @Operation(summary = "Get one stock item with its packaging (EP-INV-08)",
+            description = "Role: INVENTORY_WORKER. The stock row of EP-INV-01 plus the four packaging values; a "
+                    + "value that is not set is missing (`null`), and incomplete packaging is still `200`.",
+            security = @SecurityRequirement(name = BEARER_AUTH))
+    @ApiResponse(responseCode = "200", description = "The stock item")
+    @ApiResponse(responseCode = "401", description = "Not authenticated",
+            content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = Problem.class)))
+    @ApiResponse(responseCode = "403", description = "Not an INVENTORY_WORKER",
+            content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = Problem.class)))
+    @ApiResponse(responseCode = "404", description = "No stock item for this product",
+            content = @Content(mediaType = APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = Problem.class)))
+    @GetMapping("/{productId}")
+    public StockItemResponse getStockItem(@PathVariable UUID productId) {
+        return StockItemResponse.from(stockService.getStockItem(productId));
     }
 
     @Operation(summary = "Restock or write off (EP-INV-02)",
