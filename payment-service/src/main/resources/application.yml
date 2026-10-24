@@ -45,3 +45,17 @@ management:
       # Histogram buckets for HTTP latency, so p95 can be computed in Prometheus (alert HighHttpLatency)
       percentiles-histogram:
         http.server.requests: true
+  # Tracing (observability task 02). Spans go to the collector only when
+  # MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT is set (Kubernetes ConfigMap); Compose, tests and IDE runs
+  # export nothing. The span resource attribute service.name is spring.application.name.
+  tracing:
+    sampling:
+      # Every request is traced; the collector decides which traces to keep (tail sampling, task 04)
+      probability: 1.0
+    propagation:
+      # W3C traceparent (the default, set so the choice is visible)
+      type: w3c
+  observations:
+    enable:
+      # Scheduled jobs start no traces of their own (empty relay and recovery runs would flood Tempo)
+      tasks.scheduled: false

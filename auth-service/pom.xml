@@ -34,6 +34,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!-- Tracing: Micrometer Tracing with the OpenTelemetry bridge and the OTLP span exporter (observability task 02) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-opentelemetry</artifactId>
+        </dependency>
         <!-- OpenAPI documents (docs/design/services-requirements/openapi-conventions.md); off at runtime unless enabled -->
         <dependency>
             <groupId>org.springdoc</groupId>

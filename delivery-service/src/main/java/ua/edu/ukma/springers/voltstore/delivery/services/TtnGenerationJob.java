@@ -2,8 +2,9 @@ package ua.edu.ukma.springers.voltstore.delivery.services;
 
 import io.micrometer.core.instrument.LongTaskTimer;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -21,9 +22,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 
-import static ua.edu.ukma.springers.voltstore.delivery.filters.CorrelationIdKeys.CORRELATION_ID_MDC_KEY;
 
 /**
  * Automatic TTN generation (Tier 1 and Tier 2). The {@code OrderPaid} consumer only creates {@code TTN_PENDING}
@@ -67,10 +66,13 @@ public class TtnGenerationJob {
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
     private final LongTaskTimer runTimer;
+    private final ObservationRegistry observationRegistry;
 
     public TtnGenerationJob(ShipmentRepository repository, TtnRegistrationService registrationService,
                             ShipmentEventPublisher eventPublisher, TtnJobProperties properties,
-                            PlatformTransactionManager transactionManager, Clock clock, MeterRegistry registry) {
+                            PlatformTransactionManager transactionManager, Clock clock, MeterRegistry registry,
+                            ObservationRegistry observationRegistry) {
+        this.observationRegistry = observationRegistry;
         this.repository = repository;
         this.registrationService = registrationService;
         this.eventPublisher = eventPublisher;
@@ -96,17 +98,20 @@ public class TtnGenerationJob {
     public int runOnce() {
         List<ShipmentSnapshot> claimed = claimDueShipments();
         for (ShipmentSnapshot shipment : claimed) {
-            // Outgoing Inventory calls carry this ID, so one attempt can be followed across both services' logs
-            MDC.put(CORRELATION_ID_MDC_KEY, UUID.randomUUID().toString());
-            try {
-                process(shipment);
-            } catch (RuntimeException e) {
-                // E.g. the database is down while applying the result: the lease expires and the attempt is redone
-                log.error("TTN attempt for order {} could not be completed; it is retried after the lease",
-                        shipment.orderId(), e);
-            } finally {
-                MDC.remove(CORRELATION_ID_MDC_KEY);
-            }
+            // One trace per attempt (observability task 02): the Inventory calls and the events it publishes are
+            // part of it, so one attempt can be followed across services. Runs without a claim create no trace.
+            Observation.createNotStarted("delivery.ttn.attempt", observationRegistry)
+                    .highCardinalityKeyValue("order.id", shipment.orderId().toString())
+                    .observe(() -> {
+                        try {
+                            process(shipment);
+                        } catch (RuntimeException e) {
+                            // E.g. the database is down while applying the result: the lease expires and the
+                            // attempt is redone
+                            log.error("TTN attempt for order {} could not be completed; it is retried after the lease",
+                                    shipment.orderId(), e);
+                        }
+                    });
         }
         return claimed.size();
     }

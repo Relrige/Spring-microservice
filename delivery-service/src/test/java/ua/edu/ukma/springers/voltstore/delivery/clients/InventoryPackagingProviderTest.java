@@ -9,7 +9,6 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.slf4j.MDC;
 import ua.edu.ukma.springers.voltstore.delivery.entities.ShipmentItem;
 import ua.edu.ukma.springers.voltstore.delivery.exceptions.PackagingUnavailableException;
-import ua.edu.ukma.springers.voltstore.delivery.filters.CorrelationIdKeys;
 import ua.edu.ukma.springers.voltstore.delivery.services.ItemPackaging;
 
 import java.net.ServerSocket;
@@ -62,17 +61,15 @@ class InventoryPackagingProviderTest {
     }
 
     @Test
-    void ok_returnsPackagingPerItem_andSendsTheTokenAndCorrelationIdButNoUserHeaders() {
+    void ok_returnsPackagingPerItem_andSendsTheTokenButNoUserHeaders() {
         stub(okJson("""
                 {"grossWeightGrams":180,"lengthCm":22,"widthCm":12,"heightCm":6,"futureField":true}"""));
-        MDC.put(CorrelationIdKeys.CORRELATION_ID_MDC_KEY, "corr-1");
 
         List<ItemPackaging> packaging = provider(inventory.baseUrl()).packagingFor(List.of(item(2)));
 
         assertThat(packaging).containsExactly(new ItemPackaging(productId, 2, 180, 22, 12, 6));
         inventory.verify(1, getRequestedFor(urlPathEqualTo(path()))
                 .withHeader("X-Internal-Token", equalTo(TOKEN))
-                .withHeader("X-Correlation-Id", equalTo("corr-1"))
                 .withHeader("X-User-Id", absent())
                 .withHeader("X-User-Role", absent()));
     }

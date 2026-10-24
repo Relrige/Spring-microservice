@@ -34,3 +34,5 @@ data:
   # JVM settings live here only (not in the Dockerfile). Heap up to 70% of the container memory limit;
   # C1-only JIT and Serial GC: faster startup and less memory on a small local cluster
   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:TieredStopAtLevel=1 -XX:+UseSerialGC"
+  # Spans to the OpenTelemetry Collector over OTLP/HTTP (observability task 02); unset = no export
+  MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT: "http://otel-collector:4318/v1/traces"

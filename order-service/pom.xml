@@ -65,6 +65,11 @@
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>3.1.1</version>
         </dependency>
+        <!-- Tracing: Micrometer Tracing with the OpenTelemetry bridge and the OTLP span exporter (observability task 02) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-opentelemetry</artifactId>
+        </dependency>
         <!-- Micrometer → Prometheus exposition format at /actuator/prometheus -->
         <dependency>
             <groupId>io.micrometer</groupId>
