@@ -110,6 +110,7 @@ Derived from the [API Contracts](../services-requirements/api-contracts.md). Row
 | `POST` | `/catalog/categories` | catalog-service | Required | `CATALOG_MANAGER` |
 | `PUT`, `DELETE` | `/catalog/categories/{id}` | catalog-service | Required | `CATALOG_MANAGER` |
 | `GET` | `/inventory/stock` | inventory-service | Required | `INVENTORY_WORKER` |
+| `GET` | `/inventory/stock/{id}` | inventory-service | Required | `INVENTORY_WORKER` (one stock item with its packaging, EP-INV-08; task 13) |
 | `POST` | `/inventory/stock/{id}/adjust` | inventory-service | Required | `INVENTORY_WORKER` |
 | `PUT` | `/inventory/stock/{id}/packaging` | inventory-service | Required | `INVENTORY_WORKER` |
 | `POST` | `/orders/validate` | order-service | Required | `CUSTOMER` |
