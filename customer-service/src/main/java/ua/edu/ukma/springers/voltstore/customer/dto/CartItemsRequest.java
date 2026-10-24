@@ -1,5 +1,6 @@
 package ua.edu.ukma.springers.voltstore.customer.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -14,6 +15,8 @@ import java.util.UUID;
  */
 public record CartItemsRequest(@NotNull List<@NotNull @Valid Item> items) {
 
+    // Named explicitly: springdoc would call it just "Item" in the document
+    @Schema(name = "CartItemsRequestItem")
     public record Item(@NotNull UUID productId, @NotNull @Min(1) Integer quantity) {
     }
 

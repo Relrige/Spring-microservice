@@ -22,6 +22,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static ua.edu.ukma.springers.voltstore.catalog.repositories.ProductSpecifications.hasStatus;
+import static ua.edu.ukma.springers.voltstore.catalog.repositories.ProductSpecifications.idIn;
 import static ua.edu.ukma.springers.voltstore.catalog.repositories.ProductSpecifications.inCategory;
 import static ua.edu.ukma.springers.voltstore.catalog.repositories.ProductSpecifications.priceAtLeast;
 import static ua.edu.ukma.springers.voltstore.catalog.repositories.ProductSpecifications.priceAtMost;
@@ -43,14 +44,16 @@ class ProductSpecificationsTest {
 
     private UUID laptops;
     private UUID phones;
+    private UUID gamingLaptop;
+    private UUID draftLaptop;
 
     @BeforeEach
     void setUp() {
         laptops = categoryRepository.saveAndFlush(new Category("Laptops")).getId();
         phones = categoryRepository.saveAndFlush(new Category("Phones")).getId();
-        save("Gaming Laptop", "Fast GPU", laptops, "2000", true);
+        gamingLaptop = save("Gaming Laptop", "Fast GPU", laptops, "2000", true);
         save("Office Laptop", "Quiet and light", laptops, "800", true);
-        save("Draft Laptop", "Not published yet", laptops, "500", false);
+        draftLaptop = save("Draft Laptop", "Not published yet", laptops, "500", false);
         save("Budget Phone", "Great value, 50% off", phones, "150", true);
         save("Flagship Phone", "Best CAMERA", phones, "1200", false);
     }
@@ -71,6 +74,15 @@ class ProductSpecificationsTest {
     void inCategory_filtersByCategoryAndUnknownCategoryMatchesNothing() {
         assertThat(titles(inCategory(phones))).containsExactly("Budget Phone", "Flagship Phone");
         assertThat(titles(inCategory(UUID.randomUUID()))).isEmpty();
+    }
+
+    @Test
+    void idIn_returnsOnlyTheListedProducts_andUnknownIdsMatchNothing() {
+        assertThat(titles(idIn(List.of(gamingLaptop, draftLaptop, UUID.randomUUID()))))
+                .containsExactly("Draft Laptop", "Gaming Laptop");
+        assertThat(titles(idIn(List.of(UUID.randomUUID())))).isEmpty();
+        assertThat(titles(Specification.allOf(idIn(List.of(gamingLaptop, draftLaptop)), hasStatus(ProductStatus.ACTIVE))))
+                .containsExactly("Gaming Laptop");
     }
 
     @Test
@@ -121,11 +133,11 @@ class ProductSpecificationsTest {
         return productRepository.findAll(spec, PageRequest.of(0, 50, BY_TITLE)).map(Product::getTitle).getContent();
     }
 
-    private void save(String title, String description, UUID categoryId, String price, boolean active) {
+    private UUID save(String title, String description, UUID categoryId, String price, boolean active) {
         Product product = Product.createNew(title, description, categoryId, new BigDecimal(price));
         if (active) {
             product.activate();
         }
-        productRepository.saveAndFlush(product);
+        return productRepository.saveAndFlush(product).getId();
     }
 }

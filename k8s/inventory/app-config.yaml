@@ -8,11 +8,12 @@ data:
   SPRING_DATASOURCE_URL: "jdbc:postgresql://inventory-service-postgres:5432/inventory-service"
   # Kafka broker Service from k8s/kafka
   SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-  # Catalog-owned topic with ProductCreated (Inventory only subscribes)
+  # Catalog-owned topic with ProductCreated and ProductUpdated (Inventory only subscribes)
   CATALOG_PRODUCT_EVENTS_TOPIC: "catalog.product-events"
   # Order-owned topic with OrderShipped (provisional name until Order Service publishes)
   ORDER_EVENTS_TOPIC: "order.order-events"
-  # Catalog Service (k8s/catalog/app-service.yaml, port 8081) for the product existence check
+  # Catalog Service (k8s/catalog/app-service.yaml, port 8081) for the product existence check and the product data
+  # backfill
   CATALOG_SERVICE_URL: "http://catalog-service:8081"
   # JVM settings live here only (not in the Dockerfile). Heap up to 70% of the container memory limit;
   # C1-only JIT and Serial GC: faster startup and less memory on a small local cluster

@@ -23,6 +23,7 @@ import ua.edu.ukma.springers.voltstore.order.dto.PlacedOrderResponse;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderStatus;
 import ua.edu.ukma.springers.voltstore.order.exceptions.CancellationInProgressException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.DependencyUnavailableException;
+import ua.edu.ukma.springers.voltstore.order.exceptions.IdempotencyKeyMismatchException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.IneligibleItemsException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.InsufficientStockException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.InvalidOrderStateException;
@@ -31,6 +32,7 @@ import ua.edu.ukma.springers.voltstore.order.exceptions.OrderNotFoundException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.OrderTotalTooLargeException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.PaymentDeclinedException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.PaymentWindowExpiredException;
+import ua.edu.ukma.springers.voltstore.order.exceptions.RequestInProgressException;
 import ua.edu.ukma.springers.voltstore.order.paging.InvalidQueryParameterException;
 import ua.edu.ukma.springers.voltstore.order.paging.PageResponse;
 import ua.edu.ukma.springers.voltstore.order.ports.Shipments;
@@ -54,6 +56,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -171,12 +174,14 @@ class OrderControllerTest {
     void place_is201_withLocationAndBody() throws Exception {
         UUID orderId = UUID.randomUUID();
         Instant expiresAt = Instant.parse("2026-10-17T10:15:00Z");
-        when(placement.place(any(), any())).thenReturn(new PlacedOrderResponse(orderId, OrderStatus.PENDING_PAYMENT,
-                new BigDecimal("39999.00"), "UAH", expiresAt));
+        when(placement.place(any(), any(), any())).thenReturn(new OrderPlacementService.Placement(
+                new PlacedOrderResponse(orderId, OrderStatus.PENDING_PAYMENT, new BigDecimal("39999.00"), "UAH",
+                        expiresAt), false));
 
         place(placeBody(DELIVERY))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", "/orders/" + orderId))
+                .andExpect(header().doesNotExist("Idempotent-Replayed"))
                 .andExpect(jsonPath("$.orderId").value(orderId.toString()))
                 .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
                 .andExpect(jsonPath("$.totalAmount").value(39999.00))
@@ -226,7 +231,7 @@ class OrderControllerTest {
     @Test
     void place_insufficientStock_is422_withInventorysList() throws Exception {
         UUID productId = UUID.fromString(PHONE);
-        when(placement.place(any(), any()))
+        when(placement.place(any(), any(), any()))
                 .thenThrow(new InsufficientStockException(List.of(new InsufficientItem(productId, 5, 2))));
 
         place(placeBody(DELIVERY))
@@ -239,7 +244,7 @@ class OrderControllerTest {
 
     @Test
     void place_ineligibleItems_is422() throws Exception {
-        when(placement.place(any(), any())).thenThrow(new IneligibleItemsException(List.of(
+        when(placement.place(any(), any(), any())).thenThrow(new IneligibleItemsException(List.of(
                 new IneligibleItem(UUID.fromString(PHONE), IneligibleItem.Reason.NOT_ACTIVE))));
 
         place(placeBody(DELIVERY))
@@ -249,7 +254,7 @@ class OrderControllerTest {
 
     @Test
     void place_aTotalTooLargeToPay_is422_withTheLimit() throws Exception {
-        when(placement.place(any(), any()))
+        when(placement.place(any(), any(), any()))
                 .thenThrow(new OrderTotalTooLargeException(new BigDecimal("9999999999.99")));
 
         place(placeBody(DELIVERY))
@@ -260,19 +265,80 @@ class OrderControllerTest {
 
     @Test
     void place_dependencyUnavailable_is503() throws Exception {
-        when(placement.place(any(), any())).thenThrow(new DependencyUnavailableException("Inventory", "down", null));
+        when(placement.place(any(), any(), any())).thenThrow(new DependencyUnavailableException("Inventory", "down", null));
 
         place(placeBody(DELIVERY)).andExpect(status().isServiceUnavailable());
     }
 
     @Test
     void place_withoutEmailFromTheGateway_is401() throws Exception {
-        when(placement.place(any(), any())).thenThrow(new MissingCustomerEmailException());
+        when(placement.place(any(), any(), any())).thenThrow(new MissingCustomerEmailException());
 
         mockMvc.perform(post("/orders").headers(TrustedHeaders.asUser(CUSTOMER_ID, "CUSTOMER", null))
                         .contentType(MediaType.APPLICATION_JSON).content(placeBody(DELIVERY)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.detail").value("Authentication required"));
+    }
+
+    // ---- EP-ORD-02 with an Idempotency-Key ----
+
+    @Test
+    void place_passesTheIdempotencyKey_andNoneWithoutTheHeader() throws Exception {
+        UUID key = UUID.randomUUID();
+        when(placement.place(any(), any(), any())).thenReturn(new OrderPlacementService.Placement(
+                new PlacedOrderResponse(UUID.randomUUID(), OrderStatus.PENDING_PAYMENT, BigDecimal.TEN, "UAH",
+                        Instant.parse("2026-10-17T10:15:00Z")), false));
+
+        placeWithKey(key.toString(), placeBody(DELIVERY)).andExpect(status().isCreated());
+        place(placeBody(DELIVERY)).andExpect(status().isCreated());
+
+        verify(placement).place(any(), any(), eq(key));
+        verify(placement).place(any(), any(), isNull());
+    }
+
+    @Test
+    void place_aKeyThatIsNotAUuid_is400_withoutCallingTheService() throws Exception {
+        placeWithKey("not-a-uuid", placeBody(DELIVERY))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/validation"))
+                .andExpect(jsonPath("$.service").value("order-service"));
+        verifyNoInteractions(placement);
+    }
+
+    @Test
+    void place_aReplay_is201_withLocation_andIdempotentReplayed() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        when(placement.place(any(), any(), any())).thenReturn(new OrderPlacementService.Placement(
+                new PlacedOrderResponse(orderId, OrderStatus.PAID, new BigDecimal("39999.00"), "UAH",
+                        Instant.parse("2026-10-17T10:15:00Z")), true));
+
+        placeWithKey(UUID.randomUUID().toString(), placeBody(DELIVERY))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location", "/orders/" + orderId))
+                .andExpect(header().string("Idempotent-Replayed", "true"))
+                .andExpect(jsonPath("$.orderId").value(orderId.toString()))
+                .andExpect(jsonPath("$.status").value("PAID"));
+    }
+
+    @Test
+    void place_aKeyUsedForAnotherRequest_is422_idempotencyKeyMismatch() throws Exception {
+        when(placement.place(any(), any(), any())).thenThrow(new IdempotencyKeyMismatchException());
+
+        placeWithKey(UUID.randomUUID().toString(), placeBody(DELIVERY))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/idempotency-key-mismatch"))
+                .andExpect(jsonPath("$.service").value("order-service"));
+    }
+
+    @Test
+    void place_aKeyStillInProgress_is409_withRetryAfterOneSecond() throws Exception {
+        when(placement.place(any(), any(), any())).thenThrow(new RequestInProgressException());
+
+        placeWithKey(UUID.randomUUID().toString(), placeBody(DELIVERY))
+                .andExpect(status().isConflict())
+                .andExpect(header().string("Retry-After", "1"))
+                .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/request-in-progress"))
+                .andExpect(jsonPath("$.detail").value("A request with this Idempotency-Key is still being processed"));
     }
 
     // ---- EP-ORD-03 ----
@@ -462,6 +528,12 @@ class OrderControllerTest {
 
     private ResultActions place(String body) throws Exception {
         return mockMvc.perform(post("/orders").headers(TrustedHeaders.asCustomer(CUSTOMER_ID))
+                .contentType(MediaType.APPLICATION_JSON).content(body));
+    }
+
+    private ResultActions placeWithKey(String key, String body) throws Exception {
+        return mockMvc.perform(post("/orders").headers(TrustedHeaders.asCustomer(CUSTOMER_ID))
+                .header("Idempotency-Key", key)
                 .contentType(MediaType.APPLICATION_JSON).content(body));
     }
 

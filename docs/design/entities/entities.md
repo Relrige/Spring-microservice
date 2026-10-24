@@ -58,8 +58,10 @@ Owns the product catalog, categorisation, and current active prices.
 - `description`: String
 - `categoryId`: UUID (Foreign Key)
 - `basePrice`: Decimal
+- `imageUrl`: String, optional *(an `https://` URL or a path under `/images/` served by the frontend; at most 2048 characters)*
 - `status`: Enum `[ACTIVE, NOT_ACTIVE]` (Determined by Catalog Manager)
 - `stockStatus`: Enum `[IN_STOCK, OUT_OF_STOCK]` *(Read-model field updated asynchronously via `ProductStockReplenished` / `ProductStockDepleted` events from Inventory)*
+- `version`: Long *(JPA `@Version`, starts at `0`, increased on every update of the product; carried by the product events so consumers can order them. Not increased by `stockStatus` updates.)*
 
 ---
 
@@ -75,6 +77,7 @@ Owns stock counts, physical dimensions (for shipping), and stock reservations.
 - `lengthCm`: Integer (Nullable until configured; `> 0` when set)
 - `widthCm`: Integer (Nullable until configured; `> 0` when set)
 - `heightCm`: Integer (Nullable until configured; `> 0` when set)
+- `title`: String, `productStatus`: Enum `[ACTIVE, NOT_ACTIVE]`, `productVersion`: Long *(All nullable. A copy of Catalog's `Product.title`, `status` and `version`, kept up to date from `ProductCreated` / `ProductUpdated` and applied only when the version is newer; Catalog owns the values. Used to search and sort the stock list.)*
 - *Constraint:* `availableQuantity` and `reservedQuantity` are never negative.
 - *Derived, not stored:* `totalQuantity = availableQuantity + reservedQuantity`; `packagingConfigured` = all four packaging values set and `> 0`.
 

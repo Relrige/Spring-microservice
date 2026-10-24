@@ -2,6 +2,7 @@ package ua.edu.ukma.springers.voltstore.order.services;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionOperations;
 import ua.edu.ukma.springers.voltstore.order.config.CheckoutProperties;
@@ -16,10 +17,12 @@ import ua.edu.ukma.springers.voltstore.order.entities.OrderItemEntity;
 import ua.edu.ukma.springers.voltstore.order.entities.ReservationAttempt;
 import ua.edu.ukma.springers.voltstore.order.events.OrderPlacedEvent;
 import ua.edu.ukma.springers.voltstore.order.exceptions.DependencyUnavailableException;
+import ua.edu.ukma.springers.voltstore.order.exceptions.IdempotencyKeyMismatchException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.IneligibleItemsException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.InsufficientStockException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.MissingCustomerEmailException;
 import ua.edu.ukma.springers.voltstore.order.exceptions.OrderTotalTooLargeException;
+import ua.edu.ukma.springers.voltstore.order.exceptions.RequestInProgressException;
 import ua.edu.ukma.springers.voltstore.order.outbox.Outbox;
 import ua.edu.ukma.springers.voltstore.order.ports.CatalogProduct;
 import ua.edu.ukma.springers.voltstore.order.ports.ProductCatalog;
@@ -34,6 +37,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -51,6 +55,9 @@ import java.util.UUID;
  * the reservation is released at once (best effort; release is idempotent and does nothing when nothing is
  * reserved), and the attempt stays: {@code OrphanReservationJob} releases it again once any late answer has arrived,
  * so stock is never left reserved, even if this instance dies or Inventory reserves after the release.
+ * <p>
+ * With an {@code Idempotency-Key} (D4–D9) the key is claimed before step 1 and completed in the transaction of step
+ * 3; a repeat of a finished request returns its order without calling anyone, and a failed request releases the key.
  */
 @Slf4j
 @Service
@@ -64,22 +71,53 @@ public class OrderPlacementService {
     private final StockReservations stock;
     private final OrderRepository orders;
     private final ReservationAttemptRepository attempts;
+    private final IdempotencyKeys idempotencyKeys;
     private final Outbox outbox;
     private final TransactionOperations transactions;
     private final CheckoutProperties properties;
     private final Clock clock;
 
+    /** The answer of a submit: the order, and whether it was placed by an earlier request with the same key. */
+    public record Placement(PlacedOrderResponse order, boolean replayed) {
+    }
+
+    /** A submit without an {@code Idempotency-Key}. */
+    public PlacedOrderResponse place(AuthenticatedUser customer, PlaceOrderRequest request) {
+        return place(customer, request, null).order();
+    }
+
     /**
+     * @param idempotencyKey the client's key, or {@code null}: then every call places a new order
      * @throws MissingCustomerEmailException  the gateway sent no email (answered 401)
      * @throws IneligibleItemsException       a product is unknown or not active; nothing was reserved
      * @throws OrderTotalTooLargeException    the total exceeds what Payment can charge at once; nothing was reserved
      * @throws InsufficientStockException     Inventory could not reserve every item; nothing was reserved
      * @throws DependencyUnavailableException Catalog or Inventory could not answer; no order was created
+     * @throws IdempotencyKeyMismatchException the key was used for another request; nothing was called
+     * @throws RequestInProgressException      the first request with the key is still running; nothing was called
      */
-    public PlacedOrderResponse place(AuthenticatedUser customer, PlaceOrderRequest request) {
+    public Placement place(AuthenticatedUser customer, PlaceOrderRequest request, @Nullable UUID idempotencyKey) {
         if (customer.email() == null) {
             throw new MissingCustomerEmailException();
         }
+        if (idempotencyKey == null) {
+            return new Placement(placeNew(customer, request, null), false);
+        }
+        Optional<UUID> placedBefore = idempotencyKeys.claim(customer.id(), idempotencyKey, request);
+        if (placedBefore.isPresent()) {
+            return new Placement(replay(placedBefore.get()), true);
+        }
+        try {
+            return new Placement(placeNew(customer, request, idempotencyKey), false);
+        } catch (RuntimeException e) {
+            // Only success is remembered (D6): a retry with the same key runs again
+            idempotencyKeys.releaseQuietly(customer.id(), idempotencyKey);
+            throw e;
+        }
+    }
+
+    private PlacedOrderResponse placeNew(AuthenticatedUser customer, PlaceOrderRequest request,
+                                         @Nullable UUID idempotencyKey) {
         // Assigned here, because Inventory reserves under it before the order exists
         UUID orderId = UUID.randomUUID();
 
@@ -101,7 +139,8 @@ public class OrderPlacementService {
         reserve(orderId, request.items());
 
         try {
-            OrderEntity order = transactions.execute(status -> store(orderId, customer, request, products));
+            OrderEntity order = transactions.execute(status -> store(orderId, customer, request, products,
+                    idempotencyKey));
             return PlacedOrderResponse.of(order);
         } catch (RuntimeException e) {
             // The cause is logged with its stack trace by the exception handler (500)
@@ -137,7 +176,7 @@ public class OrderPlacementService {
     }
 
     private OrderEntity store(UUID orderId, AuthenticatedUser customer, PlaceOrderRequest request,
-                              Map<UUID, CatalogProduct> products) {
+                              Map<UUID, CatalogProduct> products, @Nullable UUID idempotencyKey) {
         Instant now = clock.instant();
         // Title and price from Catalog, never from the client
         List<OrderItemEntity> items = request.items().stream()
@@ -155,7 +194,18 @@ public class OrderPlacementService {
         outbox.append(OrderPlacedEvent.of(order, now));
         // From now on the reservation belongs to a stored order, which the expiry job or the saga releases
         attempts.deleteById(orderId);
+        if (idempotencyKey != null) {
+            idempotencyKeys.complete(customer.id(), idempotencyKey, orderId);
+        }
         return order;
+    }
+
+    /** D7: the order's current state (it may be paid by now), not the first answer, which is not stored. */
+    private PlacedOrderResponse replay(UUID orderId) {
+        return transactions.execute(status -> orders.findById(orderId)
+                .map(PlacedOrderResponse::of)
+                // Orders are never deleted, and the key row names only stored orders
+                .orElseThrow(() -> new IllegalStateException("Order " + orderId + " of a completed key is missing")));
     }
 
     private void releaseQuietly(UUID orderId) {

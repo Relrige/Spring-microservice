@@ -182,6 +182,8 @@ All errors are RFC 9457 problem details (`application/problem+json`) with the fi
 - Validation failures (`400`) additionally carry `errors`: a map from field name to a list of messages, e.g. `{"errors": {"email": ["must be a well-formed email address"]}}`.
 - `401` for failed logins has the fixed detail "Invalid credentials"; `401` for missing authentication has the detail "Authentication required"; `403` has the detail "Access denied".
 - Unexpected errors return `500` with the generic detail "An unexpected error occurred."; the cause is logged on the server and never returned.
+- Errors built by the framework rather than by `GlobalExceptionHandler` (for example an unreadable JSON body, or a `role` that is not a `UserRole` value) are Spring's default problem: `type` is `about:blank`, and `errors`, `timestamp` and `service` are missing. The role `CUSTOMER` on EP-AUTH-03 is a handled validation error with `errors.role`.
+- **OpenAPI:** the API is also described by an OpenAPI document generated from the code, `auth-service/openapi/public.json` ([OpenAPI Conventions](../services-requirements/openapi-conventions.md)); its error responses reference the named problem schemas listed there.
 
 ### Configuration
 

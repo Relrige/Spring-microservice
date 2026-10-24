@@ -1,4 +1,8 @@
 package ua.edu.ukma.springers.voltstore.inventory.dto;
 
-public record AdjustStockResponse(int newAvailableQuantity) {
+import io.swagger.v3.oas.annotations.media.Schema;
+
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
+public record AdjustStockResponse(@Schema(requiredMode = REQUIRED) int newAvailableQuantity) {
 }

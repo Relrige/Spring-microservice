@@ -22,8 +22,11 @@ data:
   # Payment-window expiry job; the grace must be longer than PAYMENT_READ_TIMEOUT (checked at startup)
   ORDER_EXPIRY_INTERVAL: "1m"
   ORDER_EXPIRY_GRACE: "30s"
-  # Jobs releasing orphan reservations and repeating refunds owed after a lost payment race
+  # Jobs releasing orphan reservations, repeating refunds owed after a lost payment race and purging
+  # Idempotency-Keys
   ORDER_RECOVERY_INTERVAL: "1m"
+  # How long a completed Idempotency-Key of a submitted order is remembered (decision D10)
+  ORDER_IDEMPOTENCY_KEY_TTL: "24h"
   SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
   # Order publishes to its own topic and consumes Delivery's
   ORDER_EVENTS_TOPIC: "order.order-events"

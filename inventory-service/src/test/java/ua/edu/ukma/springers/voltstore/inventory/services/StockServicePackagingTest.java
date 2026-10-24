@@ -72,13 +72,13 @@ class StockServicePackagingTest {
     void setPackaging_missingItem_productInCatalog_createsItBeforeLockingIt() {
         StockItemEntity created = StockItemEntity.builder().productId(PRODUCT_ID).build();
         when(stockItemRepository.existsById(PRODUCT_ID)).thenReturn(false);
-        when(productCatalog.exists(PRODUCT_ID)).thenReturn(true);
+        when(productCatalog.find(PRODUCT_ID)).thenReturn(Optional.of(new CatalogProductData(PRODUCT_ID, null, null, null)));
         when(stockItemRepository.findByIdForUpdate(PRODUCT_ID)).thenReturn(Optional.of(created));
 
         stockService.setPackaging(PRODUCT_ID, 500, 10, 5, 2);
 
         InOrder order = inOrder(productCatalog, transactionManager, stockItemRepository);
-        order.verify(productCatalog).exists(PRODUCT_ID);
+        order.verify(productCatalog).find(PRODUCT_ID);
         order.verify(transactionManager).getTransaction(any());
         order.verify(stockItemRepository).insertIfAbsent(PRODUCT_ID);
         order.verify(stockItemRepository).findByIdForUpdate(PRODUCT_ID);
@@ -90,7 +90,7 @@ class StockServicePackagingTest {
     @Test
     void setPackaging_missingItem_productNotInCatalog_throwsNotFoundAndCreatesNothing() {
         when(stockItemRepository.existsById(PRODUCT_ID)).thenReturn(false);
-        when(productCatalog.exists(PRODUCT_ID)).thenReturn(false);
+        when(productCatalog.find(PRODUCT_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> stockService.setPackaging(PRODUCT_ID, 500, 10, 5, 2))
                 .isInstanceOf(ProductNotFoundInCatalogException.class);

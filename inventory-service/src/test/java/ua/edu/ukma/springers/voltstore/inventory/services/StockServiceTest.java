@@ -17,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.transaction.PlatformTransactionManager;
 import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
+import ua.edu.ukma.springers.voltstore.inventory.events.ProductEvent;
 import ua.edu.ukma.springers.voltstore.inventory.events.ProductStockDepletedEvent;
 import ua.edu.ukma.springers.voltstore.inventory.events.ProductStockReplenishedEvent;
 import ua.edu.ukma.springers.voltstore.inventory.events.StockEvent;
@@ -24,7 +25,9 @@ import ua.edu.ukma.springers.voltstore.inventory.events.StockEventPublisher;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.CatalogUnavailableException;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.InsufficientStockException;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.ProductNotFoundInCatalogException;
+import ua.edu.ukma.springers.voltstore.inventory.idempotency.ProcessedEvents;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemRepository;
+import ua.edu.ukma.springers.voltstore.inventory.services.StockService.ProductCreatedResult;
 
 import java.util.List;
 import java.util.Optional;
@@ -38,6 +41,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
@@ -53,6 +58,9 @@ class StockServiceTest {
 
     @Mock
     private ProductCatalog productCatalog;
+
+    @Mock
+    private ProcessedEvents processedEvents;
 
     // A mock transaction manager lets TransactionTemplate run the callback (no real transaction in a unit test)
     @Mock
@@ -73,7 +81,7 @@ class StockServiceTest {
         Page<StockItemEntity> expected = new PageImpl<>(List.of(stockItem(1)), pageable, 6);
         when(stockItemRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(expected);
 
-        Page<StockItemEntity> result = stockService.listStock(null, pageable);
+        Page<StockItemEntity> result = stockService.listStock(null, null, null, pageable);
 
         assertThat(result).isSameAs(expected);
     }
@@ -84,7 +92,7 @@ class StockServiceTest {
         Pageable pageable = PageRequest.of(0, 20);
         when(stockItemRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(Page.empty(pageable));
 
-        stockService.listStock(configured, pageable);
+        stockService.listStock(configured, null, null, pageable);
 
         verify(stockItemRepository).findAll(any(Specification.class), eq(pageable));
     }
@@ -126,7 +134,7 @@ class StockServiceTest {
     @Test
     void adjustStock_missingStockItem_productInCatalog_isCreatedOnDemand_afterAskingCatalogOutsideTheTransaction() {
         when(stockItemRepository.existsById(PRODUCT_ID)).thenReturn(false);
-        when(productCatalog.exists(PRODUCT_ID)).thenReturn(true);
+        when(productCatalog.find(PRODUCT_ID)).thenReturn(Optional.of(new CatalogProductData(PRODUCT_ID, null, null, null)));
         when(stockItemRepository.findByIdForUpdate(PRODUCT_ID)).thenReturn(Optional.of(stockItem(0)));
 
         int result = stockService.adjustStock(PRODUCT_ID, 4);
@@ -134,15 +142,41 @@ class StockServiceTest {
         assertThat(result).isEqualTo(4);
         // Catalog is asked before the transaction starts, so no lock is held while waiting for it
         InOrder order = inOrder(productCatalog, transactionManager, stockItemRepository);
-        order.verify(productCatalog).exists(PRODUCT_ID);
+        order.verify(productCatalog).find(PRODUCT_ID);
         order.verify(transactionManager).getTransaction(any());
         order.verify(stockItemRepository).insertIfAbsent(PRODUCT_ID);
     }
 
     @Test
+    void adjustStock_missingStockItem_catalogAnswerWithVersion_createsTheRowWithTheCopy() {
+        when(stockItemRepository.existsById(PRODUCT_ID)).thenReturn(false);
+        when(productCatalog.find(PRODUCT_ID)).thenReturn(
+                Optional.of(new CatalogProductData(PRODUCT_ID, "Laptop", "NOT_ACTIVE", 3L)));
+        when(stockItemRepository.findByIdForUpdate(PRODUCT_ID)).thenReturn(Optional.of(stockItem(0)));
+
+        stockService.adjustStock(PRODUCT_ID, 4);
+
+        verify(stockItemRepository).upsertProductData(PRODUCT_ID, "Laptop", "NOT_ACTIVE", 3L);
+        verify(stockItemRepository, never()).insertIfAbsent(any());
+    }
+
+    @Test
+    void adjustStock_missingStockItem_catalogAnswerWithUnknownStatus_createsTheRowWithoutTheCopy() {
+        when(stockItemRepository.existsById(PRODUCT_ID)).thenReturn(false);
+        when(productCatalog.find(PRODUCT_ID)).thenReturn(
+                Optional.of(new CatalogProductData(PRODUCT_ID, "Laptop", "ARCHIVED", 3L)));
+        when(stockItemRepository.findByIdForUpdate(PRODUCT_ID)).thenReturn(Optional.of(stockItem(0)));
+
+        stockService.adjustStock(PRODUCT_ID, 4);
+
+        verify(stockItemRepository).insertIfAbsent(PRODUCT_ID);
+        verify(stockItemRepository, never()).upsertProductData(any(), any(), any(), anyLong());
+    }
+
+    @Test
     void adjustStock_missingStockItem_productNotInCatalog_throwsNotFoundAndCreatesNothing() {
         when(stockItemRepository.existsById(PRODUCT_ID)).thenReturn(false);
-        when(productCatalog.exists(PRODUCT_ID)).thenReturn(false);
+        when(productCatalog.find(PRODUCT_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> stockService.adjustStock(PRODUCT_ID, 4))
                 .isInstanceOf(ProductNotFoundInCatalogException.class)
@@ -155,7 +189,7 @@ class StockServiceTest {
     @Test
     void adjustStock_missingStockItem_catalogUnavailable_propagatesAndChangesNothing() {
         when(stockItemRepository.existsById(PRODUCT_ID)).thenReturn(false);
-        when(productCatalog.exists(PRODUCT_ID))
+        when(productCatalog.find(PRODUCT_ID))
                 .thenThrow(new CatalogUnavailableException("Catalog answered 500", null));
 
         assertThatThrownBy(() -> stockService.adjustStock(PRODUCT_ID, 4))
@@ -232,6 +266,96 @@ class StockServiceTest {
         assertThat(stockService.ensureStockItem(PRODUCT_ID)).isFalse();
 
         verify(stockEventPublisher, never()).publish(any());
+    }
+
+    // --- product events (task 22) ---
+
+    @Test
+    void applyProductCreated_fullState_recordsTheKeyAndUpsertsTheCopy() {
+        ProductEvent event = event("Laptop", "NOT_ACTIVE", 0L);
+        when(processedEvents.markProcessed(event.eventId(), StockService.PRODUCT_CREATED_CONSUMER)).thenReturn(true);
+        when(stockItemRepository.upsertProductData(PRODUCT_ID, "Laptop", "NOT_ACTIVE", 0L)).thenReturn(1);
+
+        assertThat(stockService.applyProductCreated(event)).isEqualTo(ProductCreatedResult.APPLIED);
+
+        verify(stockItemRepository, never()).insertIfAbsent(any());
+        verifyNoInteractions(stockEventPublisher);
+    }
+
+    @Test
+    void applyProductCreated_olderThanTheStoredCopy_isUnchanged() {
+        ProductEvent event = event("Laptop", "NOT_ACTIVE", 0L);
+        when(processedEvents.markProcessed(event.eventId(), StockService.PRODUCT_CREATED_CONSUMER)).thenReturn(true);
+        when(stockItemRepository.upsertProductData(PRODUCT_ID, "Laptop", "NOT_ACTIVE", 0L)).thenReturn(0);
+
+        assertThat(stockService.applyProductCreated(event)).isEqualTo(ProductCreatedResult.UNCHANGED);
+    }
+
+    @Test
+    void applyProductCreated_withoutVersion_onlyCreatesTheRow() {
+        ProductEvent event = event(null, null, null);
+        when(processedEvents.markProcessed(event.eventId(), StockService.PRODUCT_CREATED_CONSUMER)).thenReturn(true);
+        when(stockItemRepository.insertIfAbsent(PRODUCT_ID)).thenReturn(1);
+
+        assertThat(stockService.applyProductCreated(event)).isEqualTo(ProductCreatedResult.APPLIED);
+
+        verify(stockItemRepository, never()).upsertProductData(any(), any(), any(), anyLong());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ARCHIVED", "active"})
+    void applyProductCreated_unknownStatus_onlyCreatesTheRow(String status) {
+        ProductEvent event = event("Laptop", status, 2L);
+        when(processedEvents.markProcessed(event.eventId(), StockService.PRODUCT_CREATED_CONSUMER)).thenReturn(true);
+
+        stockService.applyProductCreated(event);
+
+        verify(stockItemRepository).insertIfAbsent(PRODUCT_ID);
+        verify(stockItemRepository, never()).upsertProductData(any(), any(), any(), anyLong());
+    }
+
+    @Test
+    void applyProductCreated_versionWithoutTitle_onlyCreatesTheRow() {
+        ProductEvent event = event(null, "ACTIVE", 2L);
+        when(processedEvents.markProcessed(event.eventId(), StockService.PRODUCT_CREATED_CONSUMER)).thenReturn(true);
+
+        stockService.applyProductCreated(event);
+
+        verify(stockItemRepository).insertIfAbsent(PRODUCT_ID);
+        verify(stockItemRepository, never()).upsertProductData(any(), any(), any(), anyLong());
+    }
+
+    @Test
+    void applyProductCreated_duplicate_changesNothing() {
+        ProductEvent event = event("Laptop", "NOT_ACTIVE", 0L);
+        when(processedEvents.markProcessed(event.eventId(), StockService.PRODUCT_CREATED_CONSUMER)).thenReturn(false);
+
+        assertThat(stockService.applyProductCreated(event)).isEqualTo(ProductCreatedResult.DUPLICATE_EVENT);
+
+        verify(stockItemRepository, never()).insertIfAbsent(any());
+        verify(stockItemRepository, never()).upsertProductData(any(), any(), any(), anyLong());
+    }
+
+    @Test
+    void applyProductUpdated_upsertsWithoutAnIdempotencyKey() {
+        when(stockItemRepository.upsertProductData(PRODUCT_ID, "Gaming laptop", "ACTIVE", 4L)).thenReturn(1);
+
+        assertThat(stockService.applyProductUpdated(event("Gaming laptop", "ACTIVE", 4L))).isTrue();
+
+        verifyNoInteractions(processedEvents, stockEventPublisher);
+    }
+
+    @Test
+    void applyProductUpdated_unknownStatus_createsAMissingRowWithoutTheCopy() {
+        when(stockItemRepository.insertIfAbsent(PRODUCT_ID)).thenReturn(1);
+
+        assertThat(stockService.applyProductUpdated(event("Laptop", "ARCHIVED", 4L))).isTrue();
+
+        verify(stockItemRepository, never()).upsertProductData(any(), anyString(), anyString(), anyLong());
+    }
+
+    private static ProductEvent event(String title, String status, Long version) {
+        return new ProductEvent(UUID.randomUUID(), PRODUCT_ID, title, status, version, null);
     }
 
     private StockItemEntity stockItem(int available) {

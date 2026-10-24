@@ -3,6 +3,7 @@ package ua.edu.ukma.springers.voltstore.catalog.dto;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -33,4 +34,13 @@ public class ProductRequest {
     @Positive
     @Digits(integer = Product.PRICE_INTEGER_DIGITS, fraction = Product.PRICE_FRACTION_DIGITS)
     private BigDecimal basePrice;
+
+    // Optional; omitted or null means "no image" (an update clears it). Relative paths are served by the frontend.
+    @Size(max = Product.IMAGE_URL_MAX_LENGTH)
+    @Pattern(regexp = IMAGE_URL_PATTERN, message = "must be an https URL or a path under /images/")
+    private String imageUrl;
+
+    // https://<anything without whitespace>, or /images/<letters, digits, . _ - /> without "..". Anchored so the
+    // OpenAPI pattern (which JSON Schema matches anywhere in the string) means the same as @Pattern
+    static final String IMAGE_URL_PATTERN = "^(https://\\S+|/images/(?!.*\\.\\.)[A-Za-z0-9._/-]+)$";
 }

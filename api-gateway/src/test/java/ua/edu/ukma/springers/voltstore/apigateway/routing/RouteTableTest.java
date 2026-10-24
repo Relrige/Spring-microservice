@@ -35,6 +35,7 @@ class RouteTableTest extends GatewayIntegrationTest {
             "PUT,    /catalog/categories/" + ID + ",         catalog",
             "DELETE, /catalog/categories/" + ID + ",         catalog",
             "GET,    /inventory/stock,                       inventory",
+            "GET,    /inventory/stock/" + ID + ",              inventory",
             "POST,   /inventory/stock/" + ID + "/adjust,     inventory",
             "PUT,    /inventory/stock/" + ID + "/packaging,  inventory",
             "GET,    /customers/me/profile,                  customer",
@@ -80,6 +81,7 @@ class RouteTableTest extends GatewayIntegrationTest {
             "GET,    /catalog/categories/" + ID,
             "POST,   /inventory/stock",
             "GET,    /inventory/stock/" + ID + "/adjust",
+            "PATCH,  /inventory/stock/" + ID,
             "POST,   /customers/cart",
             "DELETE, /customers/me/profile",
             "GET,    /customers/cart/items/" + ID,
@@ -124,6 +126,7 @@ class RouteTableTest extends GatewayIntegrationTest {
             "PUT,    /catalog/products/123",
             "PATCH,  /catalog/products/x/status",
             "DELETE, /catalog/categories/batch-get",
+            "GET,    /inventory/stock/abc",
             "POST,   /inventory/stock/abc/adjust",
             "PUT,    /inventory/stock/1-1-1-1-1/packaging",
             "PATCH,  /customers/cart/items/not-a-uuid",
@@ -154,11 +157,14 @@ class RouteTableTest extends GatewayIntegrationTest {
 
     @Test
     void accessRulesAreParsedFromMetadata() {
-        assertThat(policy.all()).hasSize(31);
+        assertThat(policy.all()).hasSize(32);
         assertThat(policy.forRoute("auth-register")).contains(new RouteAccess(AuthMode.PUBLIC, Set.of()));
         assertThat(policy.forRoute("catalog-browse-products")).contains(new RouteAccess(AuthMode.OPTIONAL, Set.of()));
+        assertThat(policy.forRoute("catalog-get-product")).contains(new RouteAccess(AuthMode.OPTIONAL, Set.of()));
         assertThat(policy.forRoute("auth-create-non-customer"))
                 .contains(new RouteAccess(AuthMode.REQUIRED, Set.of(UserRole.ADMIN)));
+        assertThat(policy.forRoute("inventory-view-stock-item"))
+                .contains(new RouteAccess(AuthMode.REQUIRED, Set.of(UserRole.INVENTORY_WORKER)));
         assertThat(policy.forRoute("inventory-adjust-stock"))
                 .contains(new RouteAccess(AuthMode.REQUIRED, Set.of(UserRole.INVENTORY_WORKER)));
         assertThat(policy.forRoute("order-details-or-cancel"))

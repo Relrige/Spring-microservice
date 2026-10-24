@@ -25,6 +25,16 @@ class EventTypeFilterTest {
     }
 
     @Test
+    void productEvents_bothTypesShareOneFilter() {
+        RecordFilterStrategy<String, String> productEventsOnly = new KafkaConfig().productEventsOnly();
+
+        assertThat(productEventsOnly.filter(record("ProductCreated"))).isFalse();
+        assertThat(productEventsOnly.filter(record("ProductUpdated"))).isFalse();
+        assertThat(productEventsOnly.filter(record("ProductDeleted"))).isTrue();
+        assertThat(productEventsOnly.filter(record(null))).isTrue();
+    }
+
+    @Test
     void deadLetterTopicsAreOwnedByInventory() {
         assertThat(KafkaTopics.deadLetterTopicOf("catalog.product-events"))
                 .isEqualTo("inventory.catalog.product-events.dlt");

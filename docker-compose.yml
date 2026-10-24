@@ -54,6 +54,17 @@ services:
     env_file:
       - api-gateway/.env
 
+  # The web app: http://localhost:3000. Its nginx forwards /api/* to the gateway with /api stripped
+  # (frontend/deploy/nginx.conf).
+  frontend:
+    container_name: frontend
+    build:
+      context: ./frontend
+    ports:
+      - "3000:8080"
+    depends_on:
+      - api-gateway
+
   # auth-service section
   auth-service-postgres:
     container_name: auth-service-pg
@@ -79,6 +90,10 @@ services:
       - "8086:8080"
     env_file:
       - auth-service/.env
+    environment:
+      # OpenAPI documents and read-only Swagger UI (off by default, see openapi-conventions.md D2)
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
 
   # catalog-service section
   catalog-service-postgres:
@@ -107,6 +122,10 @@ services:
       - "8081:8080"
     env_file:
       - catalog-service/.env
+    environment:
+      # OpenAPI documents and read-only Swagger UI (off by default, see openapi-conventions.md D2)
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
 
   # order-service section
   order-service-postgres:
@@ -136,6 +155,10 @@ services:
       - "8082:8080"
     env_file:
       - order-service/.env
+    environment:
+      # OpenAPI documents and read-only Swagger UI (off by default, see openapi-conventions.md D2)
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
 
   # customer-service section
   customer-service-postgres:
@@ -164,6 +187,10 @@ services:
       - "8087:8080"
     env_file:
       - customer-service/.env
+    environment:
+      # OpenAPI documents and read-only Swagger UI (off by default, see openapi-conventions.md D2)
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
 
   # delivery-service section
   delivery-service-postgres:
@@ -192,6 +219,10 @@ services:
       - "8083:8080"
     env_file:
       - delivery-service/.env
+    environment:
+      # OpenAPI documents and read-only Swagger UI (off by default, see openapi-conventions.md D2)
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
 
   # inventory-service section
   inventory-service-postgres:
@@ -220,6 +251,10 @@ services:
       - "8084:8080"
     env_file:
       - inventory-service/.env
+    environment:
+      # OpenAPI documents and read-only Swagger UI (off by default, see openapi-conventions.md D2)
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
 
   # payment-service section
   payment-service-postgres:

@@ -5,7 +5,7 @@
 # objects; start minikube with "--cni=calico" (see k8s.txt).
 #
 # Only ingress is restricted. Pods are selected by the labels app.kubernetes.io/component
-# (gateway | service | database | broker | mail | monitoring | observability) and app (the individual workload).
+# (frontend | gateway | service | database | broker | mail | monitoring | observability) and app (the individual workload).
 # kubectl port-forward enters the pod directly and is not affected (used by the e2e/manual runbooks).
 
 # 1. Nothing in the namespace accepts traffic unless a policy below allows it
@@ -19,7 +19,27 @@ spec:
   policyTypes:
     - Ingress
 ---
-# 2. The gateway accepts traffic from the Ingress controller (minikube addon namespace "ingress-nginx")
+# 2. The frontend accepts traffic from the Ingress controller (minikube addon namespace "ingress-nginx")
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-from-ingress-controller
+  namespace: voltstore
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 8080
+---
+# 2a. The gateway accepts traffic from the frontend's /api proxy and from the Ingress controller
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -36,6 +56,9 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: frontend
       ports:
         - port: 8080
 ---

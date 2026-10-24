@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Product details</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#f5f7fa}
+a{color:#1f55e0}a:hover{color:#1843b3}
+</style>
+</helmet>
+<div style="min-height: 1040px; background: #f5f7fa; color: #111723; font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 15px; line-height: 22px; font-feature-settings: 'tnum';">
+
+<header style="background: #ffffff; border-bottom: 1px solid #d5dbe4;">
+<div style="max-width: 1200px; margin: 0 auto; padding: 0 24px; min-height: 64px; display: flex; flex-wrap: wrap; align-items: center; gap: 24px;">
+<a href="Main.dc.html" style="text-decoration: none; color: #111723; font-size: 20px; font-weight: 700;"><span style="border-bottom: 4px solid #ffd319; padding-bottom: 1px;">Volt</span>Store</a>
+<a href="Main.dc.html" style="flex: 1 1 auto; text-decoration: none; color: #111723; font-weight: 600;">Catalog</a>
+<nav aria-label="Account" style="display: flex; align-items: center; gap: 12px;">
+<a href="Login.dc.html" style="height: 40px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: 6px; text-decoration: none; color: #111723; font-weight: 600;">Log in</a>
+<a href="#" style="height: 40px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: 6px; text-decoration: none; background: #1f55e0; color: #ffffff; font-weight: 600;">Register</a>
+</nav>
+</div>
+</header>
+
+<main style="max-width: 1200px; margin: 0 auto; padding: 24px 24px 48px; display: flex; flex-direction: column; gap: 24px;">
+<nav aria-label="Breadcrumb" style="font-size: 13px; line-height: 18px; color: #566175; display: flex; gap: 8px; align-items: center;">
+<a href="Main.dc.html">Catalog</a><span aria-hidden="true">/</span><a href="Main.dc.html">Audio</a><span aria-hidden="true">/</span><span aria-current="page" style="color: #111723;">Sony WH-1000XM5 headphones</span>
+</nav>
+
+<div style="display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start;">
+<div style="flex: 1 1 420px; min-width: 0; aspect-ratio: 4 / 3; max-width: 100%; border-radius: 16px; background: #d9f2e6; color: #18794e; display: flex; align-items: center; justify-content: center;">
+<svg width="160" height="160" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="13" width="5" height="7" rx="2"></rect><rect x="15" y="13" width="5" height="7" rx="2"></rect><path d="M4 15v-3a8 8 0 0 1 16 0v3"></path></svg>
+</div>
+
+<section style="flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 20px;">
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<span style="font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #566175;">Audio</span>
+<h1 style="margin: 0; font-size: 28px; line-height: 34px; font-weight: 650; letter-spacing: -0.01em;">Sony WH-1000XM5 headphones</h1>
+</div>
+<div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+<span style="font-size: 28px; line-height: 32px; font-weight: 700;">UAH 12,999.00</span>
+<span style="padding: 2px 8px; border-radius: 6px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; background: #e3f5ec; color: #18794e;">In stock</span>
+</div>
+
+<div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<label for="qty" style="font-size: 13px; line-height: 18px; color: #566175;">Quantity</label>
+<div style="display: flex; align-items: center; border: 1px solid #7b8599; border-radius: 6px; background: #ffffff; height: 44px;">
+<button type="button" aria-label="Decrease quantity" style="width: 44px; height: 42px; border: 0; background: transparent; color: #111723; font: inherit; font-size: 18px;">−</button>
+<input id="qty" value="1" inputmode="numeric" style="width: 40px; height: 42px; border: 0; text-align: center; font: inherit; color: #111723; background: transparent;">
+<button type="button" aria-label="Increase quantity" style="width: 44px; height: 42px; border: 0; background: transparent; color: #111723; font: inherit; font-size: 18px;">+</button>
+</div>
+</div>
+<button type="button" style="flex: 1 1 200px; height: 44px; padding: 0 20px; border: 0; border-radius: 6px; background: #1f55e0; color: #ffffff; font: inherit; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="2"></circle><circle cx="17" cy="19" r="2"></circle><path d="M17 17H6V3H4"></path><path d="M6 5l14 1l-1 7H6"></path></svg>
+Add to cart
+</button>
+</div>
+<p style="margin: 0; font-size: 13px; line-height: 18px; color: #566175;">Up to 10 of one product per order. Delivery by Nova Poshta; you enter the address at checkout.</p>
+
+<div style="border-top: 1px solid #d5dbe4; padding-top: 20px; display: flex; flex-direction: column; gap: 12px; max-width: 68ch;">
+<h2 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600;">Description</h2>
+<p style="margin: 0;">Over-ear wireless headphones with adaptive noise cancelling that adjusts to the room and to how you wear them. Eight microphones keep calls clear in the street and on public transport.</p>
+<p style="margin: 0;">Up to 30 hours of playback with noise cancelling on; a 3-minute charge over USB-C gives about 3 hours. Connects to two devices at once over Bluetooth 5.2; a 3.5 mm cable is in the box.</p>
+</div>
+</section>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

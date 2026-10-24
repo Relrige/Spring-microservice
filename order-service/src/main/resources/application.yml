@@ -57,11 +57,15 @@ order:
     grace: ${ORDER_EXPIRY_GRACE:30s}
     batch-size: 100
   recovery:
-    # Jobs releasing orphan reservations and repeating refunds owed after a lost payment race
+    # Jobs releasing orphan reservations, repeating refunds owed after a lost payment race and purging
+    # Idempotency-Keys
     interval: ${ORDER_RECOVERY_INTERVAL:1m}
     # A reservation attempt older than this without an order is released; far longer than a reservation call
-    # (Inventory read timeout 3 s x 3 attempts), so a late answer has arrived by then
+    # (Inventory read timeout 3 s x 3 attempts), so a late answer has arrived by then. An Idempotency-Key claim
+    # still IN_PROGRESS after this long belongs to a request whose instance died, and is purged
     reservation-settle: 2m
+    # A completed Idempotency-Key is forgotten after this long; a later request with it places a new order
+    idempotency-key-ttl: ${ORDER_IDEMPOTENCY_KEY_TTL:24h}
     batch-size: 100
   cancellation:
     # Interrupted cancellations (decision D3): the job runs this often and looks at this many orders per run
@@ -91,6 +95,25 @@ order:
     # Published events are deleted after this long by a job running every cleanup-interval
     retention: 7d
     cleanup-interval: 1h
+
+# OpenAPI documents (docs/design/services-requirements/openapi-conventions.md, D2/D3/D8). Off by default: Compose turns
+# both on through SPRINGDOC_* environment variables; OpenApiDocumentTest turns api-docs on for itself.
+springdoc:
+  api-docs:
+    enabled: false
+    version: openapi_3_1
+  swagger-ui:
+    enabled: false
+    # Read-only: "Try it out" would bypass the gateway
+    supported-submit-methods: []
+  # Stable committed snapshot: pretty-printed with sorted keys
+  writer-with-default-pretty-printer: true
+  writer-with-order-by-keys: true
+  # Controllers answer JSON; without this every response is documented as */*
+  default-produces-media-type: application/json
+  # Error responses are declared per operation (@ApiResponse) and by ErrorResponsesCustomizer, not inferred from
+  # GlobalExceptionHandler, whose handlers carry no @ResponseStatus
+  override-with-generic-response: false
 
 management:
   endpoint:

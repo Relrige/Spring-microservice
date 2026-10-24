@@ -1,8 +1,14 @@
 package ua.edu.ukma.springers.voltstore.inventory.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
 
-public record PackagingResponse(int grossWeightGrams, int lengthCm, int widthCm, int heightCm) {
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
+public record PackagingResponse(@Schema(requiredMode = REQUIRED) int grossWeightGrams,
+                                @Schema(requiredMode = REQUIRED) int lengthCm,
+                                @Schema(requiredMode = REQUIRED) int widthCm,
+                                @Schema(requiredMode = REQUIRED) int heightCm) {
 
     /**
      * Only for items whose packaging is configured; the values are then never null.

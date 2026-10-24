@@ -1,5 +1,6 @@
-# The API Gateway is the only external entry point: every path goes to it unchanged (no rewrite), and it
-# routes by method + path to the services. Services have no Ingress rules of their own.
+# The frontend is the only external entry point: it serves the web app and forwards /api/* to the API
+# Gateway with /api stripped (frontend/deploy/nginx.conf), and the gateway routes by method + path to the
+# services. Services have no Ingress rules of their own.
 # TLS is not terminated here in the local setup (plain HTTP through "minikube tunnel").
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -17,6 +18,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: api-gateway
+                name: frontend
                 port:
                   number: 8080

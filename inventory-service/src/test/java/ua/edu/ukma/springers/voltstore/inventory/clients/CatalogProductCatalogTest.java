@@ -9,10 +9,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.slf4j.MDC;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.CatalogUnavailableException;
+import ua.edu.ukma.springers.voltstore.inventory.services.CatalogProductData;
 import ua.edu.ukma.springers.voltstore.inventory.filters.CorrelationIdKeys;
 
 import java.net.ServerSocket;
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.absent;
@@ -20,6 +22,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.havingExactly;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
@@ -50,7 +53,7 @@ class CatalogProductCatalogTest {
         CatalogClientProperties relaxed = new CatalogClientProperties(catalog.baseUrl(), Duration.ofSeconds(5),
                 Duration.ofSeconds(30), 0, Duration.ZERO);
         new CatalogProductCatalog(ClientsConfiguration.createCatalogClient(relaxed, TOKEN), relaxed)
-                .exists(UUID.randomUUID());
+                .find(UUID.randomUUID());
         catalog.resetAll();
     }
 
@@ -60,12 +63,14 @@ class CatalogProductCatalogTest {
     }
 
     @Test
-    void productInTheAnswer_exists_andTheRequestCarriesTheIdAndTheInternalTokenOnly() {
+    void productInTheAnswer_isFoundWithItsData_andTheRequestCarriesTheIdAndTheInternalTokenOnly() {
         catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(okJson("""
-                [{"productId":"%s","title":"Laptop","basePrice":999.99,"status":"NOT_ACTIVE","futureField":1}]
+                [{"productId":"%s","title":"Laptop","basePrice":999.99,"status":"NOT_ACTIVE","version":3,
+                  "futureField":1}]
                 """.formatted(productId))));
 
-        assertThat(adapter(catalog.baseUrl()).exists(productId)).isTrue();
+        assertThat(adapter(catalog.baseUrl()).find(productId))
+                .contains(new CatalogProductData(productId, "Laptop", "NOT_ACTIVE", 3L));
 
         catalog.verify(1, getRequestedFor(urlPathEqualTo(PATH))
                 .withQueryParam("ids", equalTo(productId.toString()))
@@ -75,10 +80,35 @@ class CatalogProductCatalogTest {
     }
 
     @Test
+    void answerFromAnOlderCatalog_withoutVersion_isFoundWithoutIt_andAnUnknownStatusIsKeptAsText() {
+        catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(okJson("""
+                [{"productId":"%s","title":"Laptop","basePrice":1,"status":"ARCHIVED"}]
+                """.formatted(productId))));
+
+        assertThat(adapter(catalog.baseUrl()).find(productId))
+                .contains(new CatalogProductData(productId, "Laptop", "ARCHIVED", null));
+    }
+
+    @Test
+    void findAll_sendsAllIdsInOneRequest_andReturnsTheKnownProducts() {
+        UUID other = UUID.randomUUID();
+        UUID unknown = UUID.randomUUID();
+        catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(okJson("""
+                [{"productId":"%s","title":"A","status":"ACTIVE","version":1},
+                 {"productId":"%s","title":"B","status":"NOT_ACTIVE","version":2}]
+                """.formatted(productId, other))));
+
+        assertThat(adapter(catalog.baseUrl()).findAll(List.of(productId, other, unknown)))
+                .extracting(CatalogProductData::productId).containsExactlyInAnyOrder(productId, other);
+        catalog.verify(1, getRequestedFor(urlPathEqualTo(PATH))
+                .withQueryParam("ids", havingExactly(productId.toString(), other.toString(), unknown.toString())));
+    }
+
+    @Test
     void emptyAnswer_doesNotExist_andIsNotRetried() {
         catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(okJson("[]")));
 
-        assertThat(adapter(catalog.baseUrl()).exists(productId)).isFalse();
+        assertThat(adapter(catalog.baseUrl()).find(productId)).isEmpty();
         catalog.verify(1, getRequestedFor(urlPathEqualTo(PATH)));
     }
 
@@ -88,7 +118,7 @@ class CatalogProductCatalogTest {
                 [{"productId":"%s","title":"Other","basePrice":1,"status":"ACTIVE"}]
                 """.formatted(UUID.randomUUID()))));
 
-        assertThat(adapter(catalog.baseUrl()).exists(productId)).isFalse();
+        assertThat(adapter(catalog.baseUrl()).find(productId)).isEmpty();
     }
 
     @Test
@@ -96,7 +126,7 @@ class CatalogProductCatalogTest {
         catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(okJson("[]")));
         MDC.put(CorrelationIdKeys.CORRELATION_ID_MDC_KEY, "corr-42");
 
-        adapter(catalog.baseUrl()).exists(productId);
+        adapter(catalog.baseUrl()).find(productId);
 
         catalog.verify(getRequestedFor(urlPathEqualTo(PATH))
                 .withHeader(CorrelationIdKeys.CORRELATION_ID_HTTP_HEADER, equalTo("corr-42")));
@@ -106,7 +136,7 @@ class CatalogProductCatalogTest {
     void down_serverErrorTwice_isUnavailableAfterOneRetry() {
         catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(aResponse().withStatus(500)));
 
-        assertThatThrownBy(() -> adapter(catalog.baseUrl()).exists(productId))
+        assertThatThrownBy(() -> adapter(catalog.baseUrl()).find(productId))
                 .isInstanceOf(CatalogUnavailableException.class);
         catalog.verify(2, getRequestedFor(urlPathEqualTo(PATH)));
     }
@@ -116,7 +146,7 @@ class CatalogProductCatalogTest {
         catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(okJson("[]")
                 .withFixedDelay((int) READ_TIMEOUT.multipliedBy(2).toMillis())));
 
-        assertThatThrownBy(() -> adapter(catalog.baseUrl()).exists(productId))
+        assertThatThrownBy(() -> adapter(catalog.baseUrl()).find(productId))
                 .isInstanceOf(CatalogUnavailableException.class);
         catalog.verify(2, getRequestedFor(urlPathEqualTo(PATH)));
     }
@@ -130,7 +160,7 @@ class CatalogProductCatalogTest {
                         [{"productId":"%s","title":"Laptop","basePrice":1,"status":"NOT_ACTIVE"}]
                         """.formatted(productId))));
 
-        assertThat(adapter(catalog.baseUrl()).exists(productId)).isTrue();
+        assertThat(adapter(catalog.baseUrl()).find(productId)).isPresent();
         catalog.verify(2, getRequestedFor(urlPathEqualTo(PATH)));
     }
 
@@ -138,13 +168,13 @@ class CatalogProductCatalogTest {
     void brokenConnection_isUnavailable() {
         catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(aResponse().withFault(Fault.CONNECTION_RESET_BY_PEER)));
 
-        assertThatThrownBy(() -> adapter(catalog.baseUrl()).exists(productId))
+        assertThatThrownBy(() -> adapter(catalog.baseUrl()).find(productId))
                 .isInstanceOf(CatalogUnavailableException.class);
     }
 
     @Test
     void connectionRefused_isUnavailable() throws Exception {
-        assertThatThrownBy(() -> adapter("http://localhost:" + freePort()).exists(productId))
+        assertThatThrownBy(() -> adapter("http://localhost:" + freePort()).find(productId))
                 .isInstanceOf(CatalogUnavailableException.class);
     }
 
@@ -152,7 +182,7 @@ class CatalogProductCatalogTest {
     void unauthorized_isAConfigurationProblem_reportedAsUnavailable() {
         catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(aResponse().withStatus(401)));
 
-        assertThatThrownBy(() -> adapter(catalog.baseUrl()).exists(productId))
+        assertThatThrownBy(() -> adapter(catalog.baseUrl()).find(productId))
                 .isInstanceOf(CatalogUnavailableException.class)
                 .hasMessageNotContaining(TOKEN);
         // A configuration problem: retrying cannot fix it

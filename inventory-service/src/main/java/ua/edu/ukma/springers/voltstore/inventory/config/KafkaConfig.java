@@ -24,12 +24,14 @@ import org.springframework.kafka.support.converter.StringJacksonJsonMessageConve
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 @Configuration
 public class KafkaConfig {
     // Event names consumed by this service, as sent in the producers' eventType header
     static final String PRODUCT_CREATED = "ProductCreated";
+    static final String PRODUCT_UPDATED = "ProductUpdated";
     static final String ORDER_SHIPPED = "OrderShipped";
 
     @Bean
@@ -41,8 +43,8 @@ public class KafkaConfig {
     }
 
     // Dead-letter topic of the OrderShipped consumer (blocking retries via the error handler below), owned by
-    // Inventory; one partition: low volume, and arrival order helps inspection. ProductCreated uses @RetryableTopic,
-    // which creates its own retry topics and DLT (see ProductCreatedListener).
+    // Inventory; one partition: low volume, and arrival order helps inspection. The product events use @RetryableTopic,
+    // which creates its own retry topics and DLT (see ProductEventsListener).
     @Bean
     public NewTopic orderEventsDeadLetterTopic(@Value("${inventory.kafka.topics.order-events}") String source) {
         return TopicBuilder.name(KafkaTopics.deadLetterTopicOf(source)).partitions(1).replicas(1).build();
@@ -118,9 +120,10 @@ public class KafkaConfig {
      * converted. Discarded records are acknowledged like processed ones.
      */
 
+    // Both product event types share one listener container (see ProductEventsListener)
     @Bean
-    public RecordFilterStrategy<String, String> productCreatedOnly() {
-        return onlyEventType(PRODUCT_CREATED);
+    public RecordFilterStrategy<String, String> productEventsOnly() {
+        return onlyEventTypes(Set.of(PRODUCT_CREATED, PRODUCT_UPDATED));
     }
 
     @Bean
@@ -129,12 +132,17 @@ public class KafkaConfig {
     }
 
     static RecordFilterStrategy<String, String> onlyEventType(String eventType) {
+        return onlyEventTypes(Set.of(eventType));
+    }
+
+    static RecordFilterStrategy<String, String> onlyEventTypes(Set<String> eventTypes) {
         return record -> {
             Header header = record.headers().lastHeader(KafkaTopics.EVENT_TYPE_HEADER);
-            boolean wanted = header != null && eventType.equals(new String(header.value(), StandardCharsets.UTF_8));
+            boolean wanted = header != null
+                    && eventTypes.contains(new String(header.value(), StandardCharsets.UTF_8));
             if (!wanted) {
-                log.debug("Skipping {} record key={} offset={}: not {}", record.topic(), record.key(),
-                        record.offset(), eventType);
+                log.debug("Skipping {} record key={} offset={}: not one of {}", record.topic(), record.key(),
+                        record.offset(), eventTypes);
             }
             // true = discard
             return !wanted;

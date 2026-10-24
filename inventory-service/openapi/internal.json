@@ -1,0 +1,536 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "Inventory API",
+    "version" : "1"
+  },
+  "servers" : [ {
+    "url" : "/",
+    "description" : "Through the API Gateway"
+  } ],
+  "paths" : {
+    "/inventory/reservations" : {
+      "post" : {
+        "description" : "All or nothing: every item is held, or nothing changes.",
+        "operationId" : "reserve",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReserveStockRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Stock for every item is held"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Invalid fields, more than 100 items, or a product listed twice"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Missing or invalid internal token"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "The order already holds a reservation"
+          },
+          "422" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InsufficientStockProblem"
+                }
+              }
+            },
+            "description" : "Not enough stock for one or more items; nothing was reserved"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "internalToken" : [ ]
+        } ],
+        "summary" : "Reserve stock for an order (EP-INV-06)",
+        "tags" : [ "Reservations" ]
+      }
+    },
+    "/inventory/reservations/{orderId}/release" : {
+      "post" : {
+        "description" : "Idempotent: also 204 when there is nothing active to release.",
+        "operationId" : "release",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "orderId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Released, or nothing to release"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Malformed request or invalid fields"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Missing or invalid internal token"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "internalToken" : [ ]
+        } ],
+        "summary" : "Release an order's reservation (EP-INV-07)",
+        "tags" : [ "Reservations" ]
+      }
+    },
+    "/inventory/stock/{productId}/packaging" : {
+      "get" : {
+        "operationId" : "getPackaging",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "productId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PackagingResponse"
+                }
+              }
+            },
+            "description" : "The packaging values"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Malformed request or invalid fields"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Missing or invalid internal token"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "No stock item for this product"
+          },
+          "422" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PackagingNotConfiguredProblem"
+                }
+              }
+            },
+            "description" : "Packaging not configured"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "internalToken" : [ ]
+        } ],
+        "summary" : "Get packaging dimensions (EP-INV-05)",
+        "tags" : [ "Stock" ]
+      }
+    },
+    "/inventory/stock/{productId}/readiness" : {
+      "get" : {
+        "description" : "Ready means: a stock item exists and its packaging is configured.",
+        "operationId" : "checkReadiness",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "productId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Ready"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "Malformed request or invalid fields"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Missing or invalid internal token"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "No stock item for this product"
+          },
+          "422" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PackagingNotConfiguredProblem"
+                }
+              }
+            },
+            "description" : "Packaging not configured"
+          },
+          "500" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Unexpected error"
+          }
+        },
+        "security" : [ {
+          "internalToken" : [ ]
+        } ],
+        "summary" : "Check readiness for activation (EP-INV-04)",
+        "tags" : [ "Stock" ]
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "InsufficientItem" : {
+        "type" : "object",
+        "properties" : {
+          "available" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "productId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "requested" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "available", "productId", "requested" ]
+      },
+      "InsufficientStockProblem" : {
+        "type" : "object",
+        "description" : "Not enough stock for one or more items (422)",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "insufficientItems" : {
+            "type" : "array",
+            "description" : "Every short item; a product without stock counts as 0 available",
+            "items" : {
+              "$ref" : "#/components/schemas/InsufficientItem"
+            }
+          },
+          "service" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          }
+        },
+        "required" : [ "insufficientItems", "status", "title", "type" ]
+      },
+      "PackagingNotConfiguredProblem" : {
+        "type" : "object",
+        "description" : "The packaging values are not configured (422)",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "reason" : {
+            "type" : "string",
+            "description" : "Always `packaging_data_missing`"
+          },
+          "service" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          }
+        },
+        "required" : [ "reason", "status", "title", "type" ]
+      },
+      "PackagingResponse" : {
+        "type" : "object",
+        "properties" : {
+          "grossWeightGrams" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "heightCm" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "lengthCm" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "widthCm" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "grossWeightGrams", "heightCm", "lengthCm", "widthCm" ]
+      },
+      "Problem" : {
+        "type" : "object",
+        "description" : "RFC 9457 problem details",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "service" : {
+            "type" : "string",
+            "description" : "Name of the service that answered"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri",
+            "description" : "Error kind: `https://voltstore.com/errors/<kind>`"
+          }
+        },
+        "required" : [ "status", "title", "type" ]
+      },
+      "ReserveStockItem" : {
+        "type" : "object",
+        "properties" : {
+          "productId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "quantity" : {
+            "type" : "integer",
+            "format" : "int32",
+            "minimum" : 1
+          }
+        },
+        "required" : [ "productId", "quantity" ]
+      },
+      "ReserveStockRequest" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReserveStockItem"
+            },
+            "maxItems" : 100,
+            "minItems" : 0
+          },
+          "orderId" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        },
+        "required" : [ "items", "orderId" ]
+      },
+      "ValidationProblem" : {
+        "type" : "object",
+        "description" : "A malformed request or broken field rules (400)",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "errors" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              }
+            },
+            "description" : "Field or parameter name to its messages"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "service" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          }
+        },
+        "required" : [ "status", "title", "type" ]
+      }
+    },
+    "securitySchemes" : {
+      "internalToken" : {
+        "description" : "Shared service-to-service token",
+        "in" : "header",
+        "name" : "X-Internal-Token",
+        "type" : "apiKey"
+      }
+    }
+  }
+}

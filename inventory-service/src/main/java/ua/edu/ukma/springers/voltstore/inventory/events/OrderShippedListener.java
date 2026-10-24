@@ -9,7 +9,7 @@ import ua.edu.ukma.springers.voltstore.inventory.services.ReservationService;
 /**
  * EP-INV-EVT-02: a shipped order's reserved stock is deducted for good. Idempotency comes from the reservation
  * status (only ACTIVE reservations are consumed), so a duplicate event finds nothing to do. Offsets and failures
- * are handled as for {@link ProductCreatedListener}.
+ * are handled as for {@link ProductEventsListener}.
  */
 @Slf4j
 @Component

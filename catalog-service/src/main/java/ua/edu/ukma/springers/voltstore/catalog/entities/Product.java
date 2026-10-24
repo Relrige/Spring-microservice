@@ -12,13 +12,15 @@ import java.util.UUID;
 @Entity
 @Table(name = "products")
 // UPDATE statements contain only the changed columns, so a manager edit never writes back a stale
-// stockStatus that an Inventory event changed after this row was loaded
+// stockStatus that an Inventory event changed after this row was loaded (that update does not change the version,
+// so it does not make the edit fail either)
 @DynamicUpdate
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Product {
     public static final int TITLE_MAX_LENGTH = 200;
     public static final int DESCRIPTION_MAX_LENGTH = 5000;
+    public static final int IMAGE_URL_MAX_LENGTH = 2048;
     // NUMERIC(12, 2): up to 9 999 999 999.99
     public static final int PRICE_INTEGER_DIGITS = 10;
     public static final int PRICE_FRACTION_DIGITS = 2;
@@ -44,10 +46,21 @@ public class Product {
     @Enumerated(EnumType.STRING)
     private ProductStatus status;
 
+    // Optional: an https URL or a path under /images/ (task 30); Catalog only stores the reference
+    @Column(length = IMAGE_URL_MAX_LENGTH)
+    private String imageUrl;
+
     // Read-model maintained asynchronously from Inventory events
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private StockStatus stockStatus;
+
+    // Optimistic lock: Hibernate increments it whenever it updates this row and adds "AND version = ?" to the
+    // UPDATE, so an overlapping save fails instead of silently winning. Product events carry it so consumers can
+    // tell a newer state from an older one. The bulk stock-status update (ProductRepository) leaves it unchanged.
+    @Version
+    @Column(nullable = false)
+    private long version;
 
     /**
      * New products are hidden from customers until a manager activates them, and are out of stock
@@ -67,6 +80,10 @@ public class Product {
         this.categoryId = categoryId;
         // Same scale as the column; throws instead of rounding if more fraction digits slip past validation
         this.basePrice = basePrice.setScale(PRICE_FRACTION_DIGITS);
+    }
+
+    public void changeImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 
     public void activate() {

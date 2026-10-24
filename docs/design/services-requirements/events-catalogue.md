@@ -12,24 +12,51 @@
 >
 > **Stock events topic:** `inventory.stock-events`, owned and declared by Inventory Service (3 partitions). Both stock events have the same payload shape, so each record carries a Kafka header **`eventType`** with the value `ProductStockReplenished` or `ProductStockDepleted`; consumers choose the event type from this header. Each record also carries the header **`eventId`** (the same value as in the payload). Records are JSON without Java type headers. **Delivery:** at-least-once, through Inventory's transactional outbox: the event is stored in the same transaction as the stock change and published by a relay afterwards, so a broker outage only delays it. Events of one product are published in the order of their stock changes, also with several Inventory replicas. A consumer may receive an event more than once and must ignore repeats by `eventId` or be idempotent by state (as Catalog's `stockStatus` update is).
 >
-> **`ProductCreated` topic:** owned and declared by Catalog Service; consumers take its name from configuration.
+> **Product events topic:** `catalog.product-events`, owned and declared by Catalog Service; consumers take its name from configuration. It carries `ProductCreated` and `ProductUpdated`, told apart by the header `eventType`; each record also carries the header `eventId`. Both payloads are the **full product state after the change** (without `description` and `stockStatus`), including the product's `version` (revision 2026-10-22, Catalog spec D5–D6). **Order is not guaranteed** (the outbox relay may run on several replicas, and retry topics reorder): a consumer applies an event only if its `version` is greater than the one it stored, which also makes repeats harmless.
 
 ### `ProductCreated`
 - **Producer:** Catalog Service
 - **Consumers:** Inventory Service
-- **Trigger:** A new product is created by the Catalog Manager.
-- **Topic / key:** `catalog.product-events` (3 partitions), message key = `productId`; header `eventType: ProductCreated`.
+- **Trigger:** A new product is created by the Catalog Manager (EP-CAT-01).
+- **Topic / key:** `catalog.product-events` (3 partitions), message key = `productId`; headers `eventType: ProductCreated` and `eventId`.
 - **Payload:**
   ```json
   {
     "eventId": "uuid",
     "productId": "uuid",
+    "title": "Phone X",
+    "categoryId": "uuid",
+    "basePrice": 499.99,
+    "status": "NOT_ACTIVE",
+    "version": 0,
     "timestamp": "2023-10-01T12:00:00Z"
   }
   ```
-  `eventId` is unique per event, so consumers can deduplicate redelivered messages (it is also sent as the `eventId` header). `timestamp` is an ISO-8601 UTC instant.
-- **Delivery:** at-least-once, through Catalog's transactional outbox. A consumer may receive the same event more than once and must ignore repeats by `eventId`.
-- **Inventory consumer:** group `inventory-service`, Idempotent Consumer (`processed_events` keyed by `eventId`), non-blocking retries `catalog.product-events-inventory-retry-0/1/2` and DLT `catalog.product-events-inventory-dlt` (owned by Inventory). See the [fault-tolerance report](../../reports/messaging-fault-tolerance.md).
+  `eventId` is unique per event, so consumers can deduplicate redelivered messages (it is also sent as the `eventId` header). `timestamp` is an ISO-8601 UTC instant. `title`, `categoryId`, `basePrice`, `status` and `version` were added on 2026-10-22 (additive); events published earlier lack them, so consumers treat them as optional here. A new product is always `NOT_ACTIVE` with `version: 0`.
+- **Delivery:** at-least-once, through Catalog's transactional outbox. A consumer may receive the same event more than once and must ignore repeats by `eventId` or by `version`.
+- **Inventory consumer:** group `inventory-service`, Idempotent Consumer (`processed_events` keyed by `eventId`), creates the stock row and stores the copy of title, status and version ("newer version wins"); non-blocking retries `catalog.product-events-inventory-retry-0/1/2` and DLT `catalog.product-events-inventory-dlt` (owned by Inventory). See the [fault-tolerance report](../../reports/messaging-fault-tolerance.md) and EP-INV-EVT-01.
+
+### `ProductUpdated`
+- **Producer:** Catalog Service
+- **Consumers:** Inventory Service
+- **Trigger:** A catalog manager updates a product (EP-CAT-02, every successful call) or changes its status (EP-CAT-03, only when the status actually changes).
+- **Topic / key:** `catalog.product-events` (same topic as `ProductCreated`), message key = `productId`; headers `eventType: ProductUpdated` and `eventId`.
+- **Payload:** the same shape as `ProductCreated`; all fields are mandatory.
+  ```json
+  {
+    "eventId": "uuid",
+    "productId": "uuid",
+    "title": "Phone X Pro",
+    "categoryId": "uuid",
+    "basePrice": 549.99,
+    "status": "ACTIVE",
+    "version": 3,
+    "timestamp": "2023-10-02T09:30:00Z"
+  }
+  ```
+  `version` is the product's version after the change. An EP-CAT-02 call that changed nothing repeats the stored version.
+- **Delivery:** at-least-once, through Catalog's transactional outbox.
+- **Inventory consumer:** group `inventory-service`, the same listener, retries and DLT as `ProductCreated`; idempotent by state (the version check), so no `processed_events` key. A missing stock row is created. A record without `title`, `status` or `version` goes to the DLT without retries. See EP-INV-EVT-03.
 
 ### `ProductStockReplenished`
 - **Producer:** Inventory Service

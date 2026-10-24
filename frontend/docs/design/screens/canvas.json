@@ -1,0 +1,25 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-10-20T17:40:00Z" },
+  "title": "VoltStore Screens",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 300, "w": 1440, "h": 1480, "title": "Storefront: product list (desktop, light)", "expand": "fill" },
+    "StorefrontPhone.dc.html": { "x": 1520, "y": 300, "w": 390, "h": 844, "title": "Storefront: product list (phone, dark)" },
+    "Product.dc.html": { "x": 1990, "y": 300, "w": 1440, "h": 1040, "title": "Product details", "expand": "fill" },
+    "Login.dc.html": { "x": 0, "y": 2200, "w": 1280, "h": 820, "title": "Log in", "expand": "fill" },
+    "Cart.dc.html": { "x": 1360, "y": 2200, "w": 1440, "h": 980, "title": "Cart (iteration 2)", "expand": "fill" },
+    "Checkout.dc.html": { "x": 2880, "y": 2200, "w": 1440, "h": 1120, "title": "Checkout and payment (iteration 3)", "expand": "fill" },
+    "WarehouseStock.dc.html": { "x": 0, "y": 3740, "w": 1440, "h": 1000, "title": "Warehouse: stock (iteration 5)", "expand": "fill" }
+  },
+  "order": ["Main.dc.html", "StorefrontPhone.dc.html", "Product.dc.html", "Login.dc.html", "Cart.dc.html", "Checkout.dc.html", "WarehouseStock.dc.html"],
+  "notes": {
+    "row-storefront": { "x": 0, "y": 0, "text": "Storefront (iteration 1)", "kind": "title1", "maxW": 3430 },
+    "row-customer": { "x": 0, "y": 1900, "text": "Customer flows (iterations 1–3)", "kind": "title1", "maxW": 4320 },
+    "row-staff": { "x": 0, "y": 3440, "text": "Staff consoles (iterations 4–6)", "kind": "title1", "maxW": 1440 }
+  },
+  "designSystems": [
+    { "title": "VoltStore", "namespace": "voltstore", "artifact": "https://claude.ai/artifact/6kmKJvD4C3quCvEhLBT7E2", "version": "1792516989-1c44", "copiedAt": "2026-10-20T17:40:00Z" }
+  ]
+}

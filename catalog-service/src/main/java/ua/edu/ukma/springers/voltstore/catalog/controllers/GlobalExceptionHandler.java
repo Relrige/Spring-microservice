@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -53,6 +54,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler({CategoryNameAlreadyInUseException.class, CategoryHasProductsException.class})
     public ProblemDetail handleConflict(RuntimeException ex) {
         return problem(HttpStatus.CONFLICT, "conflict", "Conflict", ex.getMessage());
+    }
+
+    // Two saves of the same product overlapped (JPA @Version); the losing transaction changed nothing
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ProblemDetail handleOptimisticLockingFailure(ObjectOptimisticLockingFailureException ex) {
+        log.info("Concurrent modification rejected: {}", ex.getMessage());
+        return problem(HttpStatus.CONFLICT, "conflict", "Conflict",
+                "The product was changed by someone else. Reload it and try again.");
     }
 
     @ExceptionHandler(CategoryNotFoundForProductException.class)

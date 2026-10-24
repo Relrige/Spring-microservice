@@ -1,0 +1,36 @@
+.tile {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--vs-ink);
+  background: var(--vs-surface-raised);
+  border: 1px solid var(--vs-line);
+  border-radius: 10px;
+  text-decoration: none;
+  transition: box-shadow 120ms ease;
+}
+
+.tile:hover {
+  box-shadow: var(--vs-shadow-raised);
+}
+
+.tile:hover .title {
+  color: var(--vs-primary);
+}
+
+.row {
+  flex-direction: row;
+  gap: 12px;
+  padding: 12px;
+}
+
+.title {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.row .title {
+  font-size: 15px;
+  line-height: 20px;
+}

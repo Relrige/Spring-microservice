@@ -3,6 +3,12 @@
 > This document defines the synchronous HTTP API contracts for all microservices. 
 > These are the endpoints that will be exposed to clients (via the API Gateway) or used for internal service-to-service communication.
 
+## Shared Conventions
+
+- **Errors:** RFC 9457 problem details (`application/problem+json`, `type` = `https://voltstore.com/errors/<kind>`), with service-specific extensions listed per endpoint below.
+- **Paging envelope:** every paged list answers `{ content: [...], page, size, totalElements }`. `page` is zero-based, and `size` is the effective page size (the requested one, or the default). The query parameters are `page` and `size`; each endpoint states its default and maximum `size`.
+- **OpenAPI:** Auth, Catalog, Customer, Inventory, Order and Delivery publish OpenAPI 3.1 documents generated from the code, committed as `<service>/openapi/public.json` (and `internal.json`). How they are produced, and the named problem schemas, are in [OpenAPI Conventions](openapi-conventions.md). This document stays the design; the OpenAPI files describe the implementation.
+
 ---
 
 ## 1. Auth Service
@@ -37,16 +43,16 @@ Cart rules: at most 10 distinct products per cart, quantity 1–10 per product. 
 
 | Method | Path | Auth Role | Description |
 |--------|------|-----------|-------------|
-| `GET` | `/catalog/products` | None/`CATALOG_MANAGER`| Paginated search. Customers see only ACTIVE. Managers can filter by `status`. <br> **Query:** `search, categoryId, minPrice, maxPrice, sortBy (title\|basePrice[,asc\|desc]), status, page (zero-based), size (default 20, max 100)` <br> **Res:** `200 OK {content: [{productId, title, basePrice, categoryId, status, stockStatus}], page, totalElements}` |
-| `GET` | `/catalog/products/{id}` | None | Get product details (ACTIVE only; inactive → same `404` as missing). <br> **Res:** `200 OK {productId, title, description, categoryId, basePrice, stockStatus}` |
-| `POST` | `/catalog/products` | `CATALOG_MANAGER`| Create product in NOT_ACTIVE state. <br> **Req:** `{title, description, categoryId, basePrice}` <br> **Res:** `201 Created {productId}` |
-| `PUT` | `/catalog/products/{id}` | `CATALOG_MANAGER`| Update product details. <br> **Req:** `{title, desc, categoryId, basePrice}` <br> **Res:** `200 OK` |
-| `PATCH`| `/catalog/products/{id}/status`| `CATALOG_MANAGER`| Activate/Deactivate product. <br> **Req:** `{status}` <br> **Res:** `200 OK` or `422 Unprocessable` (if activation fails readiness check) |
-| `GET` | `/catalog/categories` | None | List/search categories (EP-CAT-10, added to the original spec). <br> **Query:** `search, page (zero-based), size (default 20, max 100)` <br> **Res:** `200 OK {content: [{categoryId, name}], page, totalElements}` |
+| `GET` | `/catalog/products` | None/`CATALOG_MANAGER`/`INVENTORY_WORKER`| Paginated search. Customers (and every non-staff role) see only ACTIVE. Staff (`CATALOG_MANAGER`, `INVENTORY_WORKER`) see all statuses and can filter by `status`. <br> **Query:** `search, categoryId, minPrice, maxPrice, ids (comma-separated UUIDs, max 100), sortBy (title\|basePrice[,asc\|desc]), status, page (zero-based), size (default 20, max 100)` <br> **Res:** `200 OK {content: [{productId, title, basePrice, categoryId, status, stockStatus, imageUrl}], page, size, totalElements}` or `400` |
+| `GET` | `/catalog/products/{id}` | None/`CATALOG_MANAGER`/`INVENTORY_WORKER` | Get product details. Non-staff callers: ACTIVE only (inactive → same `404` as missing); staff: any status. <br> **Res:** `200 OK {productId, title, description, categoryId, basePrice, status, stockStatus, imageUrl}` or `404` (`imageUrl` is `null` when unset) |
+| `POST` | `/catalog/products` | `CATALOG_MANAGER`| Create product in NOT_ACTIVE state. <br> **Req:** `{title, description, categoryId, basePrice, imageUrl?}` (`imageUrl`: `https://` URL or `/images/` path) <br> **Res:** `201 Created {productId}` |
+| `PUT` | `/catalog/products/{id}` | `CATALOG_MANAGER`| Update product details. <br> **Req:** `{title, desc, categoryId, basePrice, imageUrl?}` (full replacement: without `imageUrl` the image is removed) <br> **Res:** `200 OK` or `409 Conflict` (overlapping save of the same product) |
+| `PATCH`| `/catalog/products/{id}/status`| `CATALOG_MANAGER`| Activate/Deactivate product. <br> **Req:** `{status}` <br> **Res:** `200 OK` or `422 Unprocessable` (if activation fails readiness check) or `409 Conflict` (overlapping save of the same product) |
+| `GET` | `/catalog/categories` | None | List/search categories (EP-CAT-10, added to the original spec). <br> **Query:** `search, page (zero-based), size (default 20, max 100)` <br> **Res:** `200 OK {content: [{categoryId, name}], page, size, totalElements}` |
 | `POST` | `/catalog/categories` | `CATALOG_MANAGER`| Create category. <br> **Req:** `{name}` <br> **Res:** `201 Created {categoryId}` |
 | `PUT` | `/catalog/categories/{id}`| `CATALOG_MANAGER`| Rename category. <br> **Req:** `{name}` <br> **Res:** `200 OK` |
 | `DELETE`|`/catalog/categories/{id}`| `CATALOG_MANAGER`| Delete category. <br> **Res:** `200 OK` or `409 Conflict` (if products attached) |
-| `GET` | `/catalog/products/batch-get`| Internal | Fetch current product data for Order Service snapshotting and for Inventory's existence check. <br> **Query:** `?ids=uuid1,uuid2` (1–100 IDs) <br> **Res:** `200 OK [{productId, title, basePrice, status, stockStatus}]` — a flat array of the products that exist, in any status; unknown IDs are simply absent (the spec's `notFound` list was dropped on purpose). `400` for empty, malformed or too many `ids`. |
+| `GET` | `/catalog/products/batch-get`| Internal | Fetch current product data for Order Service snapshotting, for Inventory's existence check and for Inventory's product-data backfill. <br> **Query:** `?ids=uuid1,uuid2` (1–100 IDs) <br> **Res:** `200 OK [{productId, title, basePrice, status, stockStatus, version}]` — a flat array of the products that exist, in any status; unknown IDs are simply absent (the spec's `notFound` list was dropped on purpose). `400` for empty, malformed or too many `ids`. |
 
 ---
 
@@ -60,7 +66,8 @@ Cart rules: at most 10 distinct products per cart, quantity 1–10 per product. 
 | `GET` | `/inventory/stock/{id}/packaging`| Internal | (Used by Delivery sync) Get physical dimensions. <br> **Res:** `200 OK {grossWeightGrams, lengthCm, widthCm, heightCm}` or `404` (no stock item) or `422 {reason: "packaging_data_missing"}` |
 | `POST` | `/inventory/reservations` | Internal | (Used by Order sync) Hard reserve stock, all or nothing. <br> **Req:** `{orderId, items: [{productId, quantity}]}` (1–100 items, each `productId` once, `quantity ≥ 1`) <br> **Res:** `204 No Content` (Order Service owns the reservation TTL and finds reservations by `orderId`) or `400` or `409` (order already has active reservations; for a retry this means "already reserved") or `422 {insufficientItems: [{productId, requested, available}]}` |
 | `POST` | `/inventory/reservations/{orderId}/release`| Internal| (Used by Order Saga/TTL) Release the order's active reservations; idempotent. <br> **Res:** `204 No Content` (also when nothing was active) |
-| `GET` | `/inventory/stock` | `INVENTORY_WORKER`| View stock balances. <br> **Query:** `?packagingConfigured=true\|false&page=0&size=20&sortBy=field[,asc\|desc]` (`sortBy`: `productId`, `availableQuantity`, `reservedQuantity`) <br> **Res:** `200 OK {content: [{productId, availableQuantity, reservedQuantity, totalQuantity, packagingConfigured}], page, size, totalElements}` or `400` |
+| `GET` | `/inventory/stock` | `INVENTORY_WORKER`| View stock balances. <br> **Query:** `?packagingConfigured=true\|false&search=text&productStatus=ACTIVE\|NOT_ACTIVE&page=0&size=20&sortBy=field[,asc\|desc]` (`search`: substring of the product title; `sortBy`: `productId`, `title`, `availableQuantity`, `reservedQuantity`) <br> **Res:** `200 OK {content: [{productId, title, productStatus, availableQuantity, reservedQuantity, totalQuantity, packagingConfigured}], page, size, totalElements}` or `400`. `title` and `productStatus` are Inventory's eventually consistent copy of Catalog's data, `null` until copied |
+| `GET` | `/inventory/stock/{id}`| `INVENTORY_WORKER`| View one stock item with its packaging (EP-INV-08). <br> **Res:** `200 OK {productId, title, productStatus, availableQuantity, reservedQuantity, totalQuantity, packagingConfigured, grossWeightGrams, lengthCm, widthCm, heightCm}` (packaging values `null` while not set; incomplete packaging is still `200`) or `404` (no stock item) |
 | `POST` | `/inventory/stock/{id}/adjust`| `INVENTORY_WORKER`| Update stock (+/- delta). <br> **Req:** `{delta}` (non-zero integer) <br> **Res:** `200 OK {newAvailableQuantity}` or `400` or `404` (product not in Catalog) or `422` (write-off below zero) or `503` (Catalog unavailable) |
 | `PUT` | `/inventory/stock/{id}/packaging`| `INVENTORY_WORKER`| Set physical dimensions (all four replaced at once). <br> **Req:** `{grossWeightGrams, lengthCm, widthCm, heightCm}` (positive integers) <br> **Res:** `204 No Content` or `400` or `404` (product not in Catalog) or `503` (Catalog unavailable) |
 
@@ -73,13 +80,13 @@ Cart rules: at most 10 distinct products per cart, quantity 1–10 per product. 
 | Method | Path | Auth Role | Description |
 |--------|------|-----------|-------------|
 | `POST` | `/orders/validate` | `CUSTOMER` | Soft check cart for checkout eligibility. <br> **Req:** `{items: [{productId, quantity}]}` (1–100, no duplicates) <br> **Res:** `204 No Content` or `422 {ineligibleItems: [{productId, reason: NOT_ACTIVE \| INSUFFICIENT_STOCK}]}` or `503` |
-| `POST` | `/orders` | `CUSTOMER` | Submit order & reserve stock. <br> **Req:** `{items, deliveryDetails: {name, phone, address, carrier}}` <br> **Res:** `201 Created {orderId, status, totalAmount, currency, reservationExpiresAt}` or `422 {ineligibleItems}` / `422 {insufficientItems}` or `503` |
+| `POST` | `/orders` | `CUSTOMER` | Submit order & reserve stock. <br> **Header (optional):** `Idempotency-Key: <UUID>`, one per checkout attempt; a repeat with the same key and body returns the first order <br> **Req:** `{items, deliveryDetails: {name, phone, address, carrier}}` <br> **Res:** `201 Created {orderId, status, totalAmount, currency, reservationExpiresAt}` (a replay adds header `Idempotent-Replayed: true` and shows the order's current `status`) or `400` (also a non-UUID key) or `422 {ineligibleItems}` / `422 {insufficientItems}` / `422 {maxTotal}` (`order-total-too-large`) / `422` (`idempotency-key-mismatch`: key used with another body) or `409` (`request-in-progress`, with `Retry-After`) or `503` |
 | `POST` | `/orders/{id}/pay` | `CUSTOMER` (owner) | Pay for the order. <br> **Req:** `{cardDetails: {number, expiryMonth, expiryYear, cvv}}` <br> **Res:** `200 OK {orderId, status}` or `402 {reason}` or `409` (not awaiting payment / window expired / attempt in progress) or `503` (retry with the same card is safe) |
 | `GET` | `/orders` | `CUSTOMER` | View own order history. <br> **Query:** `?page=&size=` <br> **Res:** `200 OK {content: [{orderId, status, totalAmount, currency, placedAt}], page, size, totalElements}` |
 | `GET` | `/orders/{id}` | `CUSTOMER` (owner) | View own order details. <br> **Res:** `200 OK {orderId, status, items, deliveryDetails, totalAmount, currency, placedAt, paidAt, reservationExpiresAt, ttn, deliveryStatus}` or `404` |
 | `DELETE`| `/orders/{id}` | `CUSTOMER` (owner) | Cancel own order. <br> **Res:** `202 Accepted {orderId, status}` — `CANCELLED`, or `CANCELLATION_REQUESTED` while a saga step is retried later; `409` if not cancellable |
 | `GET` | `/orders/fulfillment-queue` | `INVENTORY_WORKER`| Get `PAID` & `PENDING_SHIPPING` orders. (Order Service queries Delivery Service internally for TTN states). <br> **Res:** `200 OK {deliveryDataAvailable, orders: [{orderId, status, placedAt, paidAt, items, deliveryDetails, deliveryStatus, ttn, failureReason}]}` (oldest payment first; `deliveryDataAvailable: false` when Delivery is down) |
-| `POST` | `/orders/{id}/ship` | `INVENTORY_WORKER`| Dispatch order to courier. <br> **Res:** `200 OK` (Transitions to `SHIPPED`) |
+| `POST` | `/orders/{id}/ship` | `INVENTORY_WORKER`| Dispatch order to courier. <br> **Res:** `200 OK {orderId, status, ttn}` (Transitions to `SHIPPED`), `409` (not awaiting dispatch, or TTN not generated yet), `503` (Delivery unavailable, with `Retry-After`) |
 
 ---
 

@@ -33,6 +33,18 @@ public class StockItemEntity {
 
     private Integer heightCm;
 
+    // Copy of Catalog's product data (D8). Read-only here: only StockItemRepository.upsertProductData writes it, so
+    // saving a stock change can never write an old copy back. null = not copied yet.
+    @Column(insertable = false, updatable = false)
+    private String title;
+
+    @Enumerated(EnumType.STRING)
+    @Column(insertable = false, updatable = false)
+    private ProductStatus productStatus;
+
+    @Column(insertable = false, updatable = false)
+    private Long productVersion;
+
     public boolean isPackagingConfigured() {
         return grossWeightGrams != null && grossWeightGrams > 0
                 && lengthCm != null && lengthCm > 0

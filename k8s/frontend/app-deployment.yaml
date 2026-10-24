@@ -1,0 +1,47 @@
+# The web app (frontend/Dockerfile): nginx serves the built SPA and forwards /api/* to the api-gateway
+# Service with /api stripped (frontend/deploy/nginx.conf).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: voltstore
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+        app.kubernetes.io/part-of: voltstore
+        app.kubernetes.io/component: frontend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        # The nginx-unprivileged image's user
+        runAsUser: 101
+      containers:
+        - name: frontend
+          image: voltstore/frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5

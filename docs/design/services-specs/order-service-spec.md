@@ -20,7 +20,7 @@ It also serves the **Inventory Worker's fulfillment queue**, aggregating order d
 | **Events consumed** | `TTNGenerated`, `OrderDelivered` (from Delivery Service, topic `delivery.shipment-events`) |
 | **Synchronous dependencies** | Catalog `GET /catalog/products/batch-get` (status, price, `stockStatus`); Inventory `POST /inventory/reservations`, `POST /inventory/reservations/{orderId}/release`; Payment `POST /payments/charge`, `POST /payments/refund`; Delivery `GET /delivery/shipments`, `DELETE /delivery/shipments/{orderId}` |
 | **Callers** | Customers and Inventory Workers via the API Gateway; no internal (service-to-service) routes |
-| **Technical tables** (not part of the domain model) | `outbox_events` (transactional outbox for order events); `reservation_attempts` and `pending_refunds` (work owed to Inventory and Payment, finished by EP-ORD-JOB-03/04) |
+| **Technical tables** (not part of the domain model) | `outbox_events` (transactional outbox for order events); `reservation_attempts` and `pending_refunds` (work owed to Inventory and Payment, finished by EP-ORD-JOB-03/04); `idempotency_keys` (submit requests by `Idempotency-Key`, EP-ORD-02; purged by EP-ORD-JOB-05) |
 | **Also see** | [order-state-machine.md](../entities/order-state-machine.md) for the authoritative state diagram and transition table |
 
 ---
@@ -49,10 +49,11 @@ Authentication follows the [Security Model](../services-requirements/security-mo
 
 ### Responses and errors
 
-- Errors use the shared RFC 9457 `ProblemDetail` shape: `type`, `title`, `status`, `detail`, `timestamp`, `service`. `type` is `https://voltstore.com/errors/{validation | not-found | conflict | ineligible-items | insufficient-stock | payment-declined | payment-window-expired | service-unavailable | unauthorized | forbidden | internal-error}`.
+- Errors use the shared RFC 9457 `ProblemDetail` shape: `type`, `title`, `status`, `detail`, `timestamp`, `service`. `type` is `https://voltstore.com/errors/{validation | not-found | conflict | ineligible-items | insufficient-stock | order-total-too-large | idempotency-key-mismatch | request-in-progress | payment-declined | payment-window-expired | service-unavailable | unauthorized | forbidden | internal-error}`.
 - `400` = malformed request (invalid JSON, a field rule broken, a non-UUID path variable) with a field-level `errors` map. `422` = a well-formed request that cannot be done in the current state. Unexpected errors → `500` with a generic message; the stack trace is only logged.
 - A dependency that is down or too slow → `503 Service Unavailable` with a fixed `detail` and `Retry-After`; hosts, upstream statuses and causes are only logged.
 - Card data (EP-ORD-03) is never logged or echoed in an error, exactly as in Payment Service (see its *Card Data* section).
+- **OpenAPI:** the API is also described by an OpenAPI document generated from the code, `order-service/openapi/public.json` ([OpenAPI Conventions](../services-requirements/openapi-conventions.md)); its error responses reference the named problem schemas listed there.
 
 | Error | Status | Extra property |
 |---|---|---|
@@ -60,6 +61,8 @@ Authentication follows the [Security Model](../services-requirements/security-mo
 | Product not active or not found (EP-ORD-01/02) | `422` (type `ineligible-items`) | `ineligibleItems: [ { productId, reason } ]` |
 | Not enough stock to reserve (EP-ORD-02) | `422` (type `insufficient-stock`) | `insufficientItems: [ { productId, requested, available } ]` (passed through from Inventory) |
 | Total above what Payment can charge at once (EP-ORD-02) | `422` (type `order-total-too-large`) | `maxTotal` |
+| `Idempotency-Key` already used with a different request body (EP-ORD-02, D8) | `422` (type `idempotency-key-mismatch`) | — |
+| A request with the same `Idempotency-Key` is still running (EP-ORD-02, D8) | `409` (type `request-in-progress`) | header `Retry-After: 1` |
 | Order not in a state that allows the action | `409` | — |
 | Payment window elapsed (EP-ORD-03) | `409` (type `payment-window-expired`) | — |
 | Previous payment attempt still unresolved (EP-ORD-03) | `409` | — |
@@ -114,7 +117,8 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 | `ORDER_PAYMENT_WINDOW` | Payment window after placement (default `15m`) |
 | `ORDER_CARRIERS` | Carriers a customer may choose at checkout, comma-separated (default `NOVA_POSHTA`); Delivery must support each |
 | `ORDER_CANCELLATION_RETRY_INTERVAL` | How often EP-ORD-JOB-02 looks for interrupted cancellations (default `1m`) |
-| `ORDER_RECOVERY_INTERVAL` | How often EP-ORD-JOB-03 and EP-ORD-JOB-04 run (default `1m`) |
+| `ORDER_RECOVERY_INTERVAL` | How often EP-ORD-JOB-03, EP-ORD-JOB-04 and EP-ORD-JOB-05 run (default `1m`) |
+| `ORDER_IDEMPOTENCY_KEY_TTL` | How long a completed `Idempotency-Key` is remembered (default `24h`; EP-ORD-JOB-05, D10) |
 | `ORDER_EXPIRY_INTERVAL`, `ORDER_EXPIRY_GRACE` | How often EP-ORD-JOB-01 runs (default `1m`) and how long after the window it waits (default `30s`; must be longer than `PAYMENT_READ_TIMEOUT`, checked at startup) |
 
 ---
@@ -153,9 +157,10 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 **Auth:** `CUSTOMER`
 
 **Request:** `{ items: [ { productId, quantity } ], deliveryDetails: { name, phone, address, carrier } }`
+**Optional header:** `Idempotency-Key: <UUID>` — one key per checkout attempt, generated by the client (D5). With the header a repeated submit returns the first order instead of placing a second one (see *Idempotency-Key* below); without it the steps run exactly as listed.
 
 **Steps:**
-1. Validate the request → `400`: *Request limits* for `items`; every `deliveryDetails` field non-blank (`phone` in international format, e.g. `+380…`; `carrier` from the carriers the shop offers, e.g. `NOVA_POSHTA`). `customerId` comes from `X-User-Id`; a `customerId` in the body is ignored.
+1. Validate the request → `400`: *Request limits* for `items`; an `Idempotency-Key` that is not a UUID; every `deliveryDetails` field non-blank (`phone` in international format, e.g. `+380…`; `carrier` from the carriers the shop offers, e.g. `NOVA_POSHTA`). `customerId` comes from `X-User-Id`; a `customerId` in the body is ignored.
 2. Generate the `orderId`.
 3. Call Catalog batch-get for current prices **and** status. Any product missing or not `ACTIVE` → `422 { ineligibleItems }`; nothing is reserved. Client-provided prices are **never trusted** — the snapshot uses Catalog's `basePrice` and `title`. A total above `9,999,999,999.99` (the most Payment charges at once, and the size of `totalAmount`) → `422` type `order-total-too-large` with `maxTotal`; nothing is reserved.
 4. Store a **reservation attempt** for the `orderId` (table `reservation_attempts`), then call Inventory `POST /inventory/reservations { orderId, items }`:
@@ -167,13 +172,31 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 6. If step 5 fails after the reservation was made → release the reservation (best-effort) and answer `500`; the attempt stays. EP-ORD-JOB-03 releases every attempt older than its settle time that has no order, so a reservation is never left without an order, even if this instance dies between steps 4 and 5 or Inventory reserves after the release.
 7. Return `201 Created { orderId, status, totalAmount, currency, reservationExpiresAt }` with `Location: /orders/{orderId}`.
 
+**Idempotency-Key** (decisions D4–D10). Only when the header is present; the role check, step 1 (`400`) and the `X-User-Email` check (`401`) always run first, so a malformed request never claims a key.
+- **Claim (after step 1, before step 2).** Compute the request hash (D9) and, in its own short transaction, insert `idempotency_keys (customer_id = X-User-Id, idempotency_key, request_hash, status = IN_PROGRESS, created_at = now)` with `INSERT … ON CONFLICT (customer_id, idempotency_key) DO NOTHING`. The key is scoped per customer: the same key from two customers is two independent requests.
+- **The insert wrote a row** → this request owns the key; continue with step 2.
+- **A row already exists** → nothing is called and nothing is reserved; answer from the stored row, checking the hash first:
+  - `request_hash` differs → `422` type `idempotency-key-mismatch` (whatever the row's status).
+  - `COMPLETED` → load the order `order_id` and return `201 Created` with the body of step 7 built from the order's **current** state (its `status` may already be `PAID` or later), `Location: /orders/{orderId}`, and the header `Idempotent-Replayed: true` (D7).
+  - `IN_PROGRESS` → `409` type `request-in-progress` with `Retry-After: 1` ("A request with this Idempotency-Key is still being processed").
+  - The row is gone when it is read (the first request failed and released it in between) → also `409 request-in-progress`; the retry claims the key itself.
+  - A `COMPLETED` row whose order is missing cannot happen (the row is completed only in the transaction that stores the order) and would answer `500`.
+  - `reservationExpiresAt` of a replay comes from the stored row and so has microsecond precision; the first answer may carry nanoseconds. Both are the same instant for any client.
+- **Complete (inside the transaction of step 5).** Set the row to `COMPLETED` with `order_id` (only while it is still `IN_PROGRESS`), together with the order, `OrderPlaced` and the attempt deletion: either the order is stored and the key remembers it, or neither. If the row is gone (purged by EP-ORD-JOB-05 as stale, which cannot happen within a normal request), the order is still stored; log a warning.
+- **Release on failure (D6).** Every answer other than `201` after the claim — `422` from step 3 or step 4, `503`, `500` from step 5/6 — deletes the row (only while it is still `IN_PROGRESS`, so a completed key is never released) in its own transaction (best-effort, logged on failure), so a retry with the same key runs from scratch with a new `orderId`. The reservation cleanup of steps 4–6 is unchanged: a reservation of the failed run is still released by its own attempt row and EP-ORD-JOB-03.
+- **Purge.** EP-ORD-JOB-05 deletes stale `IN_PROGRESS` rows (left by an instance that died mid-request) and `COMPLETED` rows older than `ORDER_IDEMPOTENCY_KEY_TTL`; a key used after that is processed as new.
+
 **Edge cases:**
 - Invalid items or delivery details → `400`
 - Any product not active or not found → `422 { ineligibleItems }`
 - Insufficient stock → `422 { insufficientItems }`
 - Catalog or Inventory unavailable → `503`; no order created, no stock left locked
 - A price changes in Catalog right after the call → the order keeps the price it was placed with (snapshot)
-- Double submission (double click) creates two orders, each with its own reservation; the unpaid one expires. Accepted for now (an `Idempotency-Key` header would prevent it)
+- `Idempotency-Key` not a UUID → `400`
+- Double submission (double click, retry after a lost answer, two tabs) **with** the same `Idempotency-Key` → one order and one reservation: a repeat after the first finished gets the same order (`201`, `Idempotent-Replayed: true`); a repeat while the first is still running gets `409 request-in-progress` and can retry after `Retry-After`
+- Same key with another body (another cart or delivery details) → `422 idempotency-key-mismatch`; nothing created
+- Retry with the same key after a `422`, `503` or `500` → processed as a new request (the failed run left no claim)
+- Double submission **without** the header creates two orders, each with its own reservation; the unpaid one expires
 
 **External calls:** Catalog `GET /catalog/products/batch-get`, Inventory `POST /inventory/reservations` (and release on failure) — **sync**
 **Emits:** `OrderPlaced` → Notification (EP-NOTIF-EVT-01)
@@ -441,6 +464,23 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 
 ---
 
+## EP-ORD-JOB-05: Purge Idempotency Keys
+
+**Type:** Scheduled job (every `ORDER_RECOVERY_INTERVAL`, default 1 minute)
+
+**Steps:**
+1. Delete `idempotency_keys` rows with `status = IN_PROGRESS` and `created_at` older than the settle time of EP-ORD-JOB-03 (2 minutes, far longer than a submit request with its Catalog and Inventory calls and their retries). Such a row belongs to a request whose instance died; deleting it lets the customer's retry with the same key run (D10). The reservation of that request, if any, is released by EP-ORD-JOB-03 through its attempt row.
+2. Delete rows with `status = COMPLETED` and `created_at` older than `ORDER_IDEMPOTENCY_KEY_TTL` (default `24h`). The order stays; only the key is forgotten.
+3. Each rule is one bulk `DELETE` (`created_at` strictly before the cutoff, served by the `(status, created_at)` index) in its own transaction: the number of deleted rows is logged at `DEBUG`, a failure at `WARN`, a failure of rule 1 does not stop rule 2, and the next run tries again. No batch limit: the rows are small.
+
+> Several replicas need no claim: deleting the same rows twice is harmless. A request is never still running when its `IN_PROGRESS` row is purged, for the same reason the settle time protects EP-ORD-JOB-03.
+
+**External calls:** none
+**Emits:** none
+**Refs:** D10
+
+---
+
 ## Decisions
 
 Agreed on 2026-10-16:
@@ -450,6 +490,18 @@ Agreed on 2026-10-16:
 | D1 | How does Order learn the customer's email? The JWT carried only `sub` and `role`; the email lives in Auth. | Auth adds an `email` claim to the JWT; the gateway forwards it as `X-User-Email` (and strips client copies). | Changes in Auth, the gateway and the Security Model. Rejected: a contact email in the request (can differ from the account), a lookup by Notification (couples Notification to Auth). |
 | D2 | Where does the soft check get stock availability? | Catalog's batch-get also returns `stockStatus` (`IN_STOCK` / `OUT_OF_STOCK`), which Catalog already stores. | One Catalog change. It cannot catch "2 left, 5 requested"; the reservation does. Rejected: a new Inventory batch endpoint. |
 | D3 | What happens when a cancellation step fails? | The order stays `CANCELLATION_REQUESTED`, the customer gets `202`, EP-ORD-JOB-02 repeats the idempotent steps with back-off and flags the order for manual handling after 5 failures. | Two technical fields on `Order` (`cancellationAttempts`, `cancellationFailure`, plus `needsManualAttention`). Rejected: answering `503` and rolling back (released stock would have to be re-reserved). |
+
+Agreed on 2026-10-22 (idempotent order submission, frontend backlog [BL-07](../../../frontend/docs/backlog/BL-07-order-submit-idempotency.md)):
+
+| # | Question | Decision | Consequence |
+|---|---|---|---|
+| D4 | How does EP-ORD-02 recognise a repeated submit, including two that run at the same time? | A technical table `idempotency_keys (customer_id, idempotency_key, request_hash, status IN_PROGRESS \| COMPLETED, order_id, created_at)`, unique on `(customer_id, idempotency_key)`. A request claims its key with `INSERT … ON CONFLICT DO NOTHING` before calling Catalog; the row becomes `COMPLETED` in the transaction that stores the order. | A concurrent duplicate sees the claim and never reaches Inventory. Rejected: a unique key column on `orders` (two concurrent duplicates would both reserve, and the loser could answer `422 insufficient-stock` for an order that exists); an `orderId` derived from the key (Inventory's `409` would absorb repeats, but the loser's failure path would release the winner's reservation). |
+| D5 | Is the header required, and what may it contain? | Optional; a UUID (`400` otherwise); scoped per customer. | Clients without the header (tests, API collections) behave as before. A fixed-size column and trivial validation. |
+| D6 | Which outcomes are remembered? | Only success. Any other answer after the claim deletes the row. | A retry after `503` or `500` actually retries; after a `422` the cart changes anyway. Rejected: replaying stored errors (a replayed `503` would make the retry useless). |
+| D7 | What does a replay return? | `201` built from the order's current state, same `Location`, header `Idempotent-Replayed: true`. | No response body is stored; the order is the result. `status` may differ from the first answer (e.g. `PAID`). |
+| D8 | How are conflicts answered? | Same key, different body → `422` type `idempotency-key-mismatch` (checked before the status). Same key while the first request runs → `409` type `request-in-progress` with `Retry-After: 1`. | As in the IETF *Idempotency-Key* HTTP header draft. Both use the plain `Problem` schema; clients tell them apart by `type`. |
+| D9 | When is a body "the same"? | SHA-256 (hex) of the parsed request serialised as JSON with `items` sorted by `productId`. | Whitespace, JSON field order and item order do not count as a different body; any changed quantity, product or delivery field does. |
+| D10 | How are keys cleaned up, including a claim left by an instance that died? | EP-ORD-JOB-05 deletes `IN_PROGRESS` rows older than the 2-minute settle time and `COMPLETED` rows older than `ORDER_IDEMPOTENCY_KEY_TTL` (default 24 h). | A stranded claim blocks the key for at most about 3 minutes. 24 h is far longer than the 15-minute payment window, so any realistic retry is covered. Rejected: taking over a stale claim inside the claim statement (harder to read and test). |
 
 ---
 
@@ -484,3 +536,12 @@ Agreed on 2026-10-16:
 - Customer scenarios (SCN-C11, C14, C21 updated; SCN-C18, C19, C24 marked out of scope), user stories (US-CUST-07 out of scope), technical insights §4, review notes (N-11 obsolete, new N-13).
 
 The code changes these documents imply in Auth, the gateway and Catalog are tasks of their own (see [`docs/tasks/order-service/`](../../tasks/order-service/)).
+
+### Revision 2026-10-22: idempotent order submission
+
+`POST /orders` accepts an optional `Idempotency-Key` header (EP-ORD-02, decisions D4–D10), replacing the edge case "double submission creates two orders … accepted for now". *Synced with the implementation of tasks 19–20 on 2026-10-22:* the answer when the row disappears between the claim and its lookup, complete and release acting only on `IN_PROGRESS` rows, the precision of a replayed `reservationExpiresAt`, and the transactions and log levels of EP-ORD-JOB-05. New: the technical table `idempotency_keys`, the problem types `idempotency-key-mismatch` (`422`) and `request-in-progress` (`409`), the response header `Idempotent-Replayed`, EP-ORD-JOB-05 and `ORDER_IDEMPOTENCY_KEY_TTL`. Implementation: [task 19](../../tasks/order-service/19-idempotent-order-submission.md), then [task 20](../../tasks/order-service/20-purge-idempotency-keys-job.md).
+
+Other documents updated with this revision (2026-10-22):
+- [api-contracts.md](../services-requirements/api-contracts.md) — the `POST /orders` row: optional header, replay, `409` and `422` answers (and the `422 order-total-too-large` answer, which was missing there; the type list above lacked it too).
+
+No gateway change: it forwards every request header except `Authorization`, the `X-User-*` headers and `X-Internal-Token`.

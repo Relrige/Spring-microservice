@@ -6,6 +6,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.domain.Limit;
 import org.springframework.transaction.support.TransactionOperations;
 import ua.edu.ukma.springers.voltstore.order.config.CancellationProperties;
@@ -14,6 +15,7 @@ import ua.edu.ukma.springers.voltstore.order.entities.PendingRefund;
 import ua.edu.ukma.springers.voltstore.order.entities.ReservationAttempt;
 import ua.edu.ukma.springers.voltstore.order.exceptions.DependencyUnavailableException;
 import ua.edu.ukma.springers.voltstore.order.ports.StockReservations;
+import ua.edu.ukma.springers.voltstore.order.repositories.IdempotencyKeyRepository;
 import ua.edu.ukma.springers.voltstore.order.repositories.OrderRepository;
 import ua.edu.ukma.springers.voltstore.order.repositories.PendingRefundRepository;
 import ua.edu.ukma.springers.voltstore.order.repositories.ReservationAttemptRepository;
@@ -30,18 +32,23 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-/** {@link OrphanReservationJob} and {@link PendingRefundJob} with their collaborators mocked. */
+/**
+ * {@link OrphanReservationJob}, {@link PendingRefundJob} and {@link IdempotencyKeyPurgeJob} with their collaborators
+ * mocked. Which rows the purge's statements delete is tested against PostgreSQL in {@code IdempotencyKeyRepositoryTest}.
+ */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class RecoveryJobsTest {
     private static final Instant NOW = Instant.parse("2026-10-18T12:00:00Z");
     private static final RecoveryProperties RECOVERY = new RecoveryProperties(Duration.ofMinutes(1),
-            Duration.ofMinutes(2), 100);
+            Duration.ofMinutes(2), 100, Duration.ofHours(24));
     private static final CancellationProperties BACKOFF = new CancellationProperties(Duration.ofMinutes(1), 100,
             List.of(Duration.ofMinutes(1), Duration.ofMinutes(5), Duration.ofMinutes(15), Duration.ofMinutes(30)), 5);
 
@@ -59,6 +66,9 @@ class RecoveryJobsTest {
 
     @Mock
     private OwedRefunds owedRefunds;
+
+    @Mock
+    private IdempotencyKeyRepository keys;
 
     // ---- OrphanReservationJob ----
 
@@ -146,6 +156,27 @@ class RecoveryJobsTest {
         verify(owedRefunds).attempt(next.getOrderId());
     }
 
+    // ---- IdempotencyKeyPurgeJob ----
+
+    @Test
+    void purge_deletesClaimsOlderThanTheSettleTime_andCompletedKeysOlderThanTheTtl() {
+        purgeJob().purge();
+
+        verify(keys).deleteByStatusCreatedBefore("IN_PROGRESS", NOW.minus(Duration.ofMinutes(2)));
+        verify(keys).deleteByStatusCreatedBefore("COMPLETED", NOW.minus(Duration.ofHours(24)));
+        verifyNoMoreInteractions(keys);
+    }
+
+    @Test
+    void purge_aFailingFirstRule_stillRunsTheSecond() {
+        when(keys.deleteByStatusCreatedBefore(eq("IN_PROGRESS"), any()))
+                .thenThrow(new DataAccessResourceFailureException("database down"));
+
+        purgeJob().purge();
+
+        verify(keys).deleteByStatusCreatedBefore("COMPLETED", NOW.minus(Duration.ofHours(24)));
+    }
+
     private UUID givenAttempt() {
         UUID orderId = UUID.randomUUID();
         ReservationAttempt attempt = new ReservationAttempt(orderId, NOW.minus(Duration.ofMinutes(5)));
@@ -164,6 +195,11 @@ class RecoveryJobsTest {
 
     private OrphanReservationJob orphanJob() {
         return new OrphanReservationJob(attempts, orders, stock, TransactionOperations.withoutTransaction(), RECOVERY,
+                Clock.fixed(NOW, ZoneOffset.UTC));
+    }
+
+    private IdempotencyKeyPurgeJob purgeJob() {
+        return new IdempotencyKeyPurgeJob(keys, TransactionOperations.withoutTransaction(), RECOVERY,
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
