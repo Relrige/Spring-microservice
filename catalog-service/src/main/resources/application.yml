@@ -43,6 +43,12 @@ spring:
         spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
         # The target type is set per listener (spring.json.value.default.type), never taken from headers
         spring.json.use.type.headers: false
+    # Observability task 03: the outbox relay sends with the auto-configured template (producer span and traceparent
+    # header), and the listener continues the record's traceparent
+    template:
+      observation-enabled: true
+    listener:
+      observation-enabled: true
 
 # OpenAPI documents (docs/design/services-requirements/openapi-conventions.md, D2/D3/D8). Off by default: Compose turns
 # both on through SPRINGDOC_* environment variables; OpenApiDocumentTest turns api-docs on for itself.

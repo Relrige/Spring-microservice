@@ -1,5 +1,6 @@
 package ua.edu.ukma.springers.voltstore.catalog.outbox;
 
+import io.micrometer.tracing.CurrentTraceContext;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -41,15 +42,17 @@ public class OutboxRelay {
     private final JsonMapper jsonMapper;
     private final OutboxProperties properties;
     private final TransactionTemplate transactionTemplate;
+    private final OutboxTraceContext traceContext;
 
     public OutboxRelay(OutboxRepository repository, KafkaTemplate<String, Object> kafkaTemplate,
                        JsonMapper jsonMapper, OutboxProperties properties,
-                       PlatformTransactionManager transactionManager) {
+                       PlatformTransactionManager transactionManager, OutboxTraceContext traceContext) {
         this.repository = repository;
         this.kafkaTemplate = kafkaTemplate;
         this.jsonMapper = jsonMapper;
         this.properties = properties;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.traceContext = traceContext;
     }
 
     @Scheduled(fixedDelayString = "${catalog.outbox.relay-interval}")
@@ -110,7 +113,10 @@ public class OutboxRelay {
                 jsonMapper.readTree(event.getPayload()));
         record.headers().add(KafkaTopics.EVENT_TYPE_HEADER, event.getEventType().getBytes(StandardCharsets.UTF_8));
         record.headers().add(KafkaTopics.EVENT_ID_HEADER, event.getId().toString().getBytes(StandardCharsets.UTF_8));
-        kafkaTemplate.send(record).get(properties.publishTimeout().toMillis(), TimeUnit.MILLISECONDS);
+        // The producer span becomes a child of the request that wrote the event and sends its traceparent header
+        try (CurrentTraceContext.Scope ignored = traceContext.restore(event.getTraceparent())) {
+            kafkaTemplate.send(record).get(properties.publishTimeout().toMillis(), TimeUnit.MILLISECONDS);
+        }
     }
 
     // 1 s, 2 s, 4 s, ... capped at maxRetryDelay

@@ -18,6 +18,7 @@ import java.util.UUID;
 public class Outbox {
     private final OutboxRepository repository;
     private final JsonMapper jsonMapper;
+    private final OutboxTraceContext traceContext;
 
     /**
      * @param eventId the payload's own eventId, reused as the outbox row id
@@ -29,6 +30,7 @@ public class Outbox {
     public void append(String aggregateType, UUID aggregateId, String eventType, String topic, UUID eventId,
                        Object payload) {
         repository.save(new OutboxEvent(eventId, aggregateType, aggregateId, eventType, topic,
-                aggregateId.toString(), jsonMapper.writeValueAsString(payload), Instant.now()));
+                aggregateId.toString(), jsonMapper.writeValueAsString(payload), Instant.now(),
+                traceContext.current()));
     }
 }

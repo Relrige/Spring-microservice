@@ -23,12 +23,14 @@ public class Outbox {
     private final OutboxRepository repository;
     private final JsonMapper jsonMapper;
     private final String topic;
+    private final OutboxTraceContext traceContext;
 
-    public Outbox(OutboxRepository repository, JsonMapper jsonMapper,
+    public Outbox(OutboxRepository repository, JsonMapper jsonMapper, OutboxTraceContext traceContext,
                   @Value("${order.kafka.topics.order-events}") String topic) {
         this.repository = repository;
         this.jsonMapper = jsonMapper;
         this.topic = topic;
+        this.traceContext = traceContext;
     }
 
     /**
@@ -39,6 +41,7 @@ public class Outbox {
     @Transactional(propagation = Propagation.MANDATORY)
     public void append(OrderEvent event) {
         repository.save(new OutboxEvent(event.eventId(), event.orderId(), event.eventType(), topic,
-                event.orderId().toString(), jsonMapper.writeValueAsString(event), Instant.now()));
+                event.orderId().toString(), jsonMapper.writeValueAsString(event), Instant.now(),
+                traceContext.current()));
     }
 }

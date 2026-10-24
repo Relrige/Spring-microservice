@@ -26,6 +26,7 @@ import java.time.Instant;
 public class OutboxShipmentEventPublisher implements ShipmentEventPublisher {
     private final OutboxRepository repository;
     private final JsonMapper jsonMapper;
+    private final OutboxTraceContext traceContext;
 
     /**
      * The payload ({@code eventId, orderId, ttn, timestamp}) is serialized to JSON now, so later code changes to the
@@ -38,6 +39,6 @@ public class OutboxShipmentEventPublisher implements ShipmentEventPublisher {
     public void publish(ShipmentEvent event) {
         repository.save(new OutboxEvent(event.eventId(), event.orderId(), event.eventType(),
                 KafkaTopics.SHIPMENT_EVENTS, event.orderId().toString(), jsonMapper.writeValueAsString(event),
-                Instant.now()));
+                Instant.now(), traceContext.current()));
     }
 }

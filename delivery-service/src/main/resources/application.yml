@@ -45,6 +45,8 @@ spring:
       # converter in KafkaConfig
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     listener:
+      # Consumer spans continue the traceparent header of the record (observability task 03)
+      observation-enabled: true
       # Offsets are committed after every record of a poll has been processed (the default, stated explicitly), so
       # only after the listener's database transaction committed. A crash mid-batch redelivers the uncommitted
       # records; the consumers are idempotent by state, so that is harmless.
