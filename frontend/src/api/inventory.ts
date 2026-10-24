@@ -17,6 +17,16 @@ export type StockQuery = Query<operations['listStock']>;
 /** EP-INV-03 body: four positive integers, replaced together. */
 export type Packaging = JsonBody<operations['setPackaging']>;
 
+/** EP-INV-08 answer: the stock row plus the packaging values, each missing while not set. */
+export type StockItemDetails = Received<Schemas['StockItemResponse']>;
+
+/** EP-INV-08 (`getStockItem`): one stock item with its packaging (inventory worker); `404` without one. */
+export function getStockItem(productId: string, auth: Auth = 'session'): Promise<StockItemDetails> {
+  return request<StockItemDetails>(pathFor('/inventory/stock/{productId}', { productId }), {
+    auth,
+  });
+}
+
 /** EP-INV-01 (`listStock`): stock balances (inventory worker). */
 export function listStock(
   query: StockQuery = {},

@@ -828,6 +828,18 @@ const workerHandlers: HttpHandler[] = [
     } satisfies InventorySchemas['PageResponseStockBalanceResponse']);
   }),
 
+  // EP-INV-08: one stock item with its packaging; values are missing while not set.
+  http.get(api('/inventory/stock/:productId'), ({ request, params }) => {
+    const { denied } = authenticate(request, WORKER_ONLY);
+    if (denied) return denied;
+    const product = db.products.find((p) => p.productId === String(params.productId));
+    if (!product) return problem(404, 'Stock item not found', {}, INVENTORY);
+    return HttpResponse.json({
+      ...stockRow(product),
+      ...(product.packaging ?? {}),
+    } satisfies InventorySchemas['StockItemResponse']);
+  }),
+
   // EP-INV-02: restock or write off.
   http.post(api('/inventory/stock/:productId/adjust'), async ({ request, params }) => {
     const { denied } = authenticate(request, WORKER_ONLY);

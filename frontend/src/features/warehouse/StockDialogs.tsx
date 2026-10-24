@@ -1,11 +1,19 @@
 // Adjust and packaging dialogs of the stock page (spec warehouse-stock; design D5–D6).
 import { Button, Group, Modal, NumberInput, SegmentedControl, Stack, Text } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiError, userMessage } from '../../api/errors';
-import { adjustStock, setPackaging, type StockItem } from '../../api/inventory';
+import {
+  adjustStock,
+  getStockItem,
+  setPackaging,
+  type StockItem,
+  type StockItemDetails,
+} from '../../api/inventory';
+import { ErrorState } from '../../components/ErrorState';
 import { applyServerErrors, FormError } from '../../components/form-errors';
+import { Loading } from '../../components/Loading';
 
 export const stockKey = ['stock'] as const;
 
@@ -108,12 +116,57 @@ export function PackagingDialog({
   item: StockItem | null;
   onClose: () => void;
 }) {
+  return (
+    <Modal opened={item !== null} onClose={onClose} title="Set packaging">
+      {item && <PackagingContent key={item.productId} item={item} onClose={onClose} />}
+    </Modal>
+  );
+}
+
+/** Reads the stored values first (EP-INV-08), so the form starts from them (change packaging-prefill, D1). */
+function PackagingContent({ item, onClose }: { item: StockItem; onClose: () => void }) {
+  const stored = useQuery({
+    queryKey: [...stockKey, item.productId],
+    queryFn: () => getStockItem(item.productId),
+  });
+  return (
+    <Stack gap="md">
+      <Text fw={600}>{nameOf(item)}</Text>
+      <Text fz={14} c="dimmed">
+        Needed before the product can be activated and shipped. All four values are replaced
+        together.
+      </Text>
+      {stored.isPending ? (
+        <Loading lines={2} label="Loading packaging…" />
+      ) : stored.isError ? (
+        <ErrorState error={stored.error} onRetry={() => void stored.refetch()} />
+      ) : (
+        <PackagingForm item={item} stored={stored.data} onClose={onClose} />
+      )}
+    </Stack>
+  );
+}
+
+function PackagingForm({
+  item,
+  stored,
+  onClose,
+}: {
+  item: StockItem;
+  stored: StockItemDetails;
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  // BL-03: workers cannot read stored packaging yet, so the form always starts empty.
   const form = useForm<Record<(typeof FIELDS)[number][0], string | number>>({
-    initialValues: { grossWeightGrams: '', lengthCm: '', widthCm: '', heightCm: '' },
+    // A value that is not set yet (missing or null) starts empty.
+    initialValues: {
+      grossWeightGrams: stored.grossWeightGrams ?? '',
+      lengthCm: stored.lengthCm ?? '',
+      widthCm: stored.widthCm ?? '',
+      heightCm: stored.heightCm ?? '',
+    },
     validate: {
       grossWeightGrams: wholeAboveZero,
       lengthCm: wholeAboveZero,
@@ -121,14 +174,9 @@ export function PackagingDialog({
       heightCm: wholeAboveZero,
     },
   });
-  const close = () => {
-    form.reset();
-    setMessage(null);
-    onClose();
-  };
+  const close = onClose;
 
   const submit = form.onSubmit(async (values) => {
-    if (!item) return;
     setMessage(null);
     setSaving(true);
     try {
@@ -154,40 +202,31 @@ export function PackagingDialog({
   });
 
   return (
-    <Modal opened={item !== null} onClose={close} title="Set packaging">
-      {item && (
-        <form onSubmit={submit} noValidate>
-          <Stack gap="md">
-            <Text fw={600}>{nameOf(item)}</Text>
-            <Text fz={14} c="dimmed">
-              Needed before the product can be activated and shipped. All four values are replaced
-              together.
-            </Text>
-            <FormError message={message} />
-            <Group grow align="flex-start" wrap="wrap">
-              {FIELDS.map(([field, label]) => (
-                <NumberInput
-                  key={field}
-                  label={label}
-                  min={1}
-                  allowDecimal={false}
-                  allowNegative={false}
-                  miw={120}
-                  {...form.getInputProps(field)}
-                />
-              ))}
-            </Group>
-            <Group justify="flex-end" gap="sm">
-              <Button variant="default" onClick={close}>
-                Cancel
-              </Button>
-              <Button type="submit" loading={saving}>
-                Save packaging
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      )}
-    </Modal>
+    <form onSubmit={submit} noValidate>
+      <Stack gap="md">
+        <FormError message={message} />
+        <Group grow align="flex-start" wrap="wrap">
+          {FIELDS.map(([field, label]) => (
+            <NumberInput
+              key={field}
+              label={label}
+              min={1}
+              allowDecimal={false}
+              allowNegative={false}
+              miw={120}
+              {...form.getInputProps(field)}
+            />
+          ))}
+        </Group>
+        <Group justify="flex-end" gap="sm">
+          <Button variant="default" onClick={close}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={saving}>
+            Save packaging
+          </Button>
+        </Group>
+      </Stack>
+    </form>
   );
 }

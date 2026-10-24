@@ -25,6 +25,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/inventory/stock/{productId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get one stock item with its packaging (EP-INV-08)
+         * @description Role: INVENTORY_WORKER. The stock row of EP-INV-01 plus the four packaging values; a value that is not set is missing (`null`), and incomplete packaging is still `200`.
+         */
+        get: operations["getStockItem"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/inventory/stock/{productId}/adjust": {
         parameters: {
             query?: never;
@@ -132,6 +152,44 @@ export interface components {
             /** Format: int32 */
             totalQuantity: number;
         };
+        StockItemResponse: {
+            /** Format: int32 */
+            availableQuantity: number;
+            /**
+             * Format: int32
+             * @description Gross weight in grams; missing until set
+             */
+            grossWeightGrams?: number;
+            /**
+             * Format: int32
+             * @description Height in cm; missing until set
+             */
+            heightCm?: number;
+            /**
+             * Format: int32
+             * @description Length in cm; missing until set
+             */
+            lengthCm?: number;
+            packagingConfigured: boolean;
+            /** Format: uuid */
+            productId: string;
+            /**
+             * @description Catalog's product status; missing until copied
+             * @enum {string}
+             */
+            productStatus?: "ACTIVE" | "NOT_ACTIVE";
+            /** Format: int32 */
+            reservedQuantity: number;
+            /** @description Catalog's product title; missing until copied */
+            title?: string;
+            /** Format: int32 */
+            totalQuantity: number;
+            /**
+             * Format: int32
+             * @description Width in cm; missing until set
+             */
+            widthCm?: number;
+        };
         /** @description A malformed request or broken field rules (400) */
         ValidationProblem: {
             detail?: string;
@@ -213,6 +271,73 @@ export interface operations {
             };
             /** @description Not an INVENTORY_WORKER */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getStockItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The stock item */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockItemResponse"];
+                };
+            };
+            /** @description Malformed request or invalid fields */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not an INVENTORY_WORKER */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No stock item for this product */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -21,7 +21,13 @@ import {
 import { ApiError } from '../src/api/errors';
 import { configureHttp } from '../src/api/http';
 import { getCart, getProfile, replaceCart, saveProfile } from '../src/api/customer';
-import { adjustStock, listStock, setPackaging, type StockItem } from '../src/api/inventory';
+import {
+  adjustStock,
+  getStockItem,
+  listStock,
+  setPackaging,
+  type StockItem,
+} from '../src/api/inventory';
 import {
   DEMO_CART,
   DEMO_CATEGORIES,
@@ -230,12 +236,19 @@ async function stockItems(worker: Token): Promise<Map<string, StockItem>> {
   return items;
 }
 
+async function samePackaging(worker: Token, productId: string, fixture: DemoProduct) {
+  const stored = await withRetry('read packaging', () => getStockItem(productId, worker));
+  return (Object.keys(fixture.packaging) as (keyof DemoProduct['packaging'])[]).every(
+    (key) => stored[key] === fixture.packaging[key],
+  );
+}
+
 async function prepareStock(worker: Token, products: Map<DemoProduct, ProductSummary>) {
   const items = await stockItems(worker);
   for (const [fixture, product] of products) {
     const item = items.get(product.productId);
-    // BL-03: workers cannot read packaging values, so configured packaging is left as it is.
-    if (!item?.packagingConfigured) {
+    // Configured packaging is read (EP-INV-08) and replaced only when it differs from the fixture.
+    if (!item?.packagingConfigured || !(await samePackaging(worker, product.productId, fixture))) {
       await withRetry(`set packaging of ${fixture.title}`, () =>
         setPackaging(product.productId, fixture.packaging, worker),
       );

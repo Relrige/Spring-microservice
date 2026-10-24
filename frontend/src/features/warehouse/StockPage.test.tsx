@@ -147,12 +147,51 @@ describe('Adjust stock', () => {
 });
 
 describe('Set packaging', () => {
-  async function openPackaging() {
+  async function openPackaging(packaging: ReturnType<typeof sony>['packaging'] = null) {
+    sony().packaging = packaging;
+    await openStock('/warehouse?q=sony%20wh');
+    await userEvent.click(within(rowOf(SONY)).getByRole('button', { name: 'Set packaging' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Set packaging' });
+    // The form appears once the stored values are read (EP-INV-08).
+    await within(dialog).findByLabelText('Gross weight, g');
+    return dialog;
+  }
+
+  it('Stored values shown: the four fields start from the stored packaging', async () => {
+    const dialog = await openPackaging({
+      grossWeightGrams: 350,
+      lengthCm: 26,
+      widthCm: 21,
+      heightCm: 10,
+    });
+    expect(within(dialog).getByLabelText('Gross weight, g')).toHaveValue('350');
+    expect(within(dialog).getByLabelText('Length, cm')).toHaveValue('26');
+    expect(within(dialog).getByLabelText('Width, cm')).toHaveValue('21');
+    expect(within(dialog).getByLabelText('Height, cm')).toHaveValue('10');
+  });
+
+  it('Packaging not set yet: the four fields are empty', async () => {
+    const dialog = await openPackaging();
+    for (const label of ['Gross weight, g', 'Length, cm', 'Width, cm', 'Height, cm']) {
+      expect(within(dialog).getByLabelText(label)).toHaveValue('');
+    }
+  });
+
+  it('a failed read shows the error with Try again, and no form', async () => {
+    server.use(
+      http.get('*/api/inventory/stock/:productId', () =>
+        HttpResponse.json({ status: 503, title: 'Service Unavailable' }, { status: 503 }),
+      ),
+    );
     sony().packaging = null;
     await openStock('/warehouse?q=sony%20wh');
     await userEvent.click(within(rowOf(SONY)).getByRole('button', { name: 'Set packaging' }));
-    return screen.findByRole('dialog', { name: 'Set packaging' });
-  }
+    const dialog = await screen.findByRole('dialog', { name: 'Set packaging' });
+    expect(await within(dialog).findByRole('button', { name: 'Try again' })).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole('button', { name: 'Save packaging' }),
+    ).not.toBeInTheDocument();
+  });
 
   it('Packaging saved: the four values are sent and the row is no longer Missing', async () => {
     const dialog = await openPackaging();

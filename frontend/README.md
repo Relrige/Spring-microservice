@@ -112,7 +112,13 @@ The cluster's admin password is `AUTH_ADMIN_PASSWORD` in the Secret `auth-secret
 
 ## Live verification
 
-Last run: 2026-10-23, branch `frontend-product-images` (change `product-images`), Compose stack of the repository root with Catalog (task 30, PR #35) and the frontend image rebuilt from this branch; the gateway published on host port 18080 through a local override, because another program held 8080.
+Last run: 2026-10-23, branch `frontend-packaging-prefill` (change `packaging-prefill`), Compose stack with Inventory (task 25, PR #37), the gateway (task 13, PR #38) and the frontend image rebuilt from this branch (gateway on host port 18080 through a local override).
+
+- Through the gateway, `GET /inventory/stock/{id}` as the worker answered the stock row with `grossWeightGrams` 420 and 26 × 21 × 10 cm; `GET …/packaging` stayed unrouted (`404`).
+- `npm run seed` after changing one product's weight to 999 g: `packaging set: 1` (the stored value differed from the fixture), then `Result: unchanged`.
+- The Set packaging dialog on port 3000 opened with the stored values. `E2E_BASE_URL=http://localhost:3000 npm run test:e2e:live`: 15 of 15. `npm run check:e2e`: 15 of 15 (one earlier run, started right after the live run, had 2 failures that did not reproduce in two further runs).
+
+Previous run: 2026-10-23, branch `frontend-product-images` (change `product-images`), Compose stack of the repository root with Catalog (task 30, PR #35) and the frontend image rebuilt from this branch; the gateway published on host port 18080 through a local override, because another program held 8080.
 
 - `npm run seed` (`SEED_API_URL=http://localhost:18080`): first run `images set: 45` (the existing fixture products got their Commons photo through `PUT`), second run `Result: unchanged`. Before the first run Catalog answered `"imageUrl": null` for products without an image.
 - `E2E_BASE_URL=http://localhost:3000 npm run test:e2e:live`: 15 of 15 journeys passed (about 46 s). `npm run check:e2e` against the mock: 15 of 15.
