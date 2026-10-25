@@ -225,3 +225,11 @@ resilience4j:
       # At most 10 concurrent Catalog calls; checkout and the soft check both call Catalog
       catalog:
         maxConcurrentCalls: 10
+
+# ECS JSON on the console everywhere: tests, IDE, Compose and Kubernetes print the same lines (observability task 05,
+# decision 4). One JSON object per line, with traceId and spanId from the tracing context; the collector agent
+# tails the pod logs and ships them to Loki.
+logging:
+  structured:
+    format:
+      console: ecs

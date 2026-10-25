@@ -1,7 +1,8 @@
 # Agent collector configuration (decisions 1 and 2): runs on every node, tails the log files of the voltstore pods
 # on that node and ships them to Loki. The services only print JSON lines to stdout; they know nothing about Loki.
 #
-# This is the transport only. Task 05 adds parsing of the services' ECS JSON lines (body, severity, traceId).
+# The services' lines are ECS JSON (task 05). The line itself stays the log body, exactly as `kubectl logs` shows
+# it, so `| json` works in Loki; the agent only reads the timestamp, severity and trace/span ids out of it.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -36,6 +37,33 @@ data:
           # k8s.namespace.name, k8s.pod.name, k8s.pod.uid and k8s.container.name from the file path
           - type: container
             id: container-parser
+          # ECS lines of the Spring services; other containers (Kafka, PostgreSQL, Grafana, ...) pass through as text.
+          # Parsed into a temporary attribute, so the body keeps the original line
+          - type: json_parser
+            id: ecs-parser
+            if: 'body matches "^\\{\"@timestamp\""'
+            parse_from: body
+            parse_to: attributes.ecs
+            on_error: send_quiet
+            timestamp:
+              parse_from: attributes.ecs["@timestamp"]
+              layout_type: gotime
+              layout: '2006-01-02T15:04:05.999999999Z07:00'
+            severity:
+              parse_from: attributes.ecs.log.level
+          # The record's trace and span id (Loki stores them as structured metadata trace_id / span_id, never as
+          # labels). Lines logged outside a trace (startup, jobs) have neither and skip this
+          - type: trace_parser
+            id: ecs-trace
+            if: 'attributes.ecs?.traceId != nil'
+            trace_id:
+              parse_from: attributes.ecs.traceId
+            span_id:
+              parse_from: attributes.ecs.spanId
+          - type: remove
+            id: ecs-cleanup
+            if: 'attributes.ecs != nil'
+            field: attributes.ecs
 
     processors:
       memory_limiter:

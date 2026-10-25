@@ -126,3 +126,11 @@ management:
     enable:
       # Scheduled jobs start no traces of their own (empty relay and recovery runs would flood Tempo)
       tasks.scheduled: false
+
+# ECS JSON on the console everywhere: tests, IDE, Compose and Kubernetes print the same lines (observability task 05,
+# decision 4). One JSON object per line, with traceId and spanId from the tracing context; the collector agent
+# tails the pod logs and ships them to Loki.
+logging:
+  structured:
+    format:
+      console: ecs
