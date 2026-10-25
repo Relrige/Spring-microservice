@@ -42,6 +42,12 @@ spec:
             # Go's garbage collector aims below this; ~80 % of the memory limit
             - name: GOMEMLIMIT
               value: 400MiB
+            # Baseline share of the tail sampler (otel-collector-config.yaml)
+            - name: BASELINE_SAMPLING_PERCENTAGE
+              valueFrom:
+                configMapKeyRef:
+                  name: otel-collector-sampling
+                  key: BASELINE_SAMPLING_PERCENTAGE
           ports:
             - name: otlp-grpc
               containerPort: 4317
