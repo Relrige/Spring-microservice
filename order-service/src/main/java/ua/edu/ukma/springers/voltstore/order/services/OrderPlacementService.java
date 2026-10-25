@@ -192,6 +192,7 @@ public class OrderPlacementService {
                 items, CURRENCY, now, properties.paymentWindow());
         orders.save(order);
         outbox.append(OrderPlacedEvent.of(order, now));
+        log.info("Order {} placed with {} items; awaiting payment", orderId, items.size());
         // From now on the reservation belongs to a stored order, which the expiry job or the saga releases
         attempts.deleteById(orderId);
         if (idempotencyKey != null) {

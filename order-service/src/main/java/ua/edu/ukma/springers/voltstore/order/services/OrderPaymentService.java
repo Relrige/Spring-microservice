@@ -115,6 +115,7 @@ public class OrderPaymentService {
         order.markPaid(now);
         orders.saveAndFlush(order);
         outbox.append(OrderPaidEvent.of(order, now));
+        log.info("Order {} paid", order.getId());
         return order.getStatus();
     }
 
