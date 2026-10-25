@@ -1,5 +1,5 @@
 ---
-status: TODO
+status: DONE
 service: infrastructure
 ---
 # Distributed Tracing and Centralized Logs: Overview
