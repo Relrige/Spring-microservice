@@ -38,6 +38,8 @@ spring:
       # parameter by the message converter in KafkaConfig (so one consumer can handle several event types)
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     listener:
+      # Consumer spans continue the traceparent header of the record (observability task 03)
+      observation-enabled: true
       # Offsets are committed after every record of a poll has been processed (the default, stated explicitly).
       # A crash mid-batch redelivers the uncommitted records; the consumers are idempotent, so that is harmless.
       ack-mode: batch
@@ -128,3 +130,25 @@ management:
       # Histogram buckets for HTTP latency, so p95 can be computed in Prometheus (alert HighHttpLatency)
       percentiles-histogram:
         http.server.requests: true
+  # Tracing (observability task 02). Spans go to the collector only when
+  # MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT is set (Kubernetes ConfigMap); Compose, tests and IDE runs
+  # export nothing. The span resource attribute service.name is spring.application.name.
+  tracing:
+    sampling:
+      # Every request is traced; the collector decides which traces to keep (tail sampling, task 04)
+      probability: 1.0
+    propagation:
+      # W3C traceparent (the default, set so the choice is visible)
+      type: w3c
+  observations:
+    enable:
+      # Scheduled jobs start no traces of their own (empty relay and recovery runs would flood Tempo)
+      tasks.scheduled: false
+
+# ECS JSON on the console everywhere: tests, IDE, Compose and Kubernetes print the same lines (observability task 05,
+# decision 4). One JSON object per line, with traceId and spanId from the tracing context; the collector agent
+# tails the pod logs and ships them to Loki.
+logging:
+  structured:
+    format:
+      console: ecs

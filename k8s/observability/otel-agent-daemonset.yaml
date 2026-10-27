@@ -1,0 +1,123 @@
+# Agent OpenTelemetry Collector: one pod per node (DaemonSet), because a pod's log files exist only on the node it
+# runs on. Configuration: otel-agent-config.yaml. No Service: nothing connects to it, it only reads files and
+# pushes to Loki.
+#
+# The k8sattributes processor looks up the pod of each log file in the Kubernetes API. A Role (not a ClusterRole),
+# like Prometheus: it only ever looks inside the voltstore namespace.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-agent
+  namespace: voltstore
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: otel-agent-k8sattributes
+  namespace: voltstore
+rules:
+  - apiGroups: [ "" ]
+    resources: [ "pods" ]
+    verbs: [ "get", "list", "watch" ]
+  # k8s.deployment.name is found through the pod's ReplicaSet
+  - apiGroups: [ "apps" ]
+    resources: [ "replicasets" ]
+    verbs: [ "get", "list", "watch" ]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: otel-agent-k8sattributes
+  namespace: voltstore
+subjects:
+  - kind: ServiceAccount
+    name: otel-agent
+    namespace: voltstore
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: otel-agent-k8sattributes
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: otel-agent
+  namespace: voltstore
+spec:
+  selector:
+    matchLabels:
+      app: otel-agent
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8888"
+      labels:
+        app: otel-agent
+        app.kubernetes.io/part-of: voltstore
+        app.kubernetes.io/component: observability
+    spec:
+      serviceAccountName: otel-agent
+      # Root, read-only: the kubelet's log files are readable by root only. The container still cannot write
+      # anywhere except its offset directory
+      securityContext:
+        runAsUser: 0
+      containers:
+        - name: otel-agent
+          image: otel/opentelemetry-collector-contrib:0.130.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --config=/etc/otelcol/config.yaml
+          env:
+            - name: K8S_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: GOMEMLIMIT
+              value: 200MiB
+          ports:
+            - name: metrics
+              containerPort: 8888
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol
+            # With containerd (this cluster's runtime) these are the log files themselves. With the Docker runtime they
+            # would be symlinks into /var/lib/docker/containers, which would need a second read-only mount
+            - name: pod-logs
+              mountPath: /var/log/pods
+              readOnly: true
+            - name: offsets
+              mountPath: /var/lib/otelcol/file_storage
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            periodSeconds: 20
+      volumes:
+        - name: config
+          configMap:
+            name: otel-agent-config
+        - name: pod-logs
+          hostPath:
+            path: /var/log/pods
+        # On the node, so the read offsets survive a new agent pod
+        - name: offsets
+          hostPath:
+            path: /var/lib/otelcol/file_storage
+            type: DirectoryOrCreate

@@ -25,7 +25,7 @@ class CatalogClientAdapterTest extends ClientsTestBase {
     private ProductCatalog catalog;
 
     @Test
-    void sendsTheTokenAndCorrelationId_andMapsCatalogsContract() {
+    void sendsTheToken_andMapsCatalogsContract() {
         stubFor(get(urlPathEqualTo(PATH)).willReturn(okJson("""
                 [ {"productId":"%s","title":"Phone","basePrice":19999.50,"status":"ACTIVE","stockStatus":"IN_STOCK",
                    "unknownField":"ignored"},
@@ -41,7 +41,6 @@ class CatalogClientAdapterTest extends ClientsTestBase {
         verify(getRequestedFor(urlPathEqualTo(PATH))
                 .withQueryParam("ids", havingExactly(PHONE.toString(), CASE.toString()))
                 .withHeader("X-Internal-Token", equalTo(TOKEN))
-                .withHeader("X-Correlation-Id", equalTo(CORRELATION_ID))
                 .withoutHeader("X-User-Id"));
     }
 

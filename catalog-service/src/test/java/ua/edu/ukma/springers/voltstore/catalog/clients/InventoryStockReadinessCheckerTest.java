@@ -150,15 +150,13 @@ class InventoryStockReadinessCheckerTest {
     // --- headers ---
 
     @Test
-    void sendsInternalTokenAndCorrelationId_butNoUserHeaders() {
+    void sendsInternalToken_butNoUserHeaders() {
         inventory.stubFor(get(path).willReturn(aResponse().withStatus(204)));
-        MDC.put("correlationId", "corr-123");
 
         checker(inventory.baseUrl()).check(productId);
 
         inventory.verify(getRequestedFor(urlEqualTo(path))
                 .withHeader("X-Internal-Token", equalTo(TOKEN))
-                .withHeader("X-Correlation-Id", equalTo("corr-123"))
                 .withHeader("X-User-Id", absent())
                 .withHeader("X-User-Role", absent()));
     }

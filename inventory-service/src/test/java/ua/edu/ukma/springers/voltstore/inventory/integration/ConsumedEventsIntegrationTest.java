@@ -1,5 +1,6 @@
 package ua.edu.ukma.springers.voltstore.inventory.integration;
 
+import io.micrometer.tracing.Tracer;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -42,11 +43,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.times;
@@ -97,6 +100,9 @@ class ConsumedEventsIntegrationTest {
 
     @Autowired
     private ProcessedEvents processedEvents;
+
+    @Autowired
+    private Tracer tracer;
 
     // Lets a test make the database fail once, like a short outage
     @MockitoSpyBean
@@ -187,6 +193,42 @@ class ConsumedEventsIntegrationTest {
                         "this is not JSON", "{\"timestamp\":\"2026-10-12T10:00:00Z\"}", withoutEventId));
         // Never retryable: they skipped the retry topics
         assertThat(deadLetters(PRODUCT_EVENTS_RETRY_0, key)).isEmpty();
+    }
+
+    // --- Observability task 03: the trace continues through Kafka ---
+
+    @Test
+    void aConsumedEvent_isHandledInTheTraceOfItsTraceparentHeader() throws Exception {
+        UUID productId = UUID.randomUUID();
+        String traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
+        // The listener's insert records the trace it runs in
+        AtomicReference<String> handledIn = new AtomicReference<>();
+        Answer<?> real = mockingDetails(stockItemRepository).getMockCreationSettings().getDefaultAnswer();
+        doAnswer(invocation -> {
+            handledIn.set(tracer.currentSpan() == null ? null : tracer.currentSpan().context().traceId());
+            return real.answer(invocation);
+        }).when(stockItemRepository).insertIfAbsent(eq(productId));
+
+        send(PRODUCT_EVENTS, productId, "ProductCreated", productCreated(productId),
+                "00-" + traceId + "-00f067aa0ba902b7-01");
+
+        await().atMost(WAIT).until(() -> stockItemRepository.findById(productId).isPresent());
+        assertThat(handledIn).hasValue(traceId);
+    }
+
+    @Test
+    void aDeadLetteredEvent_keepsItsTraceparent() throws Exception {
+        UUID productId = UUID.randomUUID();
+        String traceId = "5af92f3577b34da6a3ce929d0e0e4737";
+
+        send(PRODUCT_EVENTS, productId, "ProductCreated", "this is not JSON",
+                "00-" + traceId + "-00f067aa0ba902b7-01");
+
+        await().atMost(WAIT).untilAsserted(() -> assertThat(deadLetterRecords(PRODUCT_EVENTS_DLT, productId.toString()))
+                .singleElement()
+                .extracting(record -> new String(record.headers().lastHeader("traceparent").value(),
+                        StandardCharsets.UTF_8).split("-")[1])
+                .isEqualTo(traceId));
     }
 
     @Test
@@ -438,14 +480,25 @@ class ConsumedEventsIntegrationTest {
     }
 
     private void send(String topic, UUID key, String eventType, String json) throws Exception {
+        send(topic, key, eventType, json, null);
+    }
+
+    private void send(String topic, UUID key, String eventType, String json, String traceparent) throws Exception {
         ProducerRecord<String, String> record = new ProducerRecord<>(topic, key.toString(), json);
         if (eventType != null) {
             record.headers().add(KafkaTopics.EVENT_TYPE_HEADER, eventType.getBytes(StandardCharsets.UTF_8));
+        }
+        if (traceparent != null) {
+            record.headers().add("traceparent", traceparent.getBytes(StandardCharsets.UTF_8));
         }
         producer.send(record).get();
     }
 
     private List<String> deadLetters(String topic, String key) {
+        return deadLetterRecords(topic, key).stream().map(ConsumerRecord::value).toList();
+    }
+
+    private List<ConsumerRecord<String, String>> deadLetterRecords(String topic, String key) {
         try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(
                 ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
                 ConsumerConfig.GROUP_ID_CONFIG, "dlt-reader-" + UUID.randomUUID(),
@@ -453,15 +506,15 @@ class ConsumedEventsIntegrationTest {
                 ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
                 ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class))) {
             consumer.subscribe(List.of(topic));
-            List<String> values = new ArrayList<>();
+            List<ConsumerRecord<String, String>> records = new ArrayList<>();
             for (int i = 0; i < 5; i++) {
                 for (ConsumerRecord<String, String> record : consumer.poll(Duration.ofMillis(500))) {
                     if (key.equals(record.key())) {
-                        values.add(record.value());
+                        records.add(record);
                     }
                 }
             }
-            return values;
+            return records;
         }
     }
 

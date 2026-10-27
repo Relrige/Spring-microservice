@@ -1,0 +1,58 @@
+# Grafana data sources, provisioned from this file at startup (nothing is clicked together in the UI, so nothing is
+# lost with the pod). Fixed uids, so the links between them (task 06: span -> logs, log -> trace) can refer to
+# each other.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: voltstore
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: http://tempo:3200
+        jsonData:
+          # Span -> logs (task 06): "Logs for this span" opens Loki with the lines of this request in this span's
+          # service. The span's service.name becomes the stream selector {service_name="..."}; the trace id is matched
+          # on Loki's structured metadata trace_id (set by the agent from the ECS line, task 05), so no line is parsed
+          tracesToLogsV2:
+            datasourceUid: loki
+            tags:
+              - key: service.name
+                value: service_name
+            customQuery: true
+            # $$ = a literal $: Grafana expands environment variables in provisioning files
+            query: '{$${__tags}} | trace_id="$${__trace.traceId}"'
+            # The lines of a span are written while it runs; a minute on each side covers clock skew between pods
+            spanStartTimeShift: -1m
+            spanEndTimeShift: 1m
+          # Trace view: the search tab and the span graph
+          search:
+            hide: false
+          nodeGraph:
+            enabled: true
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://loki:3100
+        jsonData:
+          # Log -> trace (task 06): a line's structured metadata trace_id becomes a link that opens the trace in
+          # Tempo. Lines without a trace (startup, jobs) have no trace_id and get no link
+          derivedFields:
+            - name: TraceID
+              matcherType: label
+              matcherRegex: trace_id
+              datasourceUid: tempo
+              url: '$${__value.raw}'
+              urlDisplayLabel: Open trace in Tempo

@@ -61,8 +61,12 @@ public class OutboxEvent {
     @Column(length = LAST_ERROR_MAX_LENGTH)
     private String lastError;
 
+    // W3C traceparent of the request that wrote the event (observability task 03); null when written outside a trace
+    @Column(length = 55)
+    private String traceparent;
+
     OutboxEvent(UUID id, UUID aggregateId, String eventType, String topic, String messageKey, String payload,
-                Instant now) {
+                Instant now, String traceparent) {
         this.id = id;
         this.aggregateId = aggregateId;
         this.eventType = eventType;
@@ -71,6 +75,7 @@ public class OutboxEvent {
         this.payload = payload;
         this.createdAt = now;
         this.nextAttemptAt = now;
+        this.traceparent = traceparent;
     }
 
     void markPublished(Instant now) {

@@ -92,6 +92,9 @@ class OutboxIntegrationTest {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
+    @Autowired
+    private OutboxTraceContext traceContext;
+
     @MockitoSpyBean
     private OutboxStockEventPublisher publisher;
 
@@ -255,7 +258,7 @@ class OutboxIntegrationTest {
             }).when(kafkaTemplate).send(any(ProducerRecord.class));
 
             OutboxRelay secondReplica = new OutboxRelay(repository, kafkaTemplate, jsonMapper, properties,
-                    transactionManager);
+                    transactionManager, traceContext);
             await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(200)).until(() -> {
                 CompletableFuture<Void> a = CompletableFuture.runAsync(relay::publishDueEvents);
                 CompletableFuture<Void> b = CompletableFuture.runAsync(secondReplica::publishDueEvents);

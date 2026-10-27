@@ -53,7 +53,11 @@ public class KafkaConfig {
     @Bean
     @Primary
     public KafkaTemplate<String, Object> kafkaTemplate(ProducerFactory<String, Object> producerFactory) {
-        return new KafkaTemplate<>(producerFactory);
+        KafkaTemplate<String, Object> template = new KafkaTemplate<>(producerFactory);
+        // Producer spans and the traceparent header (observability task 03); a template created here does not get
+        // spring.kafka.template.observation-enabled
+        template.setObservationEnabled(true);
+        return template;
     }
 
     /**

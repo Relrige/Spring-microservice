@@ -10,7 +10,6 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.slf4j.MDC;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.CatalogUnavailableException;
 import ua.edu.ukma.springers.voltstore.inventory.services.CatalogProductData;
-import ua.edu.ukma.springers.voltstore.inventory.filters.CorrelationIdKeys;
 
 import java.net.ServerSocket;
 import java.time.Duration;
@@ -119,17 +118,6 @@ class CatalogProductCatalogTest {
                 """.formatted(UUID.randomUUID()))));
 
         assertThat(adapter(catalog.baseUrl()).find(productId)).isEmpty();
-    }
-
-    @Test
-    void correlationId_isForwarded() {
-        catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(okJson("[]")));
-        MDC.put(CorrelationIdKeys.CORRELATION_ID_MDC_KEY, "corr-42");
-
-        adapter(catalog.baseUrl()).find(productId);
-
-        catalog.verify(getRequestedFor(urlPathEqualTo(PATH))
-                .withHeader(CorrelationIdKeys.CORRELATION_ID_HTTP_HEADER, equalTo("corr-42")));
     }
 
     @Test

@@ -1,0 +1,61 @@
+# Grafana Loki in single-binary mode with filesystem storage: receives logs from the agent collectors on its native
+# OTLP endpoint (/otlp) and serves them to Grafana on 3100. Logs are kept for 2 days.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-config
+  namespace: voltstore
+data:
+  loki.yaml: |
+    # One tenant: no X-Scope-OrgID header needed
+    auth_enabled: false
+
+    server:
+      http_listen_port: 3100
+      grpc_listen_port: 9096
+      log_level: info
+
+    common:
+      instance_addr: 127.0.0.1
+      path_prefix: /loki
+      replication_factor: 1
+      ring:
+        kvstore:
+          store: inmemory
+      storage:
+        filesystem:
+          chunks_directory: /loki/chunks
+          rules_directory: /loki/rules
+
+    schema_config:
+      configs:
+        - from: 2024-01-01
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+
+    limits_config:
+      retention_period: 48h
+      # OTLP attributes that are not labels (e.g. the trace id, task 05) are stored as structured metadata
+      allow_structured_metadata: true
+      volume_enabled: true
+      # Stream labels kept low-cardinality (task 05): only service, namespace and pod. Every other resource attribute
+      # (container, deployment, node, pod uid, ...) becomes structured metadata. A trace id is never a label: each
+      # value would start a new stream
+      otlp_config:
+        resource_attributes:
+          ignore_defaults: true
+          attributes_config:
+            - action: index_label
+              attributes: [ service.name, k8s.namespace.name, k8s.pod.name ]
+
+    compactor:
+      working_directory: /loki/compactor
+      retention_enabled: true
+      delete_request_store: filesystem
+
+    analytics:
+      reporting_enabled: false

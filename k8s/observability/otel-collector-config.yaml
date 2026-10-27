@@ -1,0 +1,96 @@
+# Gateway collector configuration (docs/tasks/infrastructure/observability/, decision 1): the ONE place that receives
+# the spans of every service over OTLP and exports them to Tempo. A single replica on purpose: the tail sampling of
+# task 04 must see every span of a trace in one process.
+#
+# Pipeline order: memory_limiter first (refuses data before the process runs out of memory), batch last (fewer,
+# larger exports), tail_sampling between them (task 04): it decides per complete trace, so it must see the spans
+# before they are batched for export.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: voltstore
+data:
+  config.yaml: |
+    extensions:
+      # Liveness/readiness probes of the Deployment
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    receivers:
+      otlp:
+        protocols:
+          # Explicit 0.0.0.0: recent collector versions listen on localhost by default
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+      # Tail sampling (task 04, overview decision 5). Spans are held per trace id until decision_wait has passed since
+      # the trace's first span; then the trace is kept if ANY policy says so, otherwise it is dropped as a whole.
+      tail_sampling:
+        # Must exceed the longest gap inside one trace: the outbox relay polls every 500 ms, then Kafka, the consumer
+        # and its retries (1 + 2 + 4 s back-off before a failing listener gives up). A Kafka half arriving after the
+        # decision would be sampled again on its own, as a separate partial trace.
+        decision_wait: 10s
+        # Traces held in memory at once (the default); far above this demo's load
+        num_traces: 50000
+        policies:
+          # Every trace with an error is kept (mandatory). A span is ERROR for a 5xx answer, an exception or a failed
+          # client call; a 4xx business answer (402 declined card, 409 stock conflict) is not an error by the
+          # OpenTelemetry HTTP conventions and is left to the baseline (task 04, decision 1)
+          - name: errors
+            type: status_code
+            status_code:
+              status_codes: [ ERROR ]
+          # Slow traces: the same threshold as the HighHttpLatency alert (k8s/monitoring/)
+          - name: slow
+            type: latency
+            latency:
+              threshold_ms: 1000
+          # A share of all other traces, so normal traffic stays visible. The percentage is the one value in the
+          # ConfigMap otel-collector-sampling below (env BASELINE_SAMPLING_PERCENTAGE); production would use 1-10 %
+          - name: baseline
+            type: probabilistic
+            probabilistic:
+              sampling_percentage: ${env:BASELINE_SAMPLING_PERCENTAGE}
+      batch: { }
+
+    exporters:
+      otlp/tempo:
+        endpoint: tempo:4317
+        # Plain gRPC inside the namespace, like every other service-to-service call in the cluster
+        tls:
+          insecure: true
+
+    service:
+      extensions: [ health_check ]
+      pipelines:
+        traces:
+          receivers: [ otlp ]
+          processors: [ memory_limiter, tail_sampling, batch ]
+          exporters: [ otlp/tempo ]
+      telemetry:
+        # The collector's own metrics (accepted/refused/exported spans), scraped by Prometheus
+        metrics:
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: 0.0.0.0
+                    port: 8888
+---
+# The one value to change for the baseline share of successful traces (task 04). The collector reads it at start:
+# kubectl -n voltstore rollout restart deploy/otel-collector
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-sampling
+  namespace: voltstore
+data:
+  BASELINE_SAMPLING_PERCENTAGE: "25"

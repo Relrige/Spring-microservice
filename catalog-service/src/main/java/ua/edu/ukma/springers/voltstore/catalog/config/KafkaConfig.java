@@ -78,15 +78,16 @@ public class KafkaConfig {
      * </ul>
      */
     @Bean
-    public DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<Object, Object> kafkaTemplate,
-                                                 ProducerFactory<Object, Object> producerFactory) {
-        // Not a bean: another KafkaTemplate bean would switch off Spring Boot's auto-configured one.
+    public DefaultErrorHandler kafkaErrorHandler(ProducerFactory<Object, Object> producerFactory) {
+        // Not beans: another KafkaTemplate bean would switch off Spring Boot's auto-configured one.
         // The raw bytes of an undeserializable message are republished as they were received.
         KafkaTemplate<Object, Object> bytesTemplate = new KafkaTemplate<>(producerFactory,
                 Map.of(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class));
         Map<Class<?>, KafkaOperations<?, ?>> templates = new LinkedHashMap<>();
         templates.put(byte[].class, bytesTemplate);
-        templates.put(Object.class, kafkaTemplate);
+        // Not the auto-configured template: its observation would add a second traceparent header, while the
+        // recoverer already copies the failed record's one (observability task 03)
+        templates.put(Object.class, new KafkaTemplate<>(producerFactory));
 
         // Negative partition: let the producer choose, since the DLT has fewer partitions than the source
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(templates,

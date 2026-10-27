@@ -1,5 +1,7 @@
 package ua.edu.ukma.springers.voltstore.order.outbox;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.KafkaException;
@@ -75,6 +77,9 @@ class OutboxIntegrationTest {
     @Value("${order.kafka.topics.order-events}")
     private String topic;
 
+    @Autowired
+    private Tracer tracer;
+
     @MockitoSpyBean(name = "kafkaTemplate")
     private KafkaTemplate<String, Object> kafkaTemplate;
 
@@ -113,6 +118,35 @@ class OutboxIntegrationTest {
             assertThat(record.headers().lastHeader("__TypeId__")).as("no Java type headers").isNull();
             assertThat(unpublished()).isZero();
         }
+    }
+
+    // Observability task 03
+    @Test
+    void anEventWrittenInATrace_isPublishedInThatTrace_underANewProducerSpan() {
+        try (TopicProbe probe = probe()) {
+            Span request = tracer.nextSpan().name("request").start();
+            try (Tracer.SpanInScope ignored = tracer.withSpan(request)) {
+                tx.executeWithoutResult(status -> outbox.append(OrderPlacedEvent.of(order(), Instant.now())));
+            } finally {
+                request.end();
+            }
+            assertThat(jdbc.queryForObject("SELECT traceparent FROM outbox_events", String.class))
+                    .startsWith("00-" + request.context().traceId() + "-" + request.context().spanId() + "-");
+
+            relay.publishDueEvents();
+
+            String[] sent = header(awaitRecords(probe, 1).getFirst(), "traceparent").split("-");
+            assertThat(sent[1]).isEqualTo(request.context().traceId());
+            assertThat(sent[2]).as("the producer span, a child of the request")
+                    .isNotEqualTo(request.context().spanId());
+        }
+    }
+
+    @Test
+    void anEventWrittenOutsideATrace_storesNoTraceparent() {
+        tx.executeWithoutResult(status -> outbox.append(OrderPlacedEvent.of(order(), Instant.now())));
+
+        assertThat(jdbc.queryForObject("SELECT traceparent FROM outbox_events", String.class)).isNull();
     }
 
     @Test
