@@ -1,0 +1,69 @@
+== 1. Routing: client -> Ingress -> frontend -> gateway -> business service
+PASS  GET /api/catalog/products through the Ingress answers 200 (got 200)
+PASS  POST /api/auth/login through the Ingress answers 200 (got 200)
+== 2. Databases: only their own service may connect
+PASS  a pod labelled app=order-service reaches order-service-postgres (warning: couldn't attach to pod/probe-690000, falling back to streaming logs: unable to upgrade connection: container probe-690000 not found in pod probe-690000_voltstore
+order-service-postgres:5432 - accepting connections)
+PASS  another service (app=catalog-service) is blocked from order-service-postgres (order-service-postgres:5432 - no response
+pod voltstore/probe-059200 terminated (Error))
+PASS  an unlabelled intruder pod is blocked from payment-service-postgres (payment-service-postgres:5432 - no response
+pod voltstore/probe-333600 terminated (Error))
+== 3. Business services: only the gateway and other services may call them
+PASS  an intruder pod cannot reach order-service (blocked
+wget: download timed out)
+PASS  a pod labelled as the gateway reaches order-service (warning: couldn't attach to pod/probe-025300, falling back to streaming logs: unable to upgrade connection: container probe-025300 not found in pod probe-025300_voltstore
+reached)
+== 4. Pod hardening, as Kubernetes reports it (every running pod)
+PASS  alertmanager: uid 65534, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  api-gateway: uid 10001, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  auth-service: uid 10001, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  auth-service-postgres: uid 70, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  catalog-service: uid 10001, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  catalog-service-postgres: uid 70, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  customer-service: uid 10001, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  customer-service-postgres: uid 70, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  delivery-service: uid 10001, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  delivery-service-postgres: uid 70, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  frontend: uid 101, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  grafana: uid 472, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  inventory-service: uid 10001, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  inventory-service-postgres: uid 70, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  kafka: uid 1000, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  loki: uid 10001, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  mailpit: uid 1000, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  notification-service: uid 10001, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  notification-service-postgres: uid 70, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  order-service: uid 10001, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  order-service-postgres: uid 70, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  otel-agent: uid 0, nonRoot false, escalation false, readOnlyRoot true, token true
+PASS  otel-collector: uid 10001, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  payment-service: uid 10001, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  payment-service-postgres: uid 70, nonRoot true, escalation false, readOnlyRoot true, token false
+PASS  prometheus: uid 65534, nonRoot true, escalation false, readOnlyRoot true, token true
+PASS  tempo: uid 10001, nonRoot true, escalation false, readOnlyRoot true, token false
+== 5. Pod hardening at runtime (pods with a shell)
+PASS  deploy/order-service-postgres runs as uid 70 (not 0)
+PASS  deploy/order-service-postgres cannot write to / (touch: /probe-write: Read-only file system)
+PASS  deploy/order-service-postgres has no service-account token (ls: /var/run/secrets/kubernetes.io/serviceaccount: No such file or directory)
+PASS  deploy/frontend runs as uid 101 (not 0)
+PASS  deploy/frontend cannot write to / (touch: /probe-write: Read-only file system)
+PASS  deploy/frontend has no service-account token (ls: /var/run/secrets/kubernetes.io/serviceaccount: No such file or directory)
+PASS  statefulset/kafka runs as uid 1000 (not 0)
+PASS  statefulset/kafka cannot write to / (touch: cannot touch '/probe-write': Read-only file system)
+PASS  statefulset/kafka has no service-account token (ls: cannot access '/var/run/secrets/kubernetes.io/serviceaccount': No such file or directory)
+PASS  deploy/grafana runs as uid 472 (not 0)
+PASS  deploy/grafana cannot write to / (touch: /probe-write: Read-only file system)
+PASS  deploy/grafana has no service-account token (ls: /var/run/secrets/kubernetes.io/serviceaccount: No such file or directory)
+== 6. Processes on the node: which container processes run as root
+    152    70 postgres
+     67   101 nginx
+      1   472 grafana
+      1  1000 java
+      1  1000 mailpit
+      1 10001 loki
+      1 10001 tempo
+      9 10001 java
+      1 65534 prometheus
+PASS  no application process runs as root on the node (otel-agent excepted; found 0)
+
+passed: 47, failed: 0

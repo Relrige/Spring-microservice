@@ -25,16 +25,26 @@ spec:
         app.kubernetes.io/part-of: voltstore
         app.kubernetes.io/component: broker
     spec:
-      # Otherwise Kubernetes injects KAFKA_PORT=tcp://... for the "kafka" Service, and the image
-      # turns every KAFKA_* variable into a broker setting, which breaks startup
-      enableServiceLinks: false
+      # Security task: no Kubernetes API token in the pod (it never calls the API), non-root, default seccomp
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
+        runAsGroup: 1000
         fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      # Otherwise Kubernetes injects KAFKA_PORT=tcp://... for the "kafka" Service, and the image
+      # turns every KAFKA_* variable into a broker setting, which breaks startup
+      enableServiceLinks: false
       containers:
         - name: kafka
           image: apache/kafka:4.1.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ ALL ]
           ports:
             - name: kafka
               containerPort: 9092
@@ -81,6 +91,12 @@ spec:
             - name: KAFKA_HEAP_OPTS
               value: "-Xms256m -Xmx384m"
           volumeMounts:
+            - name: kafka-config
+              mountPath: /opt/kafka/config
+            - name: kafka-logs
+              mountPath: /opt/kafka/logs
+            - name: tmp
+              mountPath: /tmp
             - name: kafka-data
               mountPath: /var/lib/kafka/data
           resources:
@@ -101,6 +117,13 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 20
             failureThreshold: 5
+      volumes:
+        - name: kafka-config
+          emptyDir: { }
+        - name: kafka-logs
+          emptyDir: { }
+        - name: tmp
+          emptyDir: { }
   volumeClaimTemplates:
     - metadata:
         name: kafka-data

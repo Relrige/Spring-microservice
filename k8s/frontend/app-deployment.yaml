@@ -17,14 +17,29 @@ spec:
         app.kubernetes.io/part-of: voltstore
         app.kubernetes.io/component: frontend
     spec:
+      # Security task: no Kubernetes API token in the pod (it never calls the API), non-root, default seccomp
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
-        # The nginx-unprivileged image's user
         runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: frontend
           image: voltstore/frontend:latest
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ ALL ]
+          # The root file system is read-only; these paths must stay writable
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache-nginx
+              mountPath: /var/cache/nginx
           ports:
             - name: http
               containerPort: 8080
@@ -45,3 +60,8 @@ spec:
               path: /healthz
               port: http
             periodSeconds: 5
+      volumes:
+        - name: tmp
+          emptyDir: { }
+        - name: cache-nginx
+          emptyDir: { }

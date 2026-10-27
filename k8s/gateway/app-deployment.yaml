@@ -22,13 +22,27 @@ spec:
         app.kubernetes.io/part-of: voltstore
         app.kubernetes.io/component: gateway
     spec:
+      # Security task: no Kubernetes API token in the pod (it never calls the API), non-root, default seccomp
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: api-gateway
           image: voltstore/api-gateway:latest
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ ALL ]
+          # The root file system is read-only; these paths must stay writable
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           ports:
             - name: http
               containerPort: 8080
@@ -62,3 +76,6 @@ spec:
               path: /actuator/health/readiness
               port: management
             periodSeconds: 10
+      volumes:
+        - name: tmp
+          emptyDir: { }

@@ -25,14 +25,24 @@ spec:
         app.kubernetes.io/part-of: voltstore
         app.kubernetes.io/component: observability
     spec:
+      # Security task: no Kubernetes API token in the pod (it never calls the API), non-root, default seccomp
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
+        runAsGroup: 10001
         fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: tempo
           image: grafana/tempo:2.8.1
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ ALL ]
           args:
             - -config.file=/etc/tempo/tempo.yaml
           ports:
@@ -41,6 +51,8 @@ spec:
             - name: otlp-grpc
               containerPort: 4317
           volumeMounts:
+            - name: tmp
+              mountPath: /tmp
             - name: config
               mountPath: /etc/tempo
             - name: data
@@ -60,6 +72,8 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 10
       volumes:
+        - name: tmp
+          emptyDir: { }
         - name: config
           configMap:
             name: tempo-config
