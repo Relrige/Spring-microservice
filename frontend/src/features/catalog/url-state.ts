@@ -32,10 +32,14 @@ export const DEFAULT_STATE: CatalogState = {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Catalog's price limit (EP-CAT-04, public.json): at most 10 digits, a point, and 2 decimals. */
+export function isCatalogPrice(value: string): boolean {
+  return /^\d{0,10}(\.\d{0,2})?$/.test(value) && Number.isFinite(Number(value));
+}
+
 function parsePrice(value: string | null): number | null {
-  if (value === null || value.trim() === '') return null;
-  const number = Number(value);
-  return Number.isFinite(number) && number >= 0 ? number : null;
+  const text = value?.trim();
+  return text && isCatalogPrice(text) ? Number(text) : null;
 }
 
 /** Turns a query string into a valid state; missing or invalid values fall back to the defaults. */

@@ -36,6 +36,9 @@ describe('catalog URL state', () => {
   it('drops an invalid category, negative prices and an inverted range', () => {
     expect(parseCatalogState(new URLSearchParams('category=phones')).category).toBeNull();
     expect(parseCatalogState(new URLSearchParams('minPrice=-5')).minPrice).toBeNull();
+    expect(parseCatalogState(new URLSearchParams('minPrice=0.111')).minPrice).toBeNull();
+    expect(parseCatalogState(new URLSearchParams('maxPrice=12345678901')).maxPrice).toBeNull();
+    expect(parseCatalogState(new URLSearchParams('minPrice=0.11')).minPrice).toBe(0.11);
     const inverted = parseCatalogState(new URLSearchParams('minPrice=100&maxPrice=50'));
     expect([inverted.minPrice, inverted.maxPrice]).toEqual([null, null]);
   });

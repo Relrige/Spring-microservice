@@ -40,8 +40,8 @@ The product list SHALL offer a keyword search (sent as `search`), a category fil
 - **THEN** the list shows only products returned for that `categoryId`
 
 #### Scenario: Invalid price range
-- **WHEN** the minimum price is greater than the maximum price, or either is negative
-- **THEN** the form shows the problem at the price fields and the list is not requested with that range
+- **WHEN** the minimum price is greater than the maximum price, or either is negative, has more than two decimals or more than 10 digits before the decimal point
+- **THEN** the form shows the problem at the price fields, the list stays on screen and is not requested with that range
 
 #### Scenario: Categories unavailable
 - **WHEN** loading categories fails
@@ -106,11 +106,15 @@ While the product list or details page is loading, a loading indicator SHALL be 
 - **THEN** the page shows the "temporarily unavailable" message and a "Try again" button instead of the list
 
 ### Requirement: Add to cart from the product page
-The product details page SHALL offer a quantity selector (1–10, default 1) and an "Add to cart" button to visitors and customers. Adding SHALL put the chosen quantity into the cart (spec `shopping-cart`) and confirm with "Added to cart" and a link to the cart. For an out-of-stock product the button SHALL be disabled. Staff SHALL see no quantity selector and no button.
+The product details page SHALL offer a quantity selector (1–10, default 1) and an "Add to cart" button to visitors and customers. Adding SHALL put the chosen quantity into the cart (spec `shopping-cart`) and confirm with "Added to cart" and a link to the cart. For an out-of-stock product the button SHALL be disabled. While the quantity is empty, the page SHALL ask for a quantity and the button SHALL be disabled. Staff SHALL see no quantity selector and no button.
 
 #### Scenario: Visitor adds two
 - **WHEN** a visitor sets the quantity to 2 on an in-stock product and presses "Add to cart"
 - **THEN** the cart holds 2 of that product and "Added to cart" is shown with a link to the cart
+
+#### Scenario: Empty quantity
+- **WHEN** a visitor clears the quantity field
+- **THEN** the page asks for a quantity from 1 to 10 and the "Add to cart" button is disabled until one is entered
 
 #### Scenario: Out-of-stock product
 - **WHEN** a visitor opens the details page of a product with `stockStatus` `OUT_OF_STOCK`

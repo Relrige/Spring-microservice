@@ -26,6 +26,21 @@ describe('Add to cart from the product page', () => {
     await waitFor(() => expect(currentUrl(router)).toBe('/cart'));
   });
 
+  it('Empty quantity: asks for a quantity and "Add to cart" is disabled until one is entered', async () => {
+    const product = inStock();
+    renderApp(`/products/${product.productId}`);
+    const quantity = await screen.findByLabelText('Quantity');
+    await userEvent.clear(quantity);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Enter a quantity from 1 to 10');
+    expect(screen.getByRole('button', { name: 'Add to cart' })).toBeDisabled();
+
+    await userEvent.type(quantity, '3');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Add to cart' }));
+    expect(await screen.findByText('Added to cart')).toBeInTheDocument();
+    expect(readGuestCart()).toEqual([{ productId: product.productId, quantity: 3 }]);
+  });
+
   it('Out-of-stock product: the "Add to cart" button is disabled', async () => {
     const product = db.products.find(
       (p) => p.status === 'ACTIVE' && p.stockStatus === 'OUT_OF_STOCK',
