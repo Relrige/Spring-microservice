@@ -34,7 +34,7 @@ export const categoryError = (value: string | null) => (value ? null : 'Choose a
 export function priceError(value: number | string): string | null {
   if (value === '' || typeof value !== 'number' || !Number.isFinite(value)) return 'Enter a price';
   if (value <= 0) return 'The price must be greater than 0';
-  if (Math.round(value * 100) !== value * 100) return 'Use at most two decimals';
+  if (Number(value.toFixed(2)) !== value) return 'Use at most two decimals';
   return null;
 }
 
