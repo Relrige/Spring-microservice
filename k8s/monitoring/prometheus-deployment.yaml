@@ -24,16 +24,25 @@ spec:
         app.kubernetes.io/part-of: voltstore
         app.kubernetes.io/component: monitoring
     spec:
-      serviceAccountName: prometheus
+      # Security task: non-root, default seccomp; the token stays: pod discovery uses the Kubernetes API
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
+        runAsGroup: 65534
         fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: prometheus
       containers:
         - name: prometheus
           # Pinned: v3.5 is a long-term-support release
           image: prom/prometheus:v3.5.0
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ ALL ]
           args:
             - --config.file=/etc/prometheus/prometheus.yml
             - --storage.tsdb.path=/prometheus

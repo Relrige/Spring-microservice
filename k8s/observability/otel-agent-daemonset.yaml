@@ -59,10 +59,13 @@ spec:
         app.kubernetes.io/component: observability
     spec:
       serviceAccountName: otel-agent
-      # Root, read-only: the kubelet's log files are readable by root only. The container still cannot write
+      # Root, read-only, no capabilities, token kept (k8sattributes reads pods from the API): the kubelet's log
+      # files are readable by root only. The container still cannot write
       # anywhere except its offset directory
       securityContext:
         runAsUser: 0
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: otel-agent
           image: otel/opentelemetry-collector-contrib:0.130.0
@@ -99,6 +102,8 @@ spec:
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ ALL ]
           readinessProbe:
             httpGet:
               path: /

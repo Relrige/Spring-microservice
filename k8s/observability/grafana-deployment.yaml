@@ -22,14 +22,24 @@ spec:
         app.kubernetes.io/part-of: voltstore
         app.kubernetes.io/component: observability
     spec:
+      # Security task: no Kubernetes API token in the pod (it never calls the API), non-root, default seccomp
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 472
+        runAsGroup: 472
         fsGroup: 472
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: grafana
           image: grafana/grafana:12.1.0
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ ALL ]
           envFrom:
             - secretRef:
                 name: grafana-admin
@@ -46,6 +56,8 @@ spec:
             - name: http
               containerPort: 3000
           volumeMounts:
+            - name: tmp
+              mountPath: /tmp
             - name: datasources
               mountPath: /etc/grafana/provisioning/datasources
             - name: data
@@ -63,6 +75,8 @@ spec:
               port: 3000
             periodSeconds: 10
       volumes:
+        - name: tmp
+          emptyDir: { }
         - name: datasources
           configMap:
             name: grafana-datasources

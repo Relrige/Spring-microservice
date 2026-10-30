@@ -17,6 +17,10 @@ metadata:
   namespace: voltstore
 spec:
   replicas: 1
+  # Never two PostgreSQL processes on one data directory: the default RollingUpdate starts the new pod before the
+  # old one stops, and both write the same WAL (it corrupted the Delivery database once)
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: payment-service-postgres
@@ -27,9 +31,23 @@ spec:
         app.kubernetes.io/part-of: voltstore
         app.kubernetes.io/component: database
     spec:
+      # Security task: no Kubernetes API token in the pod (it never calls the API), non-root, default seccomp
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: postgres
           image: postgres:18-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ ALL ]
           ports:
             - containerPort: 5432
           envFrom:
@@ -41,6 +59,10 @@ spec:
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           volumeMounts:
+            - name: run-postgresql
+              mountPath: /var/run/postgresql
+            - name: tmp
+              mountPath: /tmp
             - mountPath: /var/lib/postgresql/data
               name: postgres-data
           resources:
@@ -62,6 +84,10 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 10
       volumes:
+        - name: run-postgresql
+          emptyDir: { }
+        - name: tmp
+          emptyDir: { }
         - name: postgres-data
           persistentVolumeClaim:
             claimName: payment-postgres-pvc
