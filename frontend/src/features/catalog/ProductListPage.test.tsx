@@ -142,6 +142,33 @@ describe('Search and filters', () => {
     server.events.removeAllListeners();
   });
 
+  it('Invalid price range: too many decimals or digits are shown at the field, the list stays', async () => {
+    const requests = recordProductRequests();
+    const { router } = renderApp('/');
+    const before = await tiles();
+    const sent = requests.length;
+    await userEvent.type(screen.getByLabelText('Minimum price'), '0.0011111');
+    await userEvent.type(screen.getByLabelText('Maximum price'), '12345678901');
+    await userEvent.click(screen.getByRole('button', { name: 'Apply price' }));
+    expect(await screen.findByText('Use at most two decimals')).toBeInTheDocument();
+    expect(
+      screen.getByText('Use at most 10 digits before the decimal point'),
+    ).toBeInTheDocument();
+    expect(requests.length).toBe(sent);
+    expect(currentUrl(router)).toBe('/');
+    expect(before.length).toBeGreaterThan(0);
+    expect(tileTitles().length).toBe(before.length);
+    server.events.removeAllListeners();
+  });
+
+  it('applies a price with two decimals and a decimal comma', async () => {
+    const { router } = renderApp('/');
+    await tiles();
+    await userEvent.type(screen.getByLabelText('Minimum price'), '0,11');
+    await userEvent.click(screen.getByRole('button', { name: 'Apply price' }));
+    await waitFor(() => expect(currentUrl(router)).toBe('/?minPrice=0.11'));
+  });
+
   it('applies a valid price range', async () => {
     const { router } = renderApp('/');
     await tiles();

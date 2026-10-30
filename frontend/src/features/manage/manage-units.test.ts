@@ -151,6 +151,8 @@ describe('product and category field rules', () => {
     expect(priceError(-1)).toBe('The price must be greater than 0');
     expect(priceError(0.01)).toBeNull();
     expect(priceError(1299.99)).toBeNull();
+    // value * 100 is not exact for these
+    for (const price of [1.1, 4.35, 19.99]) expect(priceError(price)).toBeNull();
     expect(priceError(1.234)).toBe('Use at most two decimals');
   });
 

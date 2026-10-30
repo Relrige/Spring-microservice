@@ -22,11 +22,12 @@ export function AddToCart({
   const [message, setMessage] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   if (cart.owner === 'none') return null;
+  const quantityMissing = quantity === '';
 
   const add = async () => {
     setMessage(null);
     setAdding(true);
-    const result = await cart.add(productId, Number(quantity) || 1);
+    const result = await cart.add(productId, Number(quantity));
     setAdding(false);
     if (!result.ok) {
       setMessage(result.message);
@@ -66,19 +67,22 @@ export function AddToCart({
           allowNegative={false}
           value={quantity}
           onChange={setQuantity}
+          error={quantityMissing}
         />
         <Button
           size="md"
           leftSection={<IconShoppingCart size={20} stroke={1.75} />}
           style={{ flex: '1 1 200px' }}
-          disabled={stockStatus === 'OUT_OF_STOCK'}
+          disabled={stockStatus === 'OUT_OF_STOCK' || quantityMissing}
           loading={adding}
           onClick={() => void add()}
         >
           Add to cart
         </Button>
       </Group>
-      <FormError message={message} />
+      <FormError
+        message={quantityMissing ? `Enter a quantity from 1 to ${MAX_QUANTITY}` : message}
+      />
       <Text fz={13} lh="18px" c="dimmed">
         Up to {MAX_QUANTITY} of one product per order. Delivery by Nova Poshta; you enter the
         address at checkout.

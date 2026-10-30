@@ -1,7 +1,7 @@
 import { Anchor, Button, Group, Radio, Stack, Text, TextInput } from '@mantine/core';
 import { useState } from 'react';
 import { useCategories } from './queries';
-import type { CatalogState } from './url-state';
+import { isCatalogPrice, type CatalogState } from './url-state';
 
 interface FilterPanelProps {
   state: CatalogState;
@@ -55,16 +55,21 @@ export function FilterPanel({ state, onChange, onClear }: FilterPanelProps) {
   );
 }
 
-function parseInput(value: string): number | null | 'invalid' {
-  const trimmed = value.trim().replace(',', '.');
-  if (!trimmed) return null;
-  const number = Number(trimmed);
-  return Number.isFinite(number) ? number : 'invalid';
+const normalized = (value: string) => value.trim().replace(',', '.');
+
+function inputError(value: string): string | undefined {
+  const text = normalized(value);
+  if (!text || isCatalogPrice(text)) return undefined;
+  if (!/^\d*\.?\d*$/.test(text) || text === '.') return 'Enter a price of 0 or more';
+  if (/\.\d{3,}$/.test(text)) return 'Use at most two decimals';
+  return 'Use at most 10 digits before the decimal point';
 }
 
+const inputValue = (value: string) => (normalized(value) ? Number(normalized(value)) : null);
+
 /**
- * Spec catalog-browsing, Invalid price range: a negative value or min > max is
- * shown at the price fields and the list is not requested with that range.
+ * Spec catalog-browsing, Invalid price range: a value Catalog would refuse or min > max
+ * is shown at the price fields and the list is not requested with that range.
  */
 function PriceFilter({
   minPrice,
@@ -80,27 +85,15 @@ function PriceFilter({
   const [errors, setErrors] = useState<{ min?: string; max?: string }>({});
 
   const apply = () => {
-    const minValue = parseInput(min);
-    const maxValue = parseInput(max);
-    const next: { min?: string; max?: string } = {};
-    if (minValue === 'invalid' || (typeof minValue === 'number' && minValue < 0)) {
-      next.min = 'Enter a price of 0 or more';
-    }
-    if (maxValue === 'invalid' || (typeof maxValue === 'number' && maxValue < 0)) {
-      next.max = 'Enter a price of 0 or more';
-    }
-    if (
-      !next.min &&
-      !next.max &&
-      typeof minValue === 'number' &&
-      typeof maxValue === 'number' &&
-      minValue > maxValue
-    ) {
+    const next = { min: inputError(min), max: inputError(max) };
+    const minValue = inputValue(min);
+    const maxValue = inputValue(max);
+    if (!next.min && !next.max && minValue !== null && maxValue !== null && minValue > maxValue) {
       next.min = 'Minimum must not be greater than maximum';
     }
     setErrors(next);
     if (next.min || next.max) return;
-    onApply(minValue as number | null, maxValue as number | null);
+    onApply(minValue, maxValue);
   };
 
   return (
