@@ -1,4 +1,28 @@
 spring:
+  grpc:
+    client:
+      channel:
+        # Inventory's StockService (inventory_stock.proto; task grpc-order-inventory). Compose and Kubernetes set the
+        # target to inventory-service:9090; the default is Inventory run from the IDE
+        inventory:
+          target: ${INVENTORY_GRPC_TARGET:localhost:9090}
+          default:
+            # One deadline for the whole call, every retry included; Inventory's former HTTP read timeout
+            deadline: ${INVENTORY_DEADLINE:3s}
+          service-config:
+            method:
+              - name:
+                  # Every method of the service; all of them are idempotent (see InventoryGrpcAdapter)
+                  - service: voltstore.inventory.v1.StockService
+                retry:
+                  # 1 call + 3 retries; the waits are random up to 0.3 s, 0.6 s, 1.2 s (capped at 2 s)
+                  max-attempts: 4
+                  initial-backoff: 300ms
+                  max-backoff: 2s
+                  backoff-multiplier: 2
+                  # Only "Inventory cannot answer right now": a refused or reset connection, a server shutting
+                  # down, or Inventory's own UNAVAILABLE (its database briefly down). Never a refusal or a bug
+                  retryable-status-codes: UNAVAILABLE
   application:
     name: order-service
   jpa:
@@ -156,17 +180,13 @@ auth:
     # Shared secret sent as X-Internal-Token on every call to another service; supplied by INTERNAL_TOKEN
     token: ${INTERNAL_TOKEN}
 
-# The services Order calls. Defaults are their Compose host ports, for running Order from the IDE; in Compose and
-# Kubernetes the *_SERVICE_URL variables point at the service names
+# The services Order calls over HTTP. Defaults are their Compose host ports, for running Order from the IDE; in Compose
+# and Kubernetes the *_SERVICE_URL variables point at the service names. Inventory is called over gRPC (spring.grpc)
 clients:
   catalog:
     url: ${CATALOG_SERVICE_URL:http://localhost:8081}
     connect-timeout: ${CATALOG_CONNECT_TIMEOUT:2s}
     read-timeout: ${CATALOG_READ_TIMEOUT:3s}
-  inventory:
-    url: ${INVENTORY_SERVICE_URL:http://localhost:8084}
-    connect-timeout: ${INVENTORY_CONNECT_TIMEOUT:2s}
-    read-timeout: ${INVENTORY_READ_TIMEOUT:3s}
   payment:
     url: ${PAYMENT_SERVICE_URL:http://localhost:8085}
     connect-timeout: ${PAYMENT_CONNECT_TIMEOUT:2s}
@@ -191,6 +211,8 @@ resilience4j:
         recordExceptions:
           - org.springframework.web.client.ResourceAccessException
           - org.springframework.web.client.HttpServerErrorException
+          # Inventory over gRPC: a failed call after the channel's own retries (UNAVAILABLE, DEADLINE_EXCEEDED, ...)
+          - io.grpc.StatusRuntimeException
     instances:
       catalog:
         baseConfig: default
@@ -212,11 +234,11 @@ resilience4j:
         retryExceptions:
           - org.springframework.web.client.ResourceAccessException
           - org.springframework.web.client.HttpServerErrorException
-    # No instance for payment: Payment repeats uncertain calls itself (see PaymentClientAdapter)
+    # No instance for payment: Payment repeats uncertain calls itself (see PaymentClientAdapter). None for inventory
+    # either: its gRPC channel retries on its own (spring.grpc.client.channel.inventory), and two retry layers would
+    # multiply the attempts
     instances:
       catalog:
-        baseConfig: default
-      inventory:
         baseConfig: default
       delivery:
         baseConfig: default

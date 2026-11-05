@@ -33,6 +33,7 @@ import ua.edu.ukma.springers.voltstore.order.entities.OrderItemEntity;
 import ua.edu.ukma.springers.voltstore.order.jobs.InterruptedCancellationsJob;
 import ua.edu.ukma.springers.voltstore.order.repositories.OrderRepository;
 import ua.edu.ukma.springers.voltstore.order.support.TopicProbe;
+import ua.edu.ukma.springers.voltstore.order.support.FakeInventory;
 import ua.edu.ukma.springers.voltstore.order.support.TrustedHeaders;
 
 import java.math.BigDecimal;
@@ -72,13 +73,15 @@ class CancellationIntegrationTest {
 
     static final WireMockServer wireMock = new WireMockServer(wireMockConfig().dynamicPort());
 
+    static final FakeInventory inventory = new FakeInventory().startOnPort(0);
+
     static {
         wireMock.start();
     }
 
     @DynamicPropertySource
     static void clients(DynamicPropertyRegistry registry) {
-        registry.add("clients.inventory.url", wireMock::baseUrl);
+        registry.add("spring.grpc.client.channel.inventory.target", () -> "localhost:" + inventory.port());
         registry.add("clients.delivery.url", wireMock::baseUrl);
         registry.add("clients.payment.url", wireMock::baseUrl);
         registry.add("resilience4j.retry.configs.default.waitDuration", () -> "10ms");
@@ -88,6 +91,7 @@ class CancellationIntegrationTest {
     @AfterAll
     static void stopWireMock() {
         wireMock.stop();
+        inventory.stop();
     }
 
     @Autowired
@@ -118,8 +122,7 @@ class CancellationIntegrationTest {
         jdbc.update("DELETE FROM order_items");
         jdbc.update("DELETE FROM orders");
         jdbc.update("DELETE FROM outbox_events");
-        wireMock.stubFor(WireMock.post(WireMock.urlMatching("/inventory/reservations/.+/release"))
-                .willReturn(noContent()));
+        inventory.reset();
         wireMock.stubFor(WireMock.delete(WireMock.urlMatching("/delivery/shipments/.+")).willReturn(noContent()));
     }
 
@@ -133,7 +136,7 @@ class CancellationIntegrationTest {
                     .andExpect(status().isAccepted())
                     .andExpect(jsonPath("$.status").value("CANCELLED"));
 
-            wireMock.verify(postRequestedFor(urlEqualTo("/inventory/reservations/" + orderId + "/release")));
+            assertThat(inventory.released()).containsExactly(orderId);
             wireMock.verify(deleteRequestedFor(urlEqualTo("/delivery/shipments/" + orderId)));
             wireMock.verify(postRequestedFor(urlEqualTo(REFUND)).withRequestBody(equalToJson("""
                     {"orderId":"%s","amount":200.00,"currency":"UAH"}""".formatted(orderId))));
@@ -155,7 +158,7 @@ class CancellationIntegrationTest {
 
         cancel(orderId).andExpect(status().isAccepted()).andExpect(jsonPath("$.status").value("CANCELLED"));
 
-        wireMock.verify(postRequestedFor(urlEqualTo("/inventory/reservations/" + orderId + "/release")));
+        assertThat(inventory.released()).containsExactly(orderId);
         wireMock.verify(0, deleteRequestedFor(WireMock.urlMatching("/delivery/shipments/.+")));
         wireMock.verify(0, postRequestedFor(urlEqualTo(REFUND)));
     }
@@ -192,7 +195,7 @@ class CancellationIntegrationTest {
         assertThat(statusOf(orderId)).isEqualTo("CANCELLED");
 
         wireMock.verify(3, postRequestedFor(urlEqualTo(REFUND)));
-        wireMock.verify(3, postRequestedFor(urlEqualTo("/inventory/reservations/" + orderId + "/release")));
+        assertThat(inventory.released()).containsExactly(orderId, orderId, orderId);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM outbox_events WHERE event_type = 'OrderCancelled'",
                 Integer.class)).isEqualTo(1);
     }
@@ -237,7 +240,7 @@ class CancellationIntegrationTest {
 
         cancel(orderId).andExpect(status().isConflict()).andExpect(jsonPath("$.orderStatus").value("SHIPPED"));
 
-        wireMock.verify(0, postRequestedFor(WireMock.urlMatching("/inventory/.+")));
+        assertThat(inventory.attempts(FakeInventory.RELEASE)).isZero();
     }
 
     @Test

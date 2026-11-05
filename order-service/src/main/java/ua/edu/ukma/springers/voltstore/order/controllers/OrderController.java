@@ -67,11 +67,11 @@ public class OrderController {
 
     /**
      * EP-ORD-01: {@code 204} when every product is active and in stock, {@code 422 { ineligibleItems }} otherwise.
-     * A soft check: Catalog's stock status says only "some" or "none", so asking for more units than are left still
-     * passes here and is refused by the submission.
+     * A soft check: Catalog says "active" and "some or none in stock"; Inventory's quantities (gRPC GetStockLevels)
+     * then catch a cart asking for more units than are left. Stock can still change before the submission.
      */
     @Operation(summary = "Check a cart before checkout (EP-ORD-01)",
-            description = "Role: CUSTOMER. A soft check against Catalog: every product active and in stock. Nothing is stored and no stock is locked.",
+            description = "Role: CUSTOMER. A soft check: every product active and in stock in Catalog, and each quantity available in Inventory (asked over gRPC; without an answer from Inventory, Catalog's result stands). Nothing is stored and no stock is locked.",
             security = @SecurityRequirement(name = BEARER_AUTH))
     @ApiResponse(responseCode = "204", description = "Every product can be ordered")
     @ApiResponse(responseCode = "400", description = "Empty items, more than 100, a duplicate product or an invalid quantity",

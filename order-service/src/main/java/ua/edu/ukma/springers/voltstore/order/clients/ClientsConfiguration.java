@@ -11,7 +11,6 @@ import org.springframework.web.client.support.RestClientAdapter;
 import org.springframework.web.service.invoker.HttpServiceProxyFactory;
 import ua.edu.ukma.springers.voltstore.order.clients.HttpClients.CatalogHttpClient;
 import ua.edu.ukma.springers.voltstore.order.clients.HttpClients.DeliveryHttpClient;
-import ua.edu.ukma.springers.voltstore.order.clients.HttpClients.InventoryHttpClient;
 import ua.edu.ukma.springers.voltstore.order.clients.HttpClients.PaymentHttpClient;
 
 import java.net.http.HttpClient;
@@ -34,11 +33,6 @@ public class ClientsConfiguration {
     @Bean
     CatalogHttpClient catalogHttpClient(ClientsProperties clients, InternalTokenProperties token) {
         return create(CatalogHttpClient.class, clients.catalog(), token);
-    }
-
-    @Bean
-    InventoryHttpClient inventoryHttpClient(ClientsProperties clients, InternalTokenProperties token) {
-        return create(InventoryHttpClient.class, clients.inventory(), token);
     }
 
     @Bean

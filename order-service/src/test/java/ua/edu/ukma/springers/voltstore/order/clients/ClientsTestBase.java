@@ -24,7 +24,6 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMoc
 @SpringBootTest(classes = {
         ClientsConfiguration.class,
         CatalogClientAdapter.class,
-        InventoryClientAdapter.class,
         PaymentClientAdapter.class,
         DeliveryClientAdapter.class,
         AopAutoConfiguration.class,
@@ -46,11 +45,10 @@ abstract class ClientsTestBase {
 
     @DynamicPropertySource
     static void clients(DynamicPropertyRegistry registry) {
-        for (String service : new String[]{"catalog", "inventory", "payment", "delivery"}) {
+        for (String service : new String[]{"catalog", "payment", "delivery"}) {
             registry.add("clients." + service + ".url", wireMock::baseUrl);
         }
         registry.add("clients.catalog.read-timeout", () -> "500ms");
-        registry.add("clients.inventory.read-timeout", () -> "500ms");
         registry.add("clients.delivery.read-timeout", () -> "500ms");
         registry.add("resilience4j.retry.configs.default.waitDuration", () -> "10ms");
         registry.add("resilience4j.retry.configs.default.enableExponentialBackoff", () -> "false");

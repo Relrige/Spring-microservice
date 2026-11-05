@@ -18,7 +18,6 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "clients")
 public record ClientsProperties(
         @Valid @NotNull Endpoint catalog,
-        @Valid @NotNull Endpoint inventory,
         @Valid @NotNull Endpoint payment,
         @Valid @NotNull Endpoint delivery
 ) {

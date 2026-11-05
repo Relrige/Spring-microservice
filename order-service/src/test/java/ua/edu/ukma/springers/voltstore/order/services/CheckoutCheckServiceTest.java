@@ -1,5 +1,6 @@
 package ua.edu.ukma.springers.voltstore.order.services;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -13,14 +14,20 @@ import ua.edu.ukma.springers.voltstore.order.ports.CatalogProduct;
 import ua.edu.ukma.springers.voltstore.order.ports.CatalogProduct.Status;
 import ua.edu.ukma.springers.voltstore.order.ports.CatalogProduct.StockStatus;
 import ua.edu.ukma.springers.voltstore.order.ports.ProductCatalog;
+import ua.edu.ukma.springers.voltstore.order.ports.StockLevels;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static ua.edu.ukma.springers.voltstore.order.dto.IneligibleItem.Reason.INSUFFICIENT_STOCK;
@@ -35,8 +42,53 @@ class CheckoutCheckServiceTest {
     @Mock
     private ProductCatalog catalog;
 
+    @Mock
+    private StockLevels stock;
+
     @InjectMocks
     private CheckoutCheckService service;
+
+    @BeforeEach
+    void plentyInInventory() {
+        // Unless a test says otherwise, Inventory has 99 of every product it is asked about
+        lenient().when(stock.availableQuantities(any())).thenAnswer(call -> {
+            Map<UUID, Integer> available = new LinkedHashMap<>();
+            for (UUID id : call.<java.util.Collection<UUID>>getArgument(0)) {
+                available.put(id, 99);
+            }
+            return available;
+        });
+    }
+
+    @Test
+    void aQuantityAboveInventorysAvailableQuantity_hasInsufficientStock() {
+        when(catalog.findProducts(List.of(PHONE, CASE))).thenReturn(List.of(
+                product(PHONE, Status.ACTIVE, StockStatus.IN_STOCK),
+                product(CASE, Status.ACTIVE, StockStatus.IN_STOCK)));
+        when(stock.availableQuantities(List.of(PHONE, CASE))).thenReturn(Map.of(PHONE, 1, CASE, 5));
+
+        assertThat(ineligible(List.of(new OrderItemRequest(PHONE, 2), new OrderItemRequest(CASE, 5))))
+                .containsExactly(new IneligibleItem(PHONE, INSUFFICIENT_STOCK));
+    }
+
+    @Test
+    void inventoryIsAskedOnlyAboutProductsCatalogLetThrough() {
+        when(catalog.findProducts(List.of(PHONE, CASE))).thenReturn(List.of(
+                product(PHONE, Status.ACTIVE, StockStatus.IN_STOCK),
+                product(CASE, Status.NOT_ACTIVE, StockStatus.IN_STOCK)));
+
+        assertThat(ineligible(items(PHONE, CASE))).containsExactly(new IneligibleItem(CASE, NOT_ACTIVE));
+        verify(stock).availableQuantities(List.of(PHONE));
+    }
+
+    @Test
+    void inventoryUnavailable_leavesCatalogsAnswer() {
+        when(catalog.findProducts(List.of(PHONE))).thenReturn(List.of(
+                product(PHONE, Status.ACTIVE, StockStatus.IN_STOCK)));
+        doThrow(new DependencyUnavailableException("Inventory", "down", null)).when(stock).availableQuantities(any());
+
+        assertThatCode(() -> service.check(items(PHONE))).doesNotThrowAnyException();
+    }
 
     @Test
     void everyProductActiveAndInStock_passes_withOneCatalogCall() {

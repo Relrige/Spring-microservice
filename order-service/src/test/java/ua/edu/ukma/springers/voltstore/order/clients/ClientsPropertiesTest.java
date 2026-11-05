@@ -31,6 +31,6 @@ class ClientsPropertiesTest {
     private static ClientsProperties withPaymentReadTimeout(String readTimeout) {
         Endpoint other = new Endpoint("http://localhost:1", Duration.ofSeconds(2), Duration.ofSeconds(3));
         Endpoint payment = new Endpoint("http://localhost:2", Duration.ofSeconds(2), Duration.parse("PT" + readTimeout.toUpperCase()));
-        return new ClientsProperties(other, other, payment, other);
+        return new ClientsProperties(other, payment, other);
     }
 }
