@@ -1,4 +1,8 @@
 spring:
+  grpc:
+    server:
+      # Order calls the StockService here (inventory_stock.proto); HTTP stays on server.port
+      port: ${GRPC_PORT:9090}
   application:
     name: inventory-service
   jpa:
