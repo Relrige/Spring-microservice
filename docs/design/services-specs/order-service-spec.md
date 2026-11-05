@@ -18,7 +18,7 @@ It also serves the **Inventory Worker's fulfillment queue**, aggregating order d
 | **Key enums** | `OrderStatus { PENDING_PAYMENT, PAID, PENDING_SHIPPING, SHIPPED, DELIVERED, CANCELLATION_REQUESTED, CANCELLED, EXPIRED }` |
 | **Events emitted** | `OrderPlaced`, `OrderPaid`, `OrderShipped`, `OrderCancelled` on topic `order.order-events` (see *Order Events*) |
 | **Events consumed** | `TTNGenerated`, `OrderDelivered` (from Delivery Service, topic `delivery.shipment-events`) |
-| **Synchronous dependencies** | Catalog `GET /catalog/products/batch-get` (status, price, `stockStatus`); Inventory `POST /inventory/reservations`, `POST /inventory/reservations/{orderId}/release`; Payment `POST /payments/charge`, `POST /payments/refund`; Delivery `GET /delivery/shipments`, `DELETE /delivery/shipments/{orderId}` |
+| **Synchronous dependencies** | Catalog `GET /catalog/products/batch-get` (status, price, `stockStatus`); Inventory [StockService over gRPC](inventory-service-spec.md#ep-inv-grpc-stockservice-for-order-service) (`ReserveStock`, `ReleaseReservation`, `ReleaseReservations`, `GetStockLevels`); Payment `POST /payments/charge`, `POST /payments/refund`; Delivery `GET /delivery/shipments`, `DELETE /delivery/shipments/{orderId}` |
 | **Callers** | Customers and Inventory Workers via the API Gateway; no internal (service-to-service) routes |
 | **Technical tables** (not part of the domain model) | `outbox_events` (transactional outbox for order events); `reservation_attempts` and `pending_refunds` (work owed to Inventory and Payment, finished by EP-ORD-JOB-03/04); `idempotency_keys` (submit requests by `Idempotency-Key`, EP-ORD-02; purged by EP-ORD-JOB-05) |
 | **Also see** | [order-state-machine.md](../entities/order-state-machine.md) for the authoritative state diagram and transition table |
@@ -134,7 +134,8 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 **Steps:**
 1. Validate the request (see *Request limits*) → `400`.
 2. Call Catalog `GET /catalog/products/batch-get?ids=…` (one call). A product that is missing from the answer or not `ACTIVE` is ineligible with reason `NOT_ACTIVE`.
-3. Check stock with the same answer: a product whose `stockStatus` is `OUT_OF_STOCK` is ineligible with reason `INSUFFICIENT_STOCK` (decision D2). `stockStatus` is Catalog's read model of Inventory's stock events, so it says only "some stock" or "none": a request for more units than are left still passes here and is caught by the reservation in EP-ORD-02 (`422`).
+3. Check stock with the same answer: a product whose `stockStatus` is `OUT_OF_STOCK` is ineligible with reason `INSUFFICIENT_STOCK` (decision D2). `stockStatus` is Catalog's read model of Inventory's stock events, so it says only "some stock" or "none".
+3a. For the products that passed, ask Inventory for the available quantities (gRPC `GetStockLevels`, server streaming). A product whose requested quantity is above the available one (0 when Inventory does not know it) is ineligible with reason `INSUFFICIENT_STOCK`. If Inventory cannot answer (after the channel's retries), this step is skipped with a warning: Catalog's result stands and the reservation in EP-ORD-02 decides.
 4. Any ineligible items → `422 { ineligibleItems: [ { productId, reason: "NOT_ACTIVE" | "INSUFFICIENT_STOCK" } ] }`, listing all of them.
 5. All checks pass → `204 No Content`. Nothing is stored and no stock is locked.
 
@@ -144,7 +145,7 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 - Empty `items`, more than 100 items, a duplicate `productId`, `quantity < 1` → `400`
 - Catalog unavailable → `503`; the check never reports "all fine" when it could not check
 
-**External calls:** Catalog `GET /catalog/products/batch-get` (status **and** `stockStatus` in one call) — **sync**
+**External calls:** Catalog `GET /catalog/products/batch-get` (status **and** `stockStatus` in one call); Inventory gRPC `GetStockLevels` — **sync**
 **Emits:** none
 **Refs:** US-CUST-08, US-CUST-09, SCN-C11, SCN-C12
 
@@ -163,7 +164,7 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 1. Validate the request → `400`: *Request limits* for `items`; an `Idempotency-Key` that is not a UUID; every `deliveryDetails` field non-blank (`phone` in international format, e.g. `+380…`; `carrier` from the carriers the shop offers, e.g. `NOVA_POSHTA`). `customerId` comes from `X-User-Id`; a `customerId` in the body is ignored.
 2. Generate the `orderId`.
 3. Call Catalog batch-get for current prices **and** status. Any product missing or not `ACTIVE` → `422 { ineligibleItems }`; nothing is reserved. Client-provided prices are **never trusted** — the snapshot uses Catalog's `basePrice` and `title`. A total above `9,999,999,999.99` (the most Payment charges at once, and the size of `totalAmount`) → `422` type `order-total-too-large` with `maxTotal`; nothing is reserved.
-4. Store a **reservation attempt** for the `orderId` (table `reservation_attempts`), then call Inventory `POST /inventory/reservations { orderId, items }`:
+4. Store a **reservation attempt** for the `orderId` (table `reservation_attempts`), then reserve with Inventory (gRPC `ReserveStock`: the items are streamed, one answer `RESERVED` / `ALREADY_RESERVED` / `INSUFFICIENT_STOCK`; the same semantics as EP-INV-06):
    - `204` → reserved.
    - `409` (the order already has active reservations) → treated as reserved: it means an earlier attempt with this `orderId` succeeded and its answer was lost.
    - `422 { insufficientItems }` → delete the attempt (nothing was reserved) and abort with `422 { insufficientItems }`; no order is created.
@@ -198,7 +199,7 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 - Retry with the same key after a `422`, `503` or `500` → processed as a new request (the failed run left no claim)
 - Double submission **without** the header creates two orders, each with its own reservation; the unpaid one expires
 
-**External calls:** Catalog `GET /catalog/products/batch-get`, Inventory `POST /inventory/reservations` (and release on failure) — **sync**
+**External calls:** Catalog `GET /catalog/products/batch-get`, Inventory gRPC `ReserveStock` (and `ReleaseReservation` on failure) — **sync**
 **Emits:** `OrderPlaced` → Notification (EP-NOTIF-EVT-01)
 **Refs:** US-CUST-08, US-CUST-09, SCN-C14, SCN-C15, N-06
 
@@ -292,7 +293,7 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 2. `CANCELLATION_REQUESTED` → `409` ("Cancellation already in progress"). Any status outside `{ PENDING_PAYMENT, PAID, PENDING_SHIPPING }` → `409` ("Order cannot be cancelled in its current state").
 3. Check-and-set the status to `CANCELLATION_REQUESTED` and record `statusBeforeCancellation` (decides whether a refund is owed).
 4. Run the cancellation saga (orchestrated by Order, every step idempotent):
-   1. Inventory `POST /inventory/reservations/{orderId}/release` (`204`, also when nothing is reserved).
+   1. Inventory gRPC `ReleaseReservation` (unary; succeeds also when nothing is reserved).
    2. Delivery `DELETE /delivery/shipments/{orderId}` (`204`, also when no shipment exists yet: Delivery stores a tombstone so a late `OrderPaid` creates nothing). Skipped when cancelled from `PENDING_PAYMENT`.
    3. If `statusBeforeCancellation` is `PAID` or `PENDING_SHIPPING`: Payment `POST /payments/refund { orderId, amount: totalAmount, currency }` (`200`; `409` "already refunded" counts as done).
    4. In one transaction: `CANCELLATION_REQUESTED → CANCELLED` and `OrderCancelled { reason: "CUSTOMER_CANCELLED" }` to the outbox.
@@ -402,13 +403,13 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 **Steps:**
 1. Find orders with `status = PENDING_PAYMENT` and `reservationExpiresAt + grace <= now`, where `grace` is longer than `PAYMENT_READ_TIMEOUT` (default 30 s; see EP-ORD-03).
 2. For each, oldest first:
-   1. Inventory `POST /inventory/reservations/{orderId}/release`. On failure → log, leave the order `PENDING_PAYMENT`, try again in the next run.
+   1. Release the reservations of the whole batch on one gRPC `ReleaseReservations` stream (bidirectional; one result per order). An order whose release failed (or every order, if Inventory cannot be reached) → log, leave it `PENDING_PAYMENT`, try again in the next run.
    2. In one transaction: check-and-set `PENDING_PAYMENT → EXPIRED` and `OrderCancelled { reason: "EXPIRED" }` to the outbox. If the check-and-set fails (the order was paid or cancelled meanwhile), skip it.
 3. Continue with the next order; one failure never stops the run.
 
 > `EXPIRED` is a system-initiated terminal state; it does not go through `CANCELLATION_REQUESTED`. No payment was made, so no refund is owed. With several replicas, rows are claimed with `FOR UPDATE SKIP LOCKED` (or the job runs on one replica) so an order is not processed twice at once; a second processing would be harmless anyway (release is idempotent, the check-and-set fails).
 
-**External calls:** Inventory release — **sync**, per order
+**External calls:** Inventory gRPC `ReleaseReservations` — **sync**, one stream per run
 **Emits:** `OrderCancelled` → Notification (EP-NOTIF-EVT-05)
 **Refs:** SCN-S06, N-06, order-state-machine.md
 
@@ -439,11 +440,11 @@ The email comes from the **`X-User-Email`** header (decision D1): Auth Service p
 **Steps:**
 1. Find reservation attempts (EP-ORD-02 step 4) older than the settle time (2 minutes, far longer than a reservation call with its retries), oldest first.
 2. If an order with that ID exists, the attempt is only stale: delete it.
-3. Otherwise release the reservation (Inventory `POST /inventory/reservations/{orderId}/release`) and delete the attempt. On failure keep it, count the failure and try again in the next run; after 5 failures log an `ERROR`.
+3. Otherwise release the reservation (the run's orphans together on one gRPC `ReleaseReservations` stream) and delete the attempt. On failure keep it, count the failure and try again in the next run; after 5 failures log an `ERROR`.
 
 > Without this job a reservation whose order was never stored (the save failed, the instance died, or Inventory reserved after Order had given up) would hold stock forever: Inventory reservations do not expire, and EP-ORD-JOB-01 only knows stored orders. Several replicas need no claim: release is idempotent.
 
-**External calls:** Inventory release — **sync**, per attempt
+**External calls:** Inventory gRPC `ReleaseReservations` — **sync**, one stream per run
 **Emits:** none
 
 ---
@@ -545,3 +546,13 @@ Other documents updated with this revision (2026-10-22):
 - [api-contracts.md](../services-requirements/api-contracts.md) — the `POST /orders` row: optional header, replay, `409` and `422` answers (and the `422 order-total-too-large` answer, which was missing there; the type list above lacked it too).
 
 No gateway change: it forwards every request header except `Authorization`, the `X-User-*` headers and `X-Internal-Token`.
+
+### Revision 2026-11-05: Inventory over gRPC
+
+Order calls Inventory over gRPC ([task grpc-order-inventory](../../tasks/infrastructure/grpc-order-inventory.md), report [grpc.md](../../reports/grpc.md)), one call type per flow:
+- EP-ORD-02 reserves with `ReserveStock` (client streaming);
+- the saga and the failed-placement clean-up release with `ReleaseReservation` (unary);
+- EP-ORD-JOB-01/03 release their batch on one `ReleaseReservations` stream (bidirectional);
+- EP-ORD-01 adds Inventory's quantities through `GetStockLevels` (server streaming; step 3a).
+
+The channel retries `UNAVAILABLE` (4 attempts, back-off 0.3 s doubling to at most 2 s) within one 3 s deadline; the Resilience4j retry for Inventory was removed, the circuit breaker stays. Configuration: `spring.grpc.client.channel.inventory` in application.yml, target `INVENTORY_GRPC_TARGET`.

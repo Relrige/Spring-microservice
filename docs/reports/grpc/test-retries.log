@@ -1,0 +1,18 @@
+# Order's test log (InventoryGrpcAdapterTest, InventoryGrpcConnectionTest), 2026-11-05: the retry policy of application.yml
+
+# 1) unavailableTwice_isRetried_andTheThirdAttemptSucceeds: Inventory answers UNAVAILABLE twice; the third attempt
+#    succeeds (no failure line for it). Waits: 0.001 s and 0.25 s (each random between 0 and 0.3 s, then 0.6 s)
+2026-11-05T19:14:08.543810400Z WARN InventoryGrpcConfiguration: gRPC Inventory ReserveStock: attempt 1 failed with UNAVAILABLE (scripted failure)
+2026-11-05T19:14:08.544799600Z WARN InventoryGrpcConfiguration: gRPC Inventory ReserveStock: attempt 2 (retry 1 of the call)
+2026-11-05T19:14:08.795856600Z WARN InventoryGrpcConfiguration: gRPC Inventory ReserveStock: attempt 2 failed with UNAVAILABLE (scripted failure)
+2026-11-05T19:14:08.795856600Z WARN InventoryGrpcConfiguration: gRPC Inventory ReserveStock: attempt 3 (retry 2 of the call)
+
+# 2) everyAttemptIsRefused_fourAttempts_thenDependencyUnavailable: nothing listens on Inventory's port; four refused
+#    attempts (io exception = connection refused), then Order reports Inventory as unavailable
+2026-11-05T19:14:14.208344200Z WARN InventoryGrpcConfiguration: gRPC Inventory ReleaseReservation: attempt 1 failed with UNAVAILABLE (io exception)
+2026-11-05T19:14:14.208344200Z WARN InventoryGrpcConfiguration: gRPC Inventory ReleaseReservation: attempt 2 (retry 1 of the call)
+2026-11-05T19:14:14.527267500Z WARN InventoryGrpcConfiguration: gRPC Inventory ReleaseReservation: attempt 2 failed with UNAVAILABLE (io exception)
+2026-11-05T19:14:14.528498700Z WARN InventoryGrpcConfiguration: gRPC Inventory ReleaseReservation: attempt 3 (retry 2 of the call)
+2026-11-05T19:14:15.233843200Z WARN InventoryGrpcConfiguration: gRPC Inventory ReleaseReservation: attempt 3 failed with UNAVAILABLE (io exception)
+2026-11-05T19:14:15.233843200Z WARN InventoryGrpcConfiguration: gRPC Inventory ReleaseReservation: attempt 4 (retry 3 of the call)
+2026-11-05T19:14:16.640657700Z WARN InventoryGrpcConfiguration: gRPC Inventory ReleaseReservation: attempt 4 failed with UNAVAILABLE (io exception)

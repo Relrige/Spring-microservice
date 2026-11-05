@@ -355,6 +355,25 @@ Lists use the shared paging envelope `{ content, page, size, totalElements }` (`
 
 ---
 
+## EP-INV-GRPC: StockService for Order Service
+
+**Type:** gRPC service `voltstore.inventory.v1.StockService` on port 9090 (contract: `src/main/protobuf/inventory_stock.proto`)
+**Caller:** Order Service only (NetworkPolicy `inventory-grpc-from-order-service`)
+**Auth:** the internal token as metadata `x-internal-token`; missing or wrong → `UNAUTHENTICATED`
+
+The reservation operations of EP-INV-06/07 and a stock read, one per gRPC call type ([task grpc-order-inventory](../../tasks/infrastructure/grpc-order-inventory.md)):
+
+| Method | Type | Behaviour |
+|---|---|---|
+| `ReserveStock` | client streaming | The items of one order (same `order_id` in every message, at most 100, each product once, quantity ≥ 1); when the client completes, EP-INV-06 runs once. Answer `RESERVED`, `ALREADY_RESERVED` (EP-INV-06's `409`) or `INSUFFICIENT_STOCK` with every short item (EP-INV-06's `422`) |
+| `ReleaseReservation` | unary | EP-INV-07 for one order |
+| `ReleaseReservations` | bidirectional streaming | EP-INV-07 for each order as its request arrives; one `ReleaseResult { order_id, released, error }` per request, in order; a failed order does not end the stream |
+| `GetStockLevels` | server streaming | At most 100 product ids; one `StockLevel { product_id, known, available }` per id, in the requested order (`known: false`, `available: 0` without a StockItem) |
+
+**Statuses:** `INVALID_ARGUMENT` for a malformed request; `UNAVAILABLE` when the database cannot be reached (the client retries it); `INTERNAL` otherwise.
+
+---
+
 ## EP-INV-08: View One Stock Item with Packaging
 
 **Type:** `HTTP GET /inventory/stock/{productId}`
@@ -494,6 +513,7 @@ Lists use the shared paging envelope `{ content, page, size, totalElements }` (`
 | Part | Status |
 |---|---|
 | EP-INV-01 … EP-INV-07 | Implemented (tasks 01–14) |
+| EP-INV-GRPC (StockService) | Implemented ([task grpc-order-inventory](../../tasks/infrastructure/grpc-order-inventory.md)); Order Service's only way to reservations |
 | Catalog existence check in EP-INV-02/03 | Implemented ([task 19](../../tasks/inventory-service/19-catalog-product-existence-client.md)), with one retry ([task 20](../../tasks/inventory-service/20-catalog-call-resilience.md)) |
 | EP-INV-EVT-01, EP-INV-EVT-02 | Implemented (tasks 15, 16) |
 | Transactional outbox for stock events | Implemented ([task 17](../../tasks/inventory-service/17-transactional-outbox.md)) |
