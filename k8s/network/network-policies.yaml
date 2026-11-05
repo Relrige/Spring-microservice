@@ -477,3 +477,24 @@ spec:
               app: prometheus
       ports:
         - port: 3100
+---
+# gRPC (task grpc-order-inventory): Inventory's StockService on 9090 is called only by Order. Rule 3 opens 8080 to
+# every service; this port is narrower on purpose, since only Order holds reservations
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: inventory-grpc-from-order-service
+  namespace: voltstore
+spec:
+  podSelector:
+    matchLabels:
+      app: inventory-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: order-service
+      ports:
+        - port: 9090
