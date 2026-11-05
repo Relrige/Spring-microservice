@@ -60,7 +60,7 @@ export interface paths {
         put?: never;
         /**
          * Check a cart before checkout (EP-ORD-01)
-         * @description Role: CUSTOMER. A soft check against Catalog: every product active and in stock. Nothing is stored and no stock is locked.
+         * @description Role: CUSTOMER. A soft check: every product active and in stock in Catalog, and each quantity available in Inventory (asked over gRPC; without an answer from Inventory, Catalog's result stands). Nothing is stored and no stock is locked.
          */
         post: operations["validate"];
         delete?: never;
