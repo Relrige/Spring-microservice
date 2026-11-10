@@ -1,0 +1,34 @@
+# Order's log (minikube voltstore-np, 2026-11-05): inventory-service scaled to 0, then a checkout (POST /orders) and a
+# cart check (POST /orders/validate) through the gateway. Every attempt of a gRPC call is a line; UNAVAILABLE
+# (io exception) is a refused connection, which the channel's retry policy repeats up to 4 attempts
+2026-11-05T19:58:20.590545748Z WARN InventoryGrpcConfiguration: gRPC Inventory ReserveStock: attempt 1 failed with UNAVAILABLE (io exception)
+2026-11-05T19:58:20.590908456Z WARN InventoryGrpcConfiguration: gRPC Inventory ReserveStock: attempt 2 (retry 1 of the call)
+2026-11-05T19:58:20.910237991Z WARN InventoryGrpcConfiguration: gRPC Inventory ReserveStock: attempt 2 failed with UNAVAILABLE (io exception)
+2026-11-05T19:58:20.910426931Z WARN InventoryGrpcConfiguration: gRPC Inventory ReserveStock: attempt 3 (retry 2 of the call)
+2026-11-05T19:58:21.544969870Z WARN InventoryGrpcConfiguration: gRPC Inventory ReserveStock: attempt 3 failed with UNAVAILABLE (io exception)
+2026-11-05T19:58:21.560495450Z WARN InventoryGrpcConfiguration: gRPC Inventory ReserveStock: attempt 4 (retry 3 of the call)
+2026-11-05T19:58:22.919520762Z WARN InventoryGrpcConfiguration: gRPC Inventory ReserveStock: attempt 4 failed with UNAVAILABLE (io exception)
+2026-11-05T19:58:22.922546380Z WARN ClientFailures: Inventory call failed: StatusRuntimeException: UNAVAILABLE: io exception
+2026-11-05T19:58:22.927952316Z WARN InventoryGrpcConfiguration: gRPC Inventory ReleaseReservation: attempt 1 failed with UNAVAILABLE (io exception)
+2026-11-05T19:58:22.928149892Z WARN InventoryGrpcConfiguration: gRPC Inventory ReleaseReservation: attempt 2 (retry 1 of the call)
+2026-11-05T19:58:23.187955884Z WARN InventoryGrpcConfiguration: gRPC Inventory ReleaseReservation: attempt 2 failed with UNAVAILABLE (io exception)
+2026-11-05T19:58:23.188359877Z WARN InventoryGrpcConfiguration: gRPC Inventory ReleaseReservation: attempt 3 (retry 2 of the call)
+2026-11-05T19:58:23.756195586Z WARN InventoryGrpcConfiguration: gRPC Inventory ReleaseReservation: attempt 3 failed with UNAVAILABLE (io exception)
+2026-11-05T19:58:23.756458834Z WARN InventoryGrpcConfiguration: gRPC Inventory ReleaseReservation: attempt 4 (retry 3 of the call)
+2026-11-05T19:58:24.963588082Z WARN InventoryGrpcConfiguration: gRPC Inventory ReleaseReservation: attempt 4 failed with UNAVAILABLE (io exception)
+2026-11-05T19:58:24.965735492Z WARN ClientFailures: Inventory call failed: StatusRuntimeException: UNAVAILABLE: io exception
+2026-11-05T19:58:24.965949293Z WARN OrderPlacementService: The reservation of order 938ea0f2-5720-43ee-964a-1f2e959cfe08 could not be released now (Inventory unavailable: StatusRuntimeException: UNAVAILABLE: io exception); OrphanReservationJob retries
+2026-11-05T19:58:24.970841412Z ERROR GlobalExceptionHandler: Inventory unavailable: StatusRuntimeException: UNAVAILABLE: io exception - answering 503
+2026-11-05T19:58:25.054361510Z WARN InventoryGrpcConfiguration: gRPC Inventory GetStockLevels: attempt 1 failed with UNAVAILABLE (io exception)
+2026-11-05T19:58:25.054644803Z WARN InventoryGrpcConfiguration: gRPC Inventory GetStockLevels: attempt 2 (retry 1 of the call)
+2026-11-05T19:58:25.389578878Z WARN InventoryGrpcConfiguration: gRPC Inventory GetStockLevels: attempt 2 failed with UNAVAILABLE (io exception)
+2026-11-05T19:58:25.389785513Z WARN InventoryGrpcConfiguration: gRPC Inventory GetStockLevels: attempt 3 (retry 2 of the call)
+2026-11-05T19:58:25.947899716Z WARN InventoryGrpcConfiguration: gRPC Inventory GetStockLevels: attempt 3 failed with UNAVAILABLE (io exception)
+2026-11-05T19:58:25.948146049Z WARN InventoryGrpcConfiguration: gRPC Inventory GetStockLevels: attempt 4 (retry 3 of the call)
+2026-11-05T19:58:26.963896035Z WARN InventoryGrpcConfiguration: gRPC Inventory GetStockLevels: attempt 4 failed with UNAVAILABLE (io exception)
+2026-11-05T19:58:26.967878457Z WARN ClientFailures: Inventory call failed: StatusRuntimeException: UNAVAILABLE: io exception
+2026-11-05T19:58:26.968088201Z WARN CheckoutCheckService: Checkout check without Inventory's quantities: Inventory unavailable: StatusRuntimeException: UNAVAILABLE: io exception
+
+# inventory-service scaled back to 1: the orphan-reservation job releases the reservation attempt the failed checkout
+# left behind, on the bidirectional ReleaseReservations stream
+2026-11-05T20:00:40.942958214Z INFO OrphanReservationJob: Released the reservation of order 938ea0f2-5720-43ee-964a-1f2e959cfe08, which was never stored

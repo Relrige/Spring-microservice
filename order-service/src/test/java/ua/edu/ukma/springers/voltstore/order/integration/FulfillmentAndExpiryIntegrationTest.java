@@ -5,6 +5,7 @@ import com.github.tomakehurst.wiremock.client.WireMock;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import io.grpc.Status;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,7 @@ import ua.edu.ukma.springers.voltstore.order.entities.OrderEntity;
 import ua.edu.ukma.springers.voltstore.order.entities.OrderItemEntity;
 import ua.edu.ukma.springers.voltstore.order.jobs.PaymentWindowExpiryJob;
 import ua.edu.ukma.springers.voltstore.order.repositories.OrderRepository;
+import ua.edu.ukma.springers.voltstore.order.support.FakeInventory;
 import ua.edu.ukma.springers.voltstore.order.support.TopicProbe;
 import ua.edu.ukma.springers.voltstore.order.support.TrustedHeaders;
 
@@ -66,13 +68,15 @@ class FulfillmentAndExpiryIntegrationTest {
 
     static final WireMockServer wireMock = new WireMockServer(wireMockConfig().dynamicPort());
 
+    static final FakeInventory inventory = new FakeInventory().startOnPort(0);
+
     static {
         wireMock.start();
     }
 
     @DynamicPropertySource
     static void clients(DynamicPropertyRegistry registry) {
-        registry.add("clients.inventory.url", wireMock::baseUrl);
+        registry.add("spring.grpc.client.channel.inventory.target", () -> "localhost:" + inventory.port());
         registry.add("clients.delivery.url", wireMock::baseUrl);
         registry.add("resilience4j.retry.configs.default.waitDuration", () -> "10ms");
         registry.add("resilience4j.retry.configs.default.enableRandomizedWait", () -> "false");
@@ -83,6 +87,7 @@ class FulfillmentAndExpiryIntegrationTest {
     @AfterAll
     static void stopWireMock() {
         wireMock.stop();
+        inventory.stop();
     }
 
     @Autowired
@@ -198,8 +203,7 @@ class FulfillmentAndExpiryIntegrationTest {
 
     @Test
     void expiry_releasesAndExpiresOnlyOrdersPastWindowAndGrace_andPublishesOrderCancelled() {
-        wireMock.stubFor(WireMock.post(WireMock.urlMatching("/inventory/reservations/.+/release"))
-                .willReturn(noContent()));
+        inventory.reset();
         Instant now = Instant.now();
         // Window ended 1 minute ago (past the 30 s grace), 10 seconds ago (inside it), and still open
         UUID expired = repository.saveAndFlush(order(now.minus(Duration.ofMinutes(16)))).getId();
@@ -212,8 +216,8 @@ class FulfillmentAndExpiryIntegrationTest {
             assertThat(statusOf(expired)).isEqualTo("EXPIRED");
             assertThat(statusOf(inGrace)).isEqualTo("PENDING_PAYMENT");
             assertThat(statusOf(open)).isEqualTo("PENDING_PAYMENT");
-            wireMock.verify(1, postRequestedFor(urlEqualTo("/inventory/reservations/" + expired + "/release")));
-            wireMock.verify(1, postRequestedFor(WireMock.urlMatching("/inventory/reservations/.+/release")));
+            // Released on the job's bidirectional stream, only the expired order
+            assertThat(inventory.batchReleased()).containsExactly(expired);
 
             ConsumerRecord<String, String> record = await().atMost(Duration.ofSeconds(20))
                     .until(probe::poll, received -> !received.isEmpty()).getFirst();
@@ -225,14 +229,14 @@ class FulfillmentAndExpiryIntegrationTest {
     @Test
     void expiry_withInventoryDown_keepsTheOrder_andTheNextRunFinishesIt() {
         UUID expired = repository.saveAndFlush(order(Instant.now().minus(Duration.ofMinutes(16)))).getId();
-        wireMock.stubFor(WireMock.post(WireMock.urlMatching("/inventory/reservations/.+/release"))
-                .willReturn(serviceUnavailable()));
+        inventory.reset();
+        inventory.failAlways(FakeInventory.RELEASE_ALL, Status.Code.UNAVAILABLE);
 
         expiryJob.expireDueOrders();
         assertThat(statusOf(expired)).isEqualTo("PENDING_PAYMENT");
+        assertThat(inventory.attempts(FakeInventory.RELEASE_ALL)).isEqualTo(4);
 
-        wireMock.stubFor(WireMock.post(WireMock.urlMatching("/inventory/reservations/.+/release"))
-                .willReturn(noContent()));
+        inventory.reset();
         circuitBreakers.getAllCircuitBreakers().forEach(CircuitBreaker::reset);
         expiryJob.expireDueOrders();
         assertThat(statusOf(expired)).isEqualTo("EXPIRED");

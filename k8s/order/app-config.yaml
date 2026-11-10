@@ -8,7 +8,8 @@ data:
   SPRING_DATASOURCE_URL: "jdbc:postgresql://order-service-postgres:5432/order-service"
   # The services Order calls (Kubernetes Service ports); INTERNAL_TOKEN comes from the order-secrets Secret
   CATALOG_SERVICE_URL: "http://catalog-service:8081"
-  INVENTORY_SERVICE_URL: "http://inventory-service:8084"
+  # Inventory over gRPC (task grpc-order-inventory): the Service port of its StockService
+  INVENTORY_GRPC_TARGET: "inventory-service:9090"
   PAYMENT_SERVICE_URL: "http://payment-service:8085"
   DELIVERY_SERVICE_URL: "http://delivery-service:8083"
   # At least 6s: Payment's own worst case is about 4.5 s

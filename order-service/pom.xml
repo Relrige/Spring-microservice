@@ -59,6 +59,19 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!-- gRPC: the client of Inventory's StockService (task grpc-order-inventory); classes generated from src/main/protobuf -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-grpc-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-protobuf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-stub</artifactId>
+        </dependency>
         <!-- OpenAPI documents (docs/design/services-requirements/openapi-conventions.md); off at runtime unless enabled -->
         <dependency>
             <groupId>org.springdoc</groupId>
@@ -180,6 +193,11 @@
 
 	<build>
 		<plugins>
+			<!-- Generates the protobuf messages and gRPC stubs; configured by spring-boot-starter-parent -->
+			<plugin>
+				<groupId>io.github.ascopes</groupId>
+				<artifactId>protobuf-maven-plugin</artifactId>
+			</plugin>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>

@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -86,7 +87,7 @@ class RecoveryJobsTest {
 
         orphanJob().releaseOrphanReservations();
 
-        verify(stock).release(orderId);
+        verify(stock).releaseAll(List.of(orderId));
         verify(attempts).deleteById(orderId);
     }
 
@@ -97,7 +98,7 @@ class RecoveryJobsTest {
 
         orphanJob().releaseOrphanReservations();
 
-        verify(stock, never()).release(any());
+        verify(stock, never()).releaseAll(any());
         verify(attempts).deleteById(orderId);
     }
 
@@ -105,13 +106,31 @@ class RecoveryJobsTest {
     void aFailedRelease_keepsTheAttempt_andCountsTheFailure() {
         UUID orderId = givenAttempt();
         ReservationAttempt attempt = attempts.findById(orderId).orElseThrow();
-        doThrow(new DependencyUnavailableException("Inventory", "down", null)).when(stock).release(orderId);
+        doThrow(new DependencyUnavailableException("Inventory", "down", null)).when(stock).releaseAll(List.of(orderId));
 
         orphanJob().releaseOrphanReservations();
 
         verify(attempts, never()).deleteById(any());
         assertThat(attempt.getReleaseAttempts()).isEqualTo(1);
         assertThat(attempt.getLastError()).contains("Inventory");
+    }
+
+    @Test
+    void anOrderInventoryCouldNotRelease_keepsItsAttempt_whileTheRestOfTheBatchIsDeleted() {
+        UUID failing = UUID.randomUUID();
+        UUID released = UUID.randomUUID();
+        ReservationAttempt failingAttempt = new ReservationAttempt(failing, NOW.minusSeconds(600));
+        when(attempts.findByCreatedAtLessThanEqualOrderByCreatedAtAsc(any(), any())).thenReturn(List.of(
+                failingAttempt, new ReservationAttempt(released, NOW.minusSeconds(300))));
+        when(attempts.findById(failing)).thenReturn(Optional.of(failingAttempt));
+        when(stock.releaseAll(List.of(failing, released))).thenReturn(Map.of(failing, "database unavailable"));
+
+        orphanJob().releaseOrphanReservations();
+
+        verify(attempts).deleteById(released);
+        verify(attempts, never()).deleteById(failing);
+        assertThat(failingAttempt.getReleaseAttempts()).isEqualTo(1);
+        assertThat(failingAttempt.getLastError()).isEqualTo("database unavailable");
     }
 
     @Test
@@ -125,7 +144,7 @@ class RecoveryJobsTest {
 
         orphanJob().releaseOrphanReservations();
 
-        verify(stock).release(next);
+        verify(stock).releaseAll(List.of(next));
     }
 
     // ---- PendingRefundJob ----

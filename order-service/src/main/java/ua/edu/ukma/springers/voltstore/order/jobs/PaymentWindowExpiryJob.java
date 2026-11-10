@@ -17,6 +17,8 @@ import ua.edu.ukma.springers.voltstore.order.repositories.OrderRepository;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -62,23 +64,36 @@ public class PaymentWindowExpiryJob {
     public void expireDueOrders() {
         Instant now = clock.instant();
         Instant expiredBefore = now.minus(properties.grace());
-        for (OrderEntity order : orders.findExpired(expiredBefore, Limit.of(properties.batchSize()))) {
+        List<UUID> due = orders.findExpired(expiredBefore, Limit.of(properties.batchSize())).stream()
+                .map(OrderEntity::getId).toList();
+        if (due.isEmpty()) {
+            return;
+        }
+        // Release first, the whole batch on one gRPC stream (bidirectional); a failure is reported per order
+        Map<UUID, String> failed;
+        try {
+            failed = stock.releaseAll(due);
+        } catch (RuntimeException e) {
+            log.warn("Could not release the reservations of {} expired orders ({}); trying again in the next run",
+                    due.size(), e.getMessage());
+            return;
+        }
+        for (UUID orderId : due) {
+            if (failed.containsKey(orderId)) {
+                log.warn("Could not release the reservation of expired order {} ({}); trying again in the next run",
+                        orderId, failed.get(orderId));
+                continue;
+            }
             try {
-                expire(order.getId(), expiredBefore, now);
+                expire(orderId, expiredBefore, now);
             } catch (RuntimeException e) {
-                log.error("Expiring order {} failed unexpectedly; trying again in the next run", order.getId(), e);
+                log.error("Expiring order {} failed unexpectedly; trying again in the next run", orderId, e);
             }
         }
     }
 
+    /** The status change after the order's stock was released. */
     private void expire(UUID orderId, Instant expiredBefore, Instant now) {
-        try {
-            stock.release(orderId);
-        } catch (RuntimeException e) {
-            log.warn("Could not release the reservation of expired order {} ({}); trying again in the next run",
-                    orderId, e.getMessage());
-            return;
-        }
         try {
             transactions.executeWithoutResult(tx -> {
                 OrderEntity order = orders.findById(orderId).orElse(null);

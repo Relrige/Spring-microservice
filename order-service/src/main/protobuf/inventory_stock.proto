@@ -1,0 +1,88 @@
+// Inventory's stock and reservation API over gRPC (docs/tasks/infrastructure/grpc-order-inventory.md).
+// Owned by Inventory; Order keeps an identical copy (checked by a test in Order). Served on port 9090; every call
+// carries the shared secret as metadata "x-internal-token".
+//
+// Errors are gRPC statuses: INVALID_ARGUMENT for a malformed request, UNAUTHENTICATED for a missing or wrong token,
+// UNAVAILABLE when Inventory cannot answer right now (the client retries it), INTERNAL for anything else.
+syntax = "proto3";
+
+package voltstore.inventory.v1;
+
+option java_multiple_files = true;
+option java_package = "ua.edu.ukma.springers.voltstore.inventory.grpc.v1";
+option java_outer_classname = "InventoryStockProto";
+
+service StockService {
+  // Unary. Returns an order's reserved stock to available. Idempotent: an order without an active reservation
+  // (never reserved, already released or shipped) is answered the same way (EP-INV-07).
+  rpc ReleaseReservation(ReleaseReservationRequest) returns (ReleaseReservationResponse);
+
+  // Client streaming. One message per item of one order; when the client completes the stream, Inventory
+  // reserves every item or nothing and answers once (EP-INV-06). All messages carry the same order id; at most
+  // 100 items, each product once, quantity at least 1.
+  rpc ReserveStock(stream ReserveItem) returns (ReserveStockResponse);
+
+  // Server streaming. One StockLevel per requested product, in the order requested; a product Inventory does not
+  // know is answered with known = false and available = 0. At most 100 product ids.
+  rpc GetStockLevels(GetStockLevelsRequest) returns (stream StockLevel);
+
+  // Bidirectional streaming. A batch of releases on one stream: Inventory releases each order as its request
+  // arrives and answers with its result right away, in the same order. A failure of one order is reported in its
+  // result and does not end the stream.
+  rpc ReleaseReservations(stream ReleaseReservationRequest) returns (stream ReleaseResult);
+}
+
+message ReleaseReservationRequest {
+  // UUID of the order
+  string order_id = 1;
+}
+
+message ReleaseReservationResponse {
+}
+
+message ReserveItem {
+  // UUID of the order; the same in every message of the stream
+  string order_id = 1;
+  // UUID of the product
+  string product_id = 2;
+  int32 quantity = 3;
+}
+
+message ReserveStockResponse {
+  enum Outcome {
+    OUTCOME_UNSPECIFIED = 0;
+    // Every item is held now
+    RESERVED = 1;
+    // The order already held a reservation (an earlier attempt succeeded); nothing changed
+    ALREADY_RESERVED = 2;
+    // At least one item is short; nothing was reserved, every short item is listed
+    INSUFFICIENT_STOCK = 3;
+  }
+  Outcome outcome = 1;
+  repeated InsufficientItem insufficient_items = 2;
+}
+
+message InsufficientItem {
+  string product_id = 1;
+  int32 requested = 2;
+  int32 available = 3;
+}
+
+message GetStockLevelsRequest {
+  repeated string product_ids = 1;
+}
+
+message StockLevel {
+  string product_id = 1;
+  // Whether Inventory has a stock item for the product
+  bool known = 2;
+  int32 available = 3;
+}
+
+message ReleaseResult {
+  string order_id = 1;
+  // True when the release is done (also when there was nothing to release)
+  bool released = 2;
+  // Why the release failed; empty when released
+  string error = 3;
+}

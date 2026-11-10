@@ -4,6 +4,7 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import io.grpc.Status;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,8 @@ import ua.edu.ukma.springers.voltstore.order.dto.PlaceOrderRequest;
 import ua.edu.ukma.springers.voltstore.order.jobs.IdempotencyKeyPurgeJob;
 import ua.edu.ukma.springers.voltstore.order.jobs.OrphanReservationJob;
 import ua.edu.ukma.springers.voltstore.order.services.IdempotencyKeys;
+import ua.edu.ukma.springers.voltstore.inventory.grpc.v1.ReserveItem;
+import ua.edu.ukma.springers.voltstore.order.support.FakeInventory;
 import ua.edu.ukma.springers.voltstore.order.support.TopicProbe;
 import ua.edu.ukma.springers.voltstore.order.support.TrustedHeaders;
 
@@ -41,20 +44,15 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
-import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
-import static com.github.tomakehurst.wiremock.client.WireMock.equalToJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
-import static com.github.tomakehurst.wiremock.client.WireMock.noContent;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
-import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.serviceUnavailable;
-import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
-import static com.github.tomakehurst.wiremock.client.WireMock.urlMatching;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -62,15 +60,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Tasks 07 and 08 end to end: the real security chain, controllers and services, PostgreSQL and Kafka in
- * Testcontainers, and WireMock in place of Catalog and Inventory.
+ * Testcontainers, WireMock in place of Catalog and {@link FakeInventory} (gRPC) in place of Inventory.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import({TestcontainersConfiguration.class, KafkaTestContainerConfig.class})
 class CheckoutIntegrationTest {
     private static final String CATALOG = "/catalog/products/batch-get";
-    private static final String RESERVE = "/inventory/reservations";
-    private static final String RELEASE = "/inventory/reservations/[0-9a-f-]+/release";
     private static final UUID PHONE = UUID.randomUUID();
     private static final UUID CASE = UUID.randomUUID();
     private static final UUID CUSTOMER = UUID.randomUUID();
@@ -80,6 +76,8 @@ class CheckoutIntegrationTest {
 
     static final WireMockServer wireMock = new WireMockServer(wireMockConfig().dynamicPort());
 
+    static final FakeInventory inventory = new FakeInventory().startOnPort(0);
+
     static {
         wireMock.start();
     }
@@ -87,7 +85,7 @@ class CheckoutIntegrationTest {
     @DynamicPropertySource
     static void clients(DynamicPropertyRegistry registry) {
         registry.add("clients.catalog.url", wireMock::baseUrl);
-        registry.add("clients.inventory.url", wireMock::baseUrl);
+        registry.add("spring.grpc.client.channel.inventory.target", () -> "localhost:" + inventory.port());
         registry.add("resilience4j.retry.configs.default.waitDuration", () -> "10ms");
         registry.add("resilience4j.retry.configs.default.enableRandomizedWait", () -> "false");
     }
@@ -95,6 +93,7 @@ class CheckoutIntegrationTest {
     @AfterAll
     static void stopWireMock() {
         wireMock.stop();
+        inventory.stop();
     }
 
     @Autowired
@@ -124,6 +123,7 @@ class CheckoutIntegrationTest {
     @BeforeEach
     void setUp() {
         wireMock.resetAll();
+        inventory.reset();
         // Failures of one test must not open a breaker for the next
         circuitBreakers.getAllCircuitBreakers().forEach(CircuitBreaker::reset);
         jdbc.update("DELETE FROM order_items");
@@ -138,6 +138,7 @@ class CheckoutIntegrationTest {
     @Test
     void validate_activeAndInStock_is204() throws Exception {
         catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
+        inventory.stock(PHONE, 10);
 
         validate().andExpect(status().isNoContent());
     }
@@ -153,6 +154,28 @@ class CheckoutIntegrationTest {
     }
 
     @Test
+    void validate_moreThanInventoryHas_is422_asInsufficientStock() throws Exception {
+        // Catalog still says IN_STOCK; Inventory's quantity (gRPC GetStockLevels) is lower than the cart's
+        catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
+        inventory.stock(PHONE, 0);
+
+        validate()
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.ineligibleItems[0].productId").value(PHONE.toString()))
+                .andExpect(jsonPath("$.ineligibleItems[0].reason").value("INSUFFICIENT_STOCK"));
+        assertThat(inventory.attempts(FakeInventory.LEVELS)).isEqualTo(1);
+    }
+
+    @Test
+    void validate_inventoryDown_stillAnswersFromCatalog() throws Exception {
+        catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
+        inventory.failAlways(FakeInventory.LEVELS, Status.Code.UNAVAILABLE);
+
+        validate().andExpect(status().isNoContent());
+        assertThat(inventory.attempts(FakeInventory.LEVELS)).isEqualTo(4);
+    }
+
+    @Test
     void validate_catalogDown_is503() throws Exception {
         wireMock.stubFor(get(urlPathEqualTo(CATALOG)).willReturn(serviceUnavailable()));
 
@@ -165,7 +188,6 @@ class CheckoutIntegrationTest {
     void place_storesTheOrderWithCatalogsPrices_andPublishesOrderPlaced() throws Exception {
         catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"),
                 product(CASE, "Case", "499.00", "ACTIVE", "IN_STOCK"));
-        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(noContent()));
 
         try (TopicProbe probe = new TopicProbe(kafka.getBootstrapServers(), topic)) {
             // Prices, a total, a customer and an email in the body are ignored
@@ -195,10 +217,11 @@ class CheckoutIntegrationTest {
             assertThat(items).extracting(row -> ((BigDecimal) row.get("unit_price_at_order")).toPlainString())
                     .containsExactly("499.00", "19999.50");
 
-            // Inventory was asked to reserve under the same order ID
-            wireMock.verify(postRequestedFor(urlEqualTo(RESERVE)).withRequestBody(equalToJson("""
-                    {"orderId":"%s","items":[{"productId":"%s","quantity":2},{"productId":"%s","quantity":1}]}
-                    """.formatted(orderId, PHONE, CASE))));
+            // Inventory was asked to reserve under the same order ID, the items streamed one by one
+            assertThat(inventory.reserveCalls()).singleElement().satisfies(streamed -> assertThat(streamed)
+                    .extracting(ReserveItem::getOrderId, ReserveItem::getProductId, ReserveItem::getQuantity)
+                    .containsExactly(tuple(orderId.toString(), PHONE.toString(), 2),
+                            tuple(orderId.toString(), CASE.toString(), 1)));
 
             // The relay may still publish an earlier test's events after the probe started; pick this order's
             List<ConsumerRecord<String, String>> records = await().atMost(Duration.ofSeconds(20))
@@ -219,10 +242,7 @@ class CheckoutIntegrationTest {
     @Test
     void place_insufficientStock_is422_andStoresNothing() throws Exception {
         catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
-        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(aResponse().withStatus(422)
-                .withHeader("Content-Type", "application/problem+json").withBody("""
-                        {"status":422,"insufficientItems":[{"productId":"%s","requested":2,"available":1}]}
-                        """.formatted(PHONE))));
+        inventory.answerReserveInsufficient(PHONE, 2, 1);
 
         place(placeBody())
                 .andExpect(status().isUnprocessableContent())
@@ -240,19 +260,20 @@ class CheckoutIntegrationTest {
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.ineligibleItems[0].reason").value("NOT_ACTIVE"));
 
-        wireMock.verify(0, postRequestedFor(urlEqualTo(RESERVE)));
+        assertThat(inventory.attempts(FakeInventory.RESERVE)).isZero();
         assertThat(count("orders")).isZero();
     }
 
     @Test
     void place_inventoryDown_is503_releasesTheReservation_andStoresNothing() throws Exception {
         catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
-        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(serviceUnavailable()));
-        wireMock.stubFor(post(urlMatching(RELEASE)).willReturn(noContent()));
+        inventory.failAlways(FakeInventory.RESERVE, Status.Code.UNAVAILABLE);
 
         place(placeBody()).andExpect(status().isServiceUnavailable());
 
-        wireMock.verify(postRequestedFor(urlMatching(RELEASE)));
+        // Four attempts (the channel's retry policy), then the clean-up release
+        assertThat(inventory.attempts(FakeInventory.RESERVE)).isEqualTo(4);
+        assertThat(inventory.released()).hasSize(1);
         assertThat(count("orders")).isZero();
         assertThat(count("outbox_events")).isZero();
         // The attempt stays, in case Inventory reserves after the release
@@ -264,22 +285,22 @@ class CheckoutIntegrationTest {
         // Inventory reserves, but its answer never reaches Order (the call times out on every attempt), and the
         // immediate release fails too: before the fix the stock stayed reserved forever
         catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
-        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(serviceUnavailable()));
-        wireMock.stubFor(post(urlMatching(RELEASE)).willReturn(serviceUnavailable()));
+        inventory.failAlways(FakeInventory.RESERVE, Status.Code.UNAVAILABLE);
+        inventory.failAlways(FakeInventory.RELEASE, Status.Code.UNAVAILABLE);
         place(placeBody()).andExpect(status().isServiceUnavailable());
         circuitBreakers.getAllCircuitBreakers().forEach(CircuitBreaker::reset);
-        wireMock.resetRequests();
-        wireMock.stubFor(post(urlMatching(RELEASE)).willReturn(noContent()));
+        inventory.reset();
 
         // Too young: a late reservation could still arrive, so the job leaves it alone
         orphanReservationJob.releaseOrphanReservations();
-        wireMock.verify(0, postRequestedFor(urlMatching(RELEASE)));
+        assertThat(inventory.batchReleased()).isEmpty();
 
         jdbc.update("UPDATE reservation_attempts SET created_at = ?",
                 java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofMinutes(3))));
         orphanReservationJob.releaseOrphanReservations();
 
-        wireMock.verify(1, postRequestedFor(urlMatching(RELEASE)));
+        // Released on the job's bidirectional stream
+        assertThat(inventory.batchReleased()).hasSize(1);
         assertThat(count("reservation_attempts")).isZero();
     }
 
@@ -288,7 +309,6 @@ class CheckoutIntegrationTest {
     @Test
     void aRepeatWithTheSameKey_returnsTheFirstOrder_andReservesOnce() throws Exception {
         catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
-        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(noContent()));
         UUID key = UUID.randomUUID();
 
         String first = placeWithKey(CUSTOMER, key, placeBody())
@@ -303,7 +323,7 @@ class CheckoutIntegrationTest {
         UUID orderId = orderId(first);
         assertThat(orderId(second)).isEqualTo(orderId);
         assertThat(count("orders")).isEqualTo(1);
-        wireMock.verify(1, postRequestedFor(urlEqualTo(RESERVE)));
+        assertThat(inventory.reserveCalls()).hasSize(1);
         wireMock.verify(1, getRequestedFor(urlPathEqualTo(CATALOG)));
         assertThat(jdbc.queryForMap("SELECT status, order_id FROM idempotency_keys"))
                 .containsEntry("status", "COMPLETED").containsEntry("order_id", orderId);
@@ -313,7 +333,7 @@ class CheckoutIntegrationTest {
     void twoConcurrentRequestsWithTheSameKey_placeOneOrder() throws Exception {
         catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
         // Slow enough that the second request arrives while the first one is still reserving
-        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(noContent().withFixedDelay(1500)));
+        inventory.delayReserve(Duration.ofMillis(1500));
         UUID key = UUID.randomUUID();
 
         List<CompletableFuture<MockHttpServletResponse>> calls =
@@ -332,13 +352,12 @@ class CheckoutIntegrationTest {
         assertThat(answers).filteredOn(answer -> answer.getStatus() == 409)
                 .allSatisfy(answer -> assertThat(answer.getHeader("Retry-After")).isEqualTo("1"));
         assertThat(count("orders")).isEqualTo(1);
-        wireMock.verify(1, postRequestedFor(urlEqualTo(RESERVE)));
+        assertThat(inventory.reserveCalls()).hasSize(1);
     }
 
     @Test
     void theSameKeyWithAnotherBody_is422_andPlacesNothingMore() throws Exception {
         catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
-        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(noContent()));
         UUID key = UUID.randomUUID();
         placeWithKey(CUSTOMER, key, placeBody()).andExpect(status().isCreated());
 
@@ -349,20 +368,19 @@ class CheckoutIntegrationTest {
                 .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/idempotency-key-mismatch"));
 
         assertThat(count("orders")).isEqualTo(1);
-        wireMock.verify(1, postRequestedFor(urlEqualTo(RESERVE)));
+        assertThat(inventory.reserveCalls()).hasSize(1);
     }
 
     @Test
     void aFailedRequest_releasesTheKey_soARetryWithItPlacesTheOrder() throws Exception {
         catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
-        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(serviceUnavailable()));
-        wireMock.stubFor(post(urlMatching(RELEASE)).willReturn(noContent()));
+        inventory.failAlways(FakeInventory.RESERVE, Status.Code.UNAVAILABLE);
         UUID key = UUID.randomUUID();
         placeWithKey(CUSTOMER, key, placeBody()).andExpect(status().isServiceUnavailable());
         assertThat(count("idempotency_keys")).isZero();
 
         circuitBreakers.getAllCircuitBreakers().forEach(CircuitBreaker::reset);
-        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(noContent()));
+        inventory.reset();
         placeWithKey(CUSTOMER, key, placeBody())
                 .andExpect(status().isCreated())
                 .andExpect(header().doesNotExist("Idempotent-Replayed"));
@@ -373,7 +391,6 @@ class CheckoutIntegrationTest {
     @Test
     void theSameKeyFromTwoCustomers_placesTwoOrders() throws Exception {
         catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
-        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(noContent()));
         UUID key = UUID.randomUUID();
 
         String first = placeWithKey(CUSTOMER, key, placeBody()).andExpect(status().isCreated())
@@ -390,7 +407,6 @@ class CheckoutIntegrationTest {
     @Test
     void aReplayAfterPayment_showsTheCurrentStatus() throws Exception {
         catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
-        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(noContent()));
         UUID key = UUID.randomUUID();
         UUID orderId = orderId(placeWithKey(CUSTOMER, key, placeBody()).andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString());
@@ -409,7 +425,6 @@ class CheckoutIntegrationTest {
     @Test
     void aStrandedClaim_blocksItsKey_untilThePurgeJobRemovesIt() throws Exception {
         catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
-        wireMock.stubFor(post(urlEqualTo(RESERVE)).willReturn(noContent()));
         UUID key = UUID.randomUUID();
         // Left by an instance that died mid-request, with this request's hash, older than the settle time
         jdbc.update("INSERT INTO idempotency_keys (customer_id, idempotency_key, request_hash, status, created_at) "
@@ -420,7 +435,7 @@ class CheckoutIntegrationTest {
         placeWithKey(CUSTOMER, key, placeBody())
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("https://voltstore.com/errors/request-in-progress"));
-        wireMock.verify(0, postRequestedFor(urlEqualTo(RESERVE)));
+        assertThat(inventory.attempts(FakeInventory.RESERVE)).isZero();
 
         idempotencyKeyPurgeJob.purge();
 

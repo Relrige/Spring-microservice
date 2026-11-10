@@ -75,7 +75,7 @@ class PaymentWindowExpiryJobTest {
 
         job(clients(Duration.ofSeconds(8))).expireDueOrders();
 
-        verify(stock).release(order.getId());
+        verify(stock).releaseAll(List.of(order.getId()));
         assertThat(order.getStatus()).isEqualTo(OrderStatus.EXPIRED);
         verify(orders).saveAndFlush(order);
         ArgumentCaptor<OrderCancelledEvent> event = ArgumentCaptor.forClass(OrderCancelledEvent.class);
@@ -86,7 +86,7 @@ class PaymentWindowExpiryJobTest {
     @Test
     void aFailedRelease_keepsTheOrderPendingForTheNextRun() {
         OrderEntity order = stored(expiredOrder());
-        doThrow(new DependencyUnavailableException("Inventory", "down", null)).when(stock).release(any());
+        doThrow(new DependencyUnavailableException("Inventory", "down", null)).when(stock).releaseAll(any());
 
         job(clients(Duration.ofSeconds(8))).expireDueOrders();
 
@@ -120,7 +120,7 @@ class PaymentWindowExpiryJobTest {
         job(clients(Duration.ofSeconds(8))).expireDueOrders();
 
         assertThat(next.getStatus()).isEqualTo(OrderStatus.EXPIRED);
-        verify(stock).release(eq(next.getId()));
+        verify(stock).releaseAll(List.of(broken.getId(), next.getId()));
     }
 
     private OrderEntity stored(OrderEntity order) {
@@ -137,7 +137,7 @@ class PaymentWindowExpiryJobTest {
     private static ClientsProperties clients(Duration paymentReadTimeout) {
         ClientsProperties.Endpoint any = new ClientsProperties.Endpoint("http://localhost", Duration.ofSeconds(2),
                 Duration.ofSeconds(3));
-        return new ClientsProperties(any, any, new ClientsProperties.Endpoint("http://localhost",
+        return new ClientsProperties(any, new ClientsProperties.Endpoint("http://localhost",
                 Duration.ofSeconds(2), paymentReadTimeout), any);
     }
 

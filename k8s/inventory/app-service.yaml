@@ -11,3 +11,7 @@ spec:
     - name: http
       port: 8084
       targetPort: 8080
+    # gRPC StockService for Order (task grpc-order-inventory)
+    - name: grpc
+      port: 9090
+      targetPort: 9090

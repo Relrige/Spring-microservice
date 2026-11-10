@@ -22,8 +22,11 @@ import ua.edu.ukma.springers.voltstore.inventory.idempotency.ProcessedEvents;
 import ua.edu.ukma.springers.voltstore.inventory.repositories.StockItemRepository;
 import ua.edu.ukma.springers.voltstore.inventory.specifications.StockItemSpecifications;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -134,6 +137,16 @@ public class StockService {
     public StockItemEntity getStockItem(UUID productId) {
         return stockItemRepository.findById(productId)
                 .orElseThrow(() -> new StockItemNotFoundException(productId));
+    }
+
+    /**
+     * Available quantity per product for Order's checkout check (gRPC GetStockLevels); a product without a StockItem
+     * is left out of the map.
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, Integer> availableQuantities(Collection<UUID> productIds) {
+        return stockItemRepository.findAllById(productIds).stream()
+                .collect(Collectors.toMap(StockItemEntity::getProductId, StockItemEntity::getAvailableQuantity));
     }
 
     /**

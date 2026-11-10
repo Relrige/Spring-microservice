@@ -249,6 +249,8 @@ services:
         condition: service_healthy
     ports:
       - "8084:8080"
+      # gRPC StockService (task grpc-order-inventory); Order reaches it as inventory-service:9090
+      - "9090:9090"
     env_file:
       - inventory-service/.env
     environment:
