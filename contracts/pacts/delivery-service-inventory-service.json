@@ -1,0 +1,209 @@
+{
+  "consumer": {
+    "name": "delivery-service"
+  },
+  "interactions": [
+    {
+      "comments": {
+        "testname": "ua.edu.ukma.springers.voltstore.delivery.clients.InventoryPackagingPactTest.completePackaging_isReadIntoItemPackaging(MockServer)",
+        "text": [
+
+        ]
+      },
+      "description": "a packaging request for a product with complete packaging",
+      "key": "18f26dfc",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a stock item with complete packaging exists"
+        }
+      ],
+      "request": {
+        "headers": {
+          "X-Internal-Token": [
+            "pact-consumer-token"
+          ]
+        },
+        "matchingRules": {
+          "header": {
+            "X-Internal-Token": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": ".+"
+                }
+              ]
+            }
+          }
+        },
+        "method": "GET",
+        "path": "/inventory/stock/6f1c2a4e-0000-4000-8000-000000000001/packaging"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "grossWeightGrams": 180,
+            "heightCm": 6,
+            "lengthCm": 22,
+            "widthCm": 12
+          },
+          "contentType": "application/json; charset=UTF-8",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json; charset=UTF-8"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.grossWeightGrams": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.heightCm": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.lengthCm": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.widthCm": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            }
+          },
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "application/json(;\\s?charset=[\\w\\-]+)?"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "transport": "http",
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "comments": {
+        "testname": "ua.edu.ukma.springers.voltstore.delivery.clients.InventoryPackagingPactTest.missingPackaging_isNotRetryable(MockServer)",
+        "text": [
+
+        ]
+      },
+      "description": "a packaging request for a product whose packaging is not configured",
+      "key": "dea0d69b",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a stock item without packaging exists"
+        }
+      ],
+      "request": {
+        "headers": {
+          "X-Internal-Token": [
+            "pact-consumer-token"
+          ]
+        },
+        "matchingRules": {
+          "header": {
+            "X-Internal-Token": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": ".+"
+                }
+              ]
+            }
+          }
+        },
+        "method": "GET",
+        "path": "/inventory/stock/6f1c2a4e-0000-4000-8000-000000000003/packaging"
+      },
+      "response": {
+        "status": 422
+      },
+      "transport": "http",
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "comments": {
+        "testname": "ua.edu.ukma.springers.voltstore.delivery.clients.InventoryPackagingPactTest.noStockItem_isNotRetryable(MockServer)",
+        "text": [
+
+        ]
+      },
+      "description": "a packaging request for a product without a stock item",
+      "key": "74e0d748",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "no stock item exists"
+        }
+      ],
+      "request": {
+        "headers": {
+          "X-Internal-Token": [
+            "pact-consumer-token"
+          ]
+        },
+        "matchingRules": {
+          "header": {
+            "X-Internal-Token": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": ".+"
+                }
+              ]
+            }
+          }
+        },
+        "method": "GET",
+        "path": "/inventory/stock/6f1c2a4e-0000-4000-8000-000000000002/packaging"
+      },
+      "response": {
+        "status": 404
+      },
+      "transport": "http",
+      "type": "Synchronous/HTTP"
+    }
+  ],
+  "metadata": {
+    "pact-jvm": {
+      "version": "4.7.7"
+    },
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "inventory-service"
+  }
+}

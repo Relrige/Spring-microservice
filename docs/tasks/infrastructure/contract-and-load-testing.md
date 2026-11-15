@@ -1,5 +1,5 @@
 ---
-status: TODO
+status: IN_PROGRESS
 service: infrastructure
 ---
 # Contract Test Delivery → Inventory (Pact) and Three k6 Load Scenarios
@@ -132,3 +132,14 @@ No API changes. The contract under test is the existing EP-INV-05.
 - **Running k6 on Windows.** Run it with Docker Desktop: `docker run --rm -v "<repo>/load-tests:/scripts" -v "<repo>/docs/reports/contract-load-testing:/out" grafana/k6:<tag> run ...`. The README gives the exact command, and `host.docker.internal` reaches the Gateway published on the host's port 8080.
 - **Secrets.** The administrator password and the internal token never go into scripts, logs, the pact or the report.
 - **Before S1–S3,** stop anything else heavy on the machine, and run each scenario once for real after a short warm-up run (JIT, connection pools).
+
+## Implementation Notes (2026-11-15)
+
+### Contract test
+- **Spike outcome:** Pact JVM **4.7.7** works with Spring Boot 4.1.1 (Spring 7, Jackson 3) on both sides, so the planned modules stay: `au.com.dius.pact.consumer:junit5` in Delivery and `au.com.dius.pact.provider:junit5spring` (with `PactVerificationSpringProvider`) in Inventory, both test scope. The fallback to plain `provider:junit5` was not needed.
+- **Consumer:** `delivery-service/src/test/.../clients/InventoryPackagingPactTest` has three `@Pact` methods (one per provider state) and three tests. Each builds the production `InventoryClient` with `ClientsConfiguration.createInventoryClient(...)` against Pact's mock server, calls `InventoryPackagingProvider` and asserts its result: packaging values for `200`; `stock_item_not_found:{id}` and `packaging_data_missing:{id}`, both not retryable, for `404` and `422`. The request requires `X-Internal-Token` by regex `.+`; the example value is the dummy `pact-consumer-token`.
+- **Pact file:** Delivery's surefire sets `pact.rootDir=${project.basedir}/../contracts/pacts` and `pact.writer.overwrite=true`, so every run rewrites `contracts/pacts/delivery-service-inventory-service.json` from scratch (by default Pact merges into an existing file, and an interaction removed from the test would stay in the pact). The file is committed.
+- **Provider:** `inventory-service/src/test/.../contract/PackagingPactProviderTest` runs the whole application (`RANDOM_PORT`, Testcontainers PostgreSQL and Kafka, `CatalogKnowsEveryProduct` so stock items can be created without Catalog). `@BeforeEach` sets an `HttpTestTarget` on the random port and clears `stock_items`; the three `@State` methods seed through `StockService` (`setPackaging` for the complete item, `adjustStock` for the item without packaging, nothing for the unknown one). The `@TestTemplate` overwrites `X-Internal-Token` with the test configuration's token before `verifyInteraction()`. Inventory's surefire sets `pact.verifier.publishResults=false`.
+- Both modules set `pact_do_not_track=true`, which turns off Pact's anonymous usage statistics.
+- **Verified:** both tests green; output in `docs/reports/contract-load-testing/contract-pass.log`.
+

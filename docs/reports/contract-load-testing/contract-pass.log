@@ -1,0 +1,68 @@
+# Baseline, consumer side: Delivery's InventoryPackagingPactTest writes contracts/pacts/delivery-service-inventory-service.json
+# Command: cd delivery-service && mvnw.cmd test -Dtest=InventoryPackagingPactTest
+# Trimmed: application JSON log lines, Spring/JVM startup lines, Maven download lines,
+# framework stack frames and the Maven help footer are removed; local paths are shortened.
+
+[INFO] Running ua.edu.ukma.springers.voltstore.delivery.clients.InventoryPackagingPactTest
+Nov 15, 2026 3:47:29 PM org.junit.jupiter.engine.descriptor.AbstractExtensionContext lambda$createCloseAction$1
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.845 s -- in ua.edu.ukma.springers.voltstore.delivery.clients.InventoryPackagingPactTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] BUILD SUCCESS
+
+
+# Baseline, provider side: Inventory's PackagingPactProviderTest verifies the committed pact
+# Command: cd inventory-service && mvnw.cmd test -Dtest=PackagingPactProviderTest
+# Trimmed: application JSON log lines, Spring/JVM startup lines, Maven download lines,
+# framework stack frames and the Maven help footer are removed; local paths are shortened.
+
+[INFO] Running ua.edu.ukma.springers.voltstore.inventory.contract.PackagingPactProviderTest
+
+Verifying a pact between delivery-service and inventory-service
+  [Using File ..\contracts\pacts\delivery-service-inventory-service.json]
+  Given a stock item with complete packaging exists
+  a packaging request for a product with complete packaging
+
+  Test Name: ua.edu.ukma.springers.voltstore.delivery.clients.InventoryPackagingPactTest.completePackaging_isReadIntoItemPackaging(MockServer)
+
+  Comments:
+
+    returns a response which
+      has status code 200 (OK)
+      has a matching body (OK)
+
+Verifying a pact between delivery-service and inventory-service
+  [Using File ..\contracts\pacts\delivery-service-inventory-service.json]
+  Given a stock item without packaging exists
+  a packaging request for a product whose packaging is not configured
+
+  Test Name: ua.edu.ukma.springers.voltstore.delivery.clients.InventoryPackagingPactTest.missingPackaging_isNotRetryable(MockServer)
+
+  Comments:
+
+    returns a response which
+      has status code 422 (OK)
+      has a matching body (OK)
+
+Verifying a pact between delivery-service and inventory-service
+  [Using File ..\contracts\pacts\delivery-service-inventory-service.json]
+  Given no stock item exists
+  a packaging request for a product without a stock item
+
+  Test Name: ua.edu.ukma.springers.voltstore.delivery.clients.InventoryPackagingPactTest.noStockItem_isNotRetryable(MockServer)
+
+  Comments:
+
+    returns a response which
+      has status code 404 (OK)
+      has a matching body (OK)
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 29.36 s -- in ua.edu.ukma.springers.voltstore.inventory.contract.PackagingPactProviderTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] BUILD SUCCESS

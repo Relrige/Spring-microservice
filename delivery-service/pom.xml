@@ -157,6 +157,13 @@
 			<version>3.13.2</version>
 			<scope>test</scope>
 		</dependency>
+		<!-- Consumer side of the Delivery → Inventory contract (infrastructure task contract-and-load-testing) -->
+		<dependency>
+			<groupId>au.com.dius.pact.consumer</groupId>
+			<artifactId>junit5</artifactId>
+			<version>4.7.7</version>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -208,6 +215,10 @@
                 <configuration>
                     <systemPropertyVariables>
                         <user.timezone>Europe/Kyiv</user.timezone>
+                        <!-- The consumer pact test writes its pact to the shared, committed folder; Inventory verifies it -->
+                        <pact_do_not_track>true</pact_do_not_track>
+                        <pact.rootDir>${project.basedir}/../contracts/pacts</pact.rootDir>
+                        <pact.writer.overwrite>true</pact.writer.overwrite>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
