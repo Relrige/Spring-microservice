@@ -1,0 +1,25 @@
+     ✗ POST /orders/validate → 204
+      ↳  93% — ✓ 3635 / ✗ 265
+     ✗ POST /orders → 201
+      ↳  95% — ✓ 3469 / ✗ 166
+
+   ✗ checks.............................: 94.28% ✓ 7104      ✗ 431  
+     data_received......................: 2.9 MB 15 kB/s
+     data_sent..........................: 4.9 MB 25 kB/s
+     dropped_iterations.................: 840    4.332377/s
+     http_req_blocked...................: avg=534.07µs min=3.41µs  med=15.07µs  p(90)=82.94µs  p(95)=4.76ms   p(99)=8.98ms   max=37.86ms count=7586
+     http_req_connecting................: avg=473.95µs min=0s      med=0s       p(90)=0s       p(95)=4.35ms   p(99)=8.33ms   max=37.59ms count=7586
+   ✗ http_req_duration..................: avg=815.64ms min=9.31ms  med=111ms    p(90)=2.78s    p(95)=3.5s     p(99)=5.66s    max=10.23s  count=7586
+       { expected_response:true }.......: avg=806.86ms min=9.31ms  med=103.92ms p(90)=2.79s    p(95)=3.52s    p(99)=5.67s    max=10.23s  count=7155
+     ✗ { name:POST /orders }............: avg=1.57s    min=23.41ms med=1.28s    p(90)=3.53s    p(95)=4.74s    p(99)=6.24s    max=10.23s  count=3635
+     ✓ { name:POST /orders/validate }...: avg=114.89ms min=12.18ms med=87.5ms   p(90)=259.95ms p(95)=334.02ms p(99)=545.47ms max=1.55s   count=3900
+   ✗ http_req_failed....................: 5.68%  ✓ 431       ✗ 7155 
+     http_req_receiving.................: avg=767.94µs min=26.64µs med=164.32µs p(90)=1.84ms   p(95)=3.39ms   p(99)=9.79ms   max=56.07ms count=7586
+     http_req_sending...................: avg=162.04µs min=16.51µs med=79.58µs  p(90)=218.89µs p(95)=406.58µs p(99)=1.66ms   max=28.5ms  count=7586
+     http_req_tls_handshaking...........: avg=0s       min=0s      med=0s       p(90)=0s       p(95)=0s       p(99)=0s       max=0s      count=7586
+     http_req_waiting...................: avg=814.71ms min=8.72ms  med=110.21ms p(90)=2.78s    p(95)=3.5s     p(99)=5.66s    max=10.23s  count=7586
+     http_reqs..........................: 7586   39.125494/s
+     iteration_duration.................: avg=1.58s    min=21.65ms med=642.35ms p(90)=3.69s    p(95)=4.76s    p(99)=6.37s    max=10.28s  count=3900
+     iterations.........................: 3900   20.114609/s
+     vus................................: 0      min=0       max=200
+     vus_max............................: 200    min=20      max=200

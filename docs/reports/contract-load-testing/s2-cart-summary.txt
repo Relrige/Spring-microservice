@@ -1,0 +1,25 @@
+     ✓ POST /customers/cart/items → 200
+     ✓ PATCH /customers/cart/items/{id} → 200
+     ✓ GET /customers/cart → 200
+     ✓ DELETE /customers/cart/items/{id} → 200
+
+   ✓ checks........................................: 100.00% ✓ 20726      ✗ 0    
+     data_received.................................: 16 MB   87 kB/s
+     data_sent.....................................: 9.4 MB  51 kB/s
+     http_req_blocked..............................: avg=34.15µs  min=2.32µs  med=6.01µs  p(90)=11.43µs p(95)=14.63µs  p(99)=1.98ms   max=7.64ms   count=20827
+     http_req_connecting...........................: avg=24.87µs  min=0s      med=0s      p(90)=0s      p(95)=0s       p(99)=1.8ms    max=7.39ms   count=20827
+   ✓ http_req_duration.............................: avg=9.93ms   min=1.77ms  med=9ms     p(90)=13.36ms p(95)=15.96ms  p(99)=27.19ms  max=113.92ms count=20827
+       { expected_response:true }..................: avg=9.93ms   min=1.77ms  med=9ms     p(90)=13.36ms p(95)=15.96ms  p(99)=27.19ms  max=113.92ms count=20827
+     ✓ { name:GET /customers/cart }................: avg=7.45ms   min=1.77ms  med=6.67ms  p(90)=9.79ms  p(95)=11.41ms  p(99)=17.41ms  max=52.31ms  count=5401 
+     ✓ { name:PATCH /customers/cart/items/{id} }...: avg=10.16ms  min=5.74ms  med=9.11ms  p(90)=13.1ms  p(95)=15.54ms  p(99)=23.63ms  max=72.97ms  count=5401 
+     ✓ { name:POST /customers/cart/items }.........: avg=11.48ms  min=7.67ms  med=10.2ms  p(90)=15.22ms p(95)=17.92ms  p(99)=28.37ms  max=80.43ms  count=5401 
+   ✓ http_req_failed...............................: 0.00%   ✓ 0          ✗ 20827
+     http_req_receiving............................: avg=154.21µs min=36.73µs med=140.6µs p(90)=213.3µs p(95)=241.91µs p(99)=326µs    max=2.95ms   count=20827
+     http_req_sending..............................: avg=50.16µs  min=8.63µs  med=45.95µs p(90)=82.59µs p(95)=99.81µs  p(99)=172.95µs max=1.88ms   count=20827
+     http_req_tls_handshaking......................: avg=0s       min=0s      med=0s      p(90)=0s      p(95)=0s       p(99)=0s       max=0s       count=20827
+     http_req_waiting..............................: avg=9.73ms   min=1.58ms  med=8.8ms   p(90)=13.11ms p(95)=15.69ms  p(99)=26.94ms  max=113.71ms count=20827
+     http_reqs.....................................: 20827   112.645323/s
+     iteration_duration............................: avg=38.73ms  min=22.33ms med=35.08ms p(90)=51.69ms p(95)=60.5ms   p(99)=87.9ms   max=209.79ms count=5401 
+     iterations....................................: 5401    29.211955/s
+     vus...........................................: 1       min=0        max=3  
+     vus_max.......................................: 20      min=20       max=20 

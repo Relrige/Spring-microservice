@@ -1,5 +1,5 @@
 ---
-status: IN_PROGRESS
+status: DONE
 service: infrastructure
 ---
 # Contract Test Delivery → Inventory (Pact) and Three k6 Load Scenarios
@@ -104,16 +104,16 @@ No API changes. The contract under test is the existing EP-INV-05.
     - The archive is made at the end with `git archive --format=zip` of the branch into the scratchpad. It contains the project, the report, the pact, the patches, the logs and the k6 scripts. It is not committed. Its path is given to the user.
 
 ## Acceptance Criteria
-- [ ] Pact compatibility checked with Spring Boot 4.1; the module used on the provider side is recorded.
-- [ ] Delivery: `InventoryPackagingPactTest` with three interactions (200 / 404 / 422) that drives `InventoryPackagingProvider` and asserts its classification; it writes `contracts/pacts/delivery-service-inventory-service.json`, which is committed.
-- [ ] Inventory: `PackagingPactProviderTest` verifies the committed pact against the running application with three `@State` methods, and is green.
-- [ ] `provider-break.patch` and `consumer-break.patch` each make the provider verification fail; both logs and the green baseline log are saved; the tree is clean afterwards.
-- [ ] Both services' `mvnw verify` are green with the new tests (and so is CI).
-- [ ] `load-tests/` with `seed.js`, three scenario scripts, shared helpers and a README with exact run commands; no secrets in the scripts.
-- [ ] All three scenarios run against Docker Compose; summary JSON and text are saved for each.
-- [ ] Report `docs/reports/contract-load-testing.md` covers the contract runs and the three scenarios with numbers and interpretation.
-- [ ] Specs synced: EP-INV-05 and Delivery's Inventory client section mention the contract test and the pact location.
-- [ ] Archive created with `git archive` and its path given to the user.
+- [x] Pact compatibility checked with Spring Boot 4.1; the module used on the provider side is recorded.
+- [x] Delivery: `InventoryPackagingPactTest` with three interactions (200 / 404 / 422) that drives `InventoryPackagingProvider` and asserts its classification; it writes `contracts/pacts/delivery-service-inventory-service.json`, which is committed.
+- [x] Inventory: `PackagingPactProviderTest` verifies the committed pact against the running application with three `@State` methods, and is green.
+- [x] `provider-break.patch` and `consumer-break.patch` each make the provider verification fail; both logs and the green baseline log are saved; the tree is clean afterwards.
+- [x] Both services' `mvnw verify` are green with the new tests (and so is CI).
+- [x] `load-tests/` with `seed.js`, three scenario scripts, shared helpers and a README with exact run commands; no secrets in the scripts.
+- [x] All three scenarios run against Docker Compose; summary JSON and text are saved for each.
+- [x] Report `docs/reports/contract-load-testing.md` covers the contract runs and the three scenarios with numbers and interpretation.
+- [x] Specs synced: EP-INV-05 and Delivery's Inventory client section mention the contract test and the pact location.
+- [x] Archive created with `git archive` and its path given to the user.
 
 ## Technical Notes / Constraints
 - **Implementation order:**
@@ -148,4 +148,30 @@ No API changes. The contract under test is the existing EP-INV-05.
 - **`consumer-break.patch`** adds `boolean fragile` to Delivery's `InventoryPackaging` and `.booleanType("fragile", true)` to the `200` interaction. Jackson 3 rejects a missing primitive (`FAIL_ON_NULL_FOR_PRIMITIVES` is on by default), so the field really is required: the patch also adds `"fragile":false` to the five WireMock stubs in Delivery's tests. Step 1, Delivery's tests: green, and the pact gains `fragile` with a `type` matcher. Step 2, Inventory's provider test: the `200` interaction fails with `missing the following keys: fragile` (`consumer-break.log`, which also shows the pact diff).
 - After each run: `git apply -R`, `git checkout -- contracts/pacts` for the regenerated pact, `git status` clean. `git apply --check` passes for both patches on the committed tree. A `.gitattributes` in the report folder marks `*.patch` as `-text`, so a Windows checkout does not turn them into CRLF files that `git apply` would reject.
 - The logs are trimmed by a script that removes the application's JSON log lines, Spring/JVM startup lines, Maven download lines, framework stack frames and the Maven help footer, and replaces local paths with `<repo>`/`<home>`. Each log says so in its header.
+
+### Load tests
+- **Tooling:** k6 **1.3.0** from `grafana/k6:1.3.0`. Scripts are in `load-tests/`: `lib/common.js` (base URL, login, one check per request, `name` tags, data lookup, `handleSummary`), `seed.js`, `s1-catalog-browse.js`, `s2-cart.js`, `s3-checkout.js` and a `README.md` with the exact commands. The text summary comes from jslib `k6-summary` 0.1.0 (a remote import, fetched by k6 at start).
+- **Secrets:** the passwords reach k6 through Docker's `-e NAME`, which copies the variable from the shell, and k6 reads them as `__ENV`. k6's own `-e NAME` without a value sets the variable to an empty string. The first seed attempt failed on exactly this, and the README explains it. `handleSummary` deletes `setup_data` before it writes the JSON, because setup returns the customers' JWTs. The three summaries recorded before this fix were cleaned the same way. The saved results were scanned for the admin password, the internal token, the load users' password and JWTs; none were found.
+- **Seed:** creates `load-manager@voltstore.test` and `load-worker@voltstore.test` through the administrator, 3 categories `LoadTest …`, 50 products `LoadTest product 01`–`50` with packaging, stock topped up to 1,000,000, all ACTIVE, and 50 customers. A second run reused everything (0 activated, 0 registered). Inventory checks Catalog synchronously, so no wait for the `ProductCreated` event is needed between creating a product and setting its stock.
+- **Scenarios** as decided. The details decided during implementation:
+  - S1 steps are 10 s ramps with 30 s plateaus;
+  - S2 gives each VU its own customer (`maxVUs` = number of customers), empties the carts in `setup()`, sets an explicit quantity of 1–3, and removes the item at 8 products;
+  - S3 places an order only after a `204` from validate;
+  - `SCALE`, `DURATION` and `RUN_LABEL` options for warm-ups and scaled runs.
+- **Runs (Compose, all services):** each scenario got a warm-up at reduced rate, then the recorded run. All three planned profiles passed their thresholds. S1 was repeated with `--out csv` to get per-step numbers; that second run's summary is the one kept, and the first run's numbers are in the report. S3 was also run at `SCALE=4` (`s3-checkout-x4-*`), because the planned spike did not load the system; that run crossed the thresholds. In Order's logs, all 431 errors of that run are its Catalog bulkhead (`maxConcurrentCalls: 10`) refusing calls while Order was CPU-bound. The planned rates were kept unchanged, so the recorded runs match the task; the 4 × run is the "scaled to the laptop" step.
+- **Local environment fix:** the local, gitignored `order-service/.env` had no `INVENTORY_GRPC_TARGET`; the gRPC task added it to `.env.example` after the file was made. Order therefore dialled `localhost:9090` inside its own container, and every checkout of the first S3 warm-up answered `503` (circuit breaker `inventory` open). The line from `.env.example` was added to the local file. No repository change.
+- **Report:** [`docs/reports/contract-load-testing.md`](../../reports/contract-load-testing.md).
+- **Verified:**
+  - the seed ran twice;
+  - S1 (twice), S2, S3 and S3 × 4 ran against Compose, with their summaries saved;
+  - `mvnw.cmd verify` is green for Delivery (168 tests) and Inventory (407 tests), including the two contract tests;
+  - after a Delivery test run, `git status` stays clean (the regenerated pact equals the committed one).
+
+## Deviations from spec / task
+- **An extra S3 run at 4 × the planned rate.** The task: "after a first short run, scale [the rates] to what one laptop can do". Done: the planned profiles stayed as the recorded runs, so they match the task exactly. Then S3, which the planned rates left almost idle (p95 76 ms), ran once more at 4 ×. Considered instead: raising the planned rates in the scripts (then the task's numbers would no longer be in the scripts), or no extra run (then the report would have nothing to say about overload of the deepest path). The extra run is what shows the bulkhead shedding load and the system recovering.
+- **S1 was run twice, and both runs are reported.** Rerunning S1 for per-step data replaced the first run's summary files. The two runs differ by a factor of nine at p95, so the report shows both and discusses the variance, instead of picking the better one.
+- **Logs and summaries are cleaned.** The logs are trimmed (task decision 6). In addition, local paths are shortened and the summaries' `setup_data` is removed. Neither changes a measured value.
+- **Pact Broker not added.** It was optional (decision 4) and is left out. The report explains how the pact travels without it.
+- **`pact.writer.overwrite=true` and `pact_do_not_track=true`.** These were not in the task. Overwrite keeps the committed pact equal to the current test: Pact merges into an existing file by default, so a removed interaction would stay. Do-not-track turns off Pact's anonymous usage statistics in tests and CI.
+- **Two `.gitattributes` files.** The one in the report folder (`*.patch -text`) stops a Windows checkout with `core.autocrlf=true` from converting the patches to CRLF, which `git apply` would reject. The one in `contracts/pacts/` (`*.json text eol=lf`) exists because Pact writes LF lines with a CRLF at the very end on Windows. `autocrlf` does not normalize such mixed files, so every Delivery test run made the pact show as modified, although its content had not changed.
 
