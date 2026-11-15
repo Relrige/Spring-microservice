@@ -1,0 +1,24 @@
+     ✗ GET /catalog/products → 200
+      ↳  99% — ✓ 20040 / ✗ 7
+     ✓ GET /catalog/products/{id} → 200
+
+   ✓ checks..................................: 99.98% ✓ 40087      ✗ 7    
+     data_received...........................: 90 MB  412 kB/s
+     data_sent...............................: 6.8 MB 32 kB/s
+     dropped_iterations......................: 3      0.013792/s
+     http_req_blocked........................: avg=41.34µs  min=0s      med=8.36µs   p(90)=15.26µs  p(95)=18.85µs  p(99)=2.15ms   max=8.48ms   count=40095
+     http_req_connecting.....................: avg=28.65µs  min=0s      med=0s       p(90)=0s       p(95)=0s       p(99)=1.99ms   max=8.29ms   count=40095
+   ✓ http_req_duration.......................: avg=9.35ms   min=0s      med=6.96ms   p(90)=12.31ms  p(95)=19.31ms  p(99)=59.56ms  max=223.3ms  count=40095
+       { expected_response:true }............: avg=9.36ms   min=3.09ms  med=6.97ms   p(90)=12.31ms  p(95)=19.31ms  p(99)=59.57ms  max=223.3ms  count=40088
+     ✓ { name:GET /catalog/products }........: avg=10.17ms  min=0s      med=7.52ms   p(90)=13.31ms  p(95)=20.76ms  p(99)=65.73ms  max=223.3ms  count=20047
+     ✓ { name:GET /catalog/products/{id} }...: avg=8.54ms   min=3.09ms  med=6.26ms   p(90)=11.09ms  p(95)=17.24ms  p(99)=54.66ms  max=178.24ms count=20047
+   ✓ http_req_failed.........................: 0.01%  ✓ 7          ✗ 40088
+     http_req_receiving......................: avg=192.47µs min=0s      med=153.46µs p(90)=249.55µs p(95)=320.2µs  p(99)=1.02ms   max=43.05ms  count=40095
+     http_req_sending........................: avg=62.79µs  min=0s      med=53.43µs  p(90)=88.6µs   p(95)=108.73µs p(99)=203.85µs max=11.31ms  count=40095
+     http_req_tls_handshaking................: avg=0s       min=0s      med=0s       p(90)=0s       p(95)=0s       p(99)=0s       max=0s       count=40095
+     http_req_waiting........................: avg=9.1ms    min=0s      med=6.73ms   p(90)=11.96ms  p(95)=18.84ms  p(99)=58.99ms  max=223.14ms count=40095
+     http_reqs...............................: 40095  184.334274/s
+     iteration_duration......................: avg=30.14ms  min=10.57ms med=14.64ms  p(90)=26.01ms  p(95)=40.43ms  p(99)=126.03ms max=30.01s   count=20047
+     iterations..............................: 20047  92.164838/s
+     vus.....................................: 7      min=0        max=48 
+     vus_max.................................: 51     min=50       max=51 

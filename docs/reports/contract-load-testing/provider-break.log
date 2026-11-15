@@ -1,0 +1,110 @@
+# Provider break: Inventory renames grossWeightGrams to weightGrams (provider-break.patch applied)
+# Command: cd inventory-service && mvnw.cmd test -Dtest=PackagingPactProviderTest,GetPackagingIntegrationTest,StockGetPackagingControllerTest,OpenApiDocumentTest
+# Trimmed: application JSON log lines, Spring/JVM startup lines, Maven download lines,
+# framework stack frames and the Maven help footer are removed; local paths are shortened.
+
+[INFO] Running ua.edu.ukma.springers.voltstore.inventory.contract.PackagingPactProviderTest
+ 
+classpath has been appended
+
+Verifying a pact between delivery-service and inventory-service
+  [Using File ..\contracts\pacts\delivery-service-inventory-service.json]
+  Given a stock item with complete packaging exists
+  a packaging request for a product with complete packaging
+
+  Test Name: ua.edu.ukma.springers.voltstore.delivery.clients.InventoryPackagingPactTest.completePackaging_isReadIntoItemPackaging(MockServer)
+
+  Comments:
+
+    returns a response which
+      has status code 200 (OK)
+      has a matching body (FAILED)
+
+Failures:
+
+1) Verifying a pact between delivery-service and inventory-service - a packaging request for a product with complete packaging has a matching body
+
+    1.1) body: $ Actual map is missing the following keys: grossWeightGrams
+
+        {
+          "grossWeightGrams": 180,
+          "heightCm": 6,
+          "lengthCm": 22,
+          "widthCm": 12
+        }
+
+Verifying a pact between delivery-service and inventory-service
+  [Using File ..\contracts\pacts\delivery-service-inventory-service.json]
+  Given a stock item without packaging exists
+  a packaging request for a product whose packaging is not configured
+
+  Test Name: ua.edu.ukma.springers.voltstore.delivery.clients.InventoryPackagingPactTest.missingPackaging_isNotRetryable(MockServer)
+
+  Comments:
+
+    returns a response which
+      has status code 422 (OK)
+      has a matching body (OK)
+
+Verifying a pact between delivery-service and inventory-service
+  [Using File ..\contracts\pacts\delivery-service-inventory-service.json]
+  Given no stock item exists
+  a packaging request for a product without a stock item
+
+  Test Name: ua.edu.ukma.springers.voltstore.delivery.clients.InventoryPackagingPactTest.noStockItem_isNotRetryable(MockServer)
+
+  Comments:
+
+    returns a response which
+      has status code 404 (OK)
+      has a matching body (OK)
+[ERROR] Tests run: 3, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 28.98 s <<< FAILURE! -- in ua.edu.ukma.springers.voltstore.inventory.contract.PackagingPactProviderTest
+[ERROR] ua.edu.ukma.springers.voltstore.inventory.contract.PackagingPactProviderTest.verifyInteraction(PactVerificationContext, ClassicHttpRequest)[1] -- Time elapsed: 1.657 s <<< FAILURE!
+java.lang.AssertionError: 
+delivery-service - Upon a packaging request for a product with complete packaging 
+Failures:
+
+1) Verifying a pact between delivery-service and inventory-service - a packaging request for a product with complete packaging has a matching body
+
+    1.1) body: $ Actual map is missing the following keys: grossWeightGrams
+
+        {
+          "grossWeightGrams": 180,
+          "heightCm": 6,
+          "lengthCm": 22,
+          "widthCm": 12
+        }
+
+	at au.com.dius.pact.provider.junit5.PactVerificationContext.verifyInteraction(PactVerificationContext.kt:75)
+	at ua.edu.ukma.springers.voltstore.inventory.contract.PackagingPactProviderTest.verifyInteraction(PackagingPactProviderTest.java:68)
+
+[INFO] Running ua.edu.ukma.springers.voltstore.inventory.controllers.StockGetPackagingControllerTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.062 s -- in ua.edu.ukma.springers.voltstore.inventory.controllers.StockGetPackagingControllerTest
+[INFO] Running ua.edu.ukma.springers.voltstore.inventory.integration.GetPackagingIntegrationTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 12.26 s -- in ua.edu.ukma.springers.voltstore.inventory.integration.GetPackagingIntegrationTest
+[INFO] Running ua.edu.ukma.springers.voltstore.inventory.openapi.OpenApiDocumentTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 12.79 s -- in ua.edu.ukma.springers.voltstore.inventory.openapi.OpenApiDocumentTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[ERROR] Failures: 
+[ERROR]   PackagingPactProviderTest.verifyInteraction:68 delivery-service - Upon a packaging request for a product with complete packaging 
+Failures:
+
+1) Verifying a pact between delivery-service and inventory-service - a packaging request for a product with complete packaging has a matching body
+
+    1.1) body: $ Actual map is missing the following keys: grossWeightGrams
+
+        {
+          "grossWeightGrams": 180,
+          "heightCm": 6,
+          "lengthCm": 22,
+          "widthCm": 12
+        }
+
+[INFO] 
+[ERROR] Tests run: 18, Failures: 1, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] BUILD FAILURE
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.5.6:test (default-test) on project inventory-service: There are test failures.
+[ERROR] See <repo>\inventory-service\target\surefire-reports for the individual test results.

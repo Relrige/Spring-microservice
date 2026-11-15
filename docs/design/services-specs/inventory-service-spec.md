@@ -281,6 +281,8 @@ Lists use the shared paging envelope `{ content, page, size, totalElements }` (`
 - Non-UUID `productId` → `400`
 - `GET` and `PUT` on this path are different endpoints with different roles (internal vs. worker)
 
+**Consumer contract:** Delivery's expectations of this endpoint are a Pact contract, [`contracts/pacts/delivery-service-inventory-service.json`](../../../contracts/pacts/delivery-service-inventory-service.json), written by Delivery's `InventoryPackagingPactTest`. `PackagingPactProviderTest` (`inventory-service/src/test/.../contract/`) verifies it against the running service in every build, with the provider states `a stock item with complete packaging exists` (`200`, the four fields as integers), `no stock item exists` (`404`) and `a stock item without packaging exists` (`422`). The `404`/`422` bodies are not part of the contract (Delivery reads only the status); the `reason` value is Catalog's need. Renaming or removing a response field fails this build. See [the contract-testing report](../../reports/contract-load-testing.md).
+
 **External calls:** none
 **Emits:** none
 **Refs:** SCN-S04 (step 3), inventory-worker-technical-insights §2, N-08

@@ -1,0 +1,2 @@
+# Pact writes LF lines with a platform line ending at the end; normalize, so a test run on Windows leaves git status clean
+*.json text eol=lf

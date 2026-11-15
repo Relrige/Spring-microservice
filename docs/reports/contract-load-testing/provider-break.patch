@@ -1,0 +1,71 @@
+diff --git a/inventory-service/openapi/internal.json b/inventory-service/openapi/internal.json
+index 11a1246..cec3e20 100644
+--- a/inventory-service/openapi/internal.json
++++ b/inventory-service/openapi/internal.json
+@@ -395,15 +395,15 @@
+       "PackagingResponse" : {
+         "type" : "object",
+         "properties" : {
+-          "grossWeightGrams" : {
++          "heightCm" : {
+             "type" : "integer",
+             "format" : "int32"
+           },
+-          "heightCm" : {
++          "lengthCm" : {
+             "type" : "integer",
+             "format" : "int32"
+           },
+-          "lengthCm" : {
++          "weightGrams" : {
+             "type" : "integer",
+             "format" : "int32"
+           },
+@@ -412,7 +412,7 @@
+             "format" : "int32"
+           }
+         },
+-        "required" : [ "grossWeightGrams", "heightCm", "lengthCm", "widthCm" ]
++        "required" : [ "heightCm", "lengthCm", "weightGrams", "widthCm" ]
+       },
+       "Problem" : {
+         "type" : "object",
+diff --git a/inventory-service/src/main/java/ua/edu/ukma/springers/voltstore/inventory/dto/PackagingResponse.java b/inventory-service/src/main/java/ua/edu/ukma/springers/voltstore/inventory/dto/PackagingResponse.java
+index 508ca73..0a2f956 100644
+--- a/inventory-service/src/main/java/ua/edu/ukma/springers/voltstore/inventory/dto/PackagingResponse.java
++++ b/inventory-service/src/main/java/ua/edu/ukma/springers/voltstore/inventory/dto/PackagingResponse.java
+@@ -5,7 +5,7 @@ import ua.edu.ukma.springers.voltstore.inventory.entities.StockItemEntity;
+ 
+ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+ 
+-public record PackagingResponse(@Schema(requiredMode = REQUIRED) int grossWeightGrams,
++public record PackagingResponse(@Schema(requiredMode = REQUIRED) int weightGrams,
+                                 @Schema(requiredMode = REQUIRED) int lengthCm,
+                                 @Schema(requiredMode = REQUIRED) int widthCm,
+                                 @Schema(requiredMode = REQUIRED) int heightCm) {
+diff --git a/inventory-service/src/test/java/ua/edu/ukma/springers/voltstore/inventory/controllers/StockGetPackagingControllerTest.java b/inventory-service/src/test/java/ua/edu/ukma/springers/voltstore/inventory/controllers/StockGetPackagingControllerTest.java
+index fce699b..6495a43 100644
+--- a/inventory-service/src/test/java/ua/edu/ukma/springers/voltstore/inventory/controllers/StockGetPackagingControllerTest.java
++++ b/inventory-service/src/test/java/ua/edu/ukma/springers/voltstore/inventory/controllers/StockGetPackagingControllerTest.java
+@@ -51,7 +51,7 @@ class StockGetPackagingControllerTest {
+ 
+         mockMvc.perform(get(URL).headers(SERVICE))
+                 .andExpect(status().isOk())
+-                .andExpect(jsonPath("$.grossWeightGrams").value(500))
++                .andExpect(jsonPath("$.weightGrams").value(500))
+                 .andExpect(jsonPath("$.lengthCm").value(10))
+                 .andExpect(jsonPath("$.widthCm").value(5))
+                 .andExpect(jsonPath("$.heightCm").value(2))
+diff --git a/inventory-service/src/test/java/ua/edu/ukma/springers/voltstore/inventory/integration/GetPackagingIntegrationTest.java b/inventory-service/src/test/java/ua/edu/ukma/springers/voltstore/inventory/integration/GetPackagingIntegrationTest.java
+index 20d7d73..b87a1cc 100644
+--- a/inventory-service/src/test/java/ua/edu/ukma/springers/voltstore/inventory/integration/GetPackagingIntegrationTest.java
++++ b/inventory-service/src/test/java/ua/edu/ukma/springers/voltstore/inventory/integration/GetPackagingIntegrationTest.java
+@@ -53,7 +53,7 @@ class GetPackagingIntegrationTest {
+ 
+         getPackaging(productId)
+                 .andExpect(status().isOk())
+-                .andExpect(jsonPath("$.grossWeightGrams").value(500))
++                .andExpect(jsonPath("$.weightGrams").value(500))
+                 .andExpect(jsonPath("$.lengthCm").value(10))
+                 .andExpect(jsonPath("$.widthCm").value(5))
+                 .andExpect(jsonPath("$.heightCm").value(2));

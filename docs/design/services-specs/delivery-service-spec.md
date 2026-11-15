@@ -95,6 +95,8 @@ The `OrderPaid` consumer only **creates** the shipment (`TTN_PENDING`, `attempts
 
 *A paid order is never cancelled automatically because of a carrier failure (SCN-S05).*
 
+**Contract with Inventory (EP-INV-05).** What Delivery needs from the packaging endpoint is a consumer-driven Pact contract. `InventoryPackagingPactTest` (`delivery-service/src/test/.../clients/`) runs the production `InventoryClient` and `InventoryPackagingProvider` against Pact's mock server for three interactions (`200` with `grossWeightGrams`, `lengthCm`, `widthCm`, `heightCm` matched by type; `404`; `422`, no body required) and checks the classification above. The run rewrites [`contracts/pacts/delivery-service-inventory-service.json`](../../../contracts/pacts/delivery-service-inventory-service.json), which Inventory's build verifies. When Delivery's expectations change, run Delivery's tests and commit the regenerated pact in the same PR. See [the contract-testing report](../../reports/contract-load-testing.md).
+
 ### Parcel calculation (stacking heuristic)
 
 One parcel per shipment. Packaging data comes from Inventory per product: `{ grossWeightGrams, lengthCm, widthCm, heightCm }`.
@@ -357,7 +359,7 @@ A separate, minimal application (`carrier-simulator`: in-memory consignments, no
 
 | Part | Status |
 |---|---|
-| EP-DEL-EVT-01, EP-DEL-EVT-02, EP-DEL-01…04, TTN generation job, outbox, mock carrier, restart recovery | Implemented ([tasks 01–15](../../tasks/delivery-service/)); covered by unit, WebMvc and Testcontainers (PostgreSQL + Kafka) tests, Inventory faked with WireMock |
+| EP-DEL-EVT-01, EP-DEL-EVT-02, EP-DEL-01…04, TTN generation job, outbox, mock carrier, restart recovery | Implemented ([tasks 01–15](../../tasks/delivery-service/)); covered by unit, WebMvc and Testcontainers (PostgreSQL + Kafka) tests, Inventory faked with WireMock; the Inventory call is also a Pact consumer contract (see *Automatic TTN generation*) |
 | Compose | Implemented and smoke-tested end to end with Kafka and Inventory ([task 16](../../tasks/delivery-service/16-containerization-and-deployment.md)) |
 | Kubernetes | Manifests aligned (ConfigMap with every variable above, `delivery-db-credentials`, `delivery-secrets`); not yet deployed to minikube; scaling to 2 replicas not tried |
 | Gateway route `POST /delivery/orders/{orderId}/ttn/retry` | Not yet routed ([API gateway task 10](../../tasks/api-getaway/10-remaining-service-routes.md), now unblocked) |

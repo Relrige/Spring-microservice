@@ -175,6 +175,13 @@
 			<version>3.13.2</version>
 			<scope>test</scope>
 		</dependency>
+		<!-- Provider side of the Delivery → Inventory contract (infrastructure task contract-and-load-testing) -->
+		<dependency>
+			<groupId>au.com.dius.pact.provider</groupId>
+			<artifactId>junit5spring</artifactId>
+			<version>4.7.7</version>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -231,6 +238,9 @@
                 <configuration>
                     <systemPropertyVariables>
                         <user.timezone>Europe/Kyiv</user.timezone>
+                        <!-- Pact provider verification: no usage tracking, results are not published (no broker) -->
+                        <pact_do_not_track>true</pact_do_not_track>
+                        <pact.verifier.publishResults>false</pact.verifier.publishResults>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

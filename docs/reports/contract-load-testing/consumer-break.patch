@@ -1,0 +1,87 @@
+diff --git a/delivery-service/src/main/java/ua/edu/ukma/springers/voltstore/delivery/clients/InventoryPackaging.java b/delivery-service/src/main/java/ua/edu/ukma/springers/voltstore/delivery/clients/InventoryPackaging.java
+index c9c29e4..44a4bd0 100644
+--- a/delivery-service/src/main/java/ua/edu/ukma/springers/voltstore/delivery/clients/InventoryPackaging.java
++++ b/delivery-service/src/main/java/ua/edu/ukma/springers/voltstore/delivery/clients/InventoryPackaging.java
+@@ -4,5 +4,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+ 
+ /** Inventory's packaging answer (EP-INV-05). Unknown fields are ignored (tolerant reader). */
+ @JsonIgnoreProperties(ignoreUnknown = true)
+-public record InventoryPackaging(int grossWeightGrams, int lengthCm, int widthCm, int heightCm) {
++// fragile: Delivery would now choose a fragile-goods carrier service, so it needs the flag from Inventory
++public record InventoryPackaging(int grossWeightGrams, int lengthCm, int widthCm, int heightCm, boolean fragile) {
+ }
+diff --git a/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/clients/InventoryPackagingPactTest.java b/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/clients/InventoryPackagingPactTest.java
+index 60f0257..e089582 100644
+--- a/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/clients/InventoryPackagingPactTest.java
++++ b/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/clients/InventoryPackagingPactTest.java
+@@ -59,7 +59,8 @@ class InventoryPackagingPactTest {
+                         .integerType("grossWeightGrams", 180)
+                         .integerType("lengthCm", 22)
+                         .integerType("widthCm", 12)
+-                        .integerType("heightCm", 6))
++                        .integerType("heightCm", 6)
++                        .booleanType("fragile", true))
+                 .toPact(V4Pact.class);
+     }
+ 
+diff --git a/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/clients/InventoryPackagingProviderTest.java b/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/clients/InventoryPackagingProviderTest.java
+index 95e4929..607083c 100644
+--- a/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/clients/InventoryPackagingProviderTest.java
++++ b/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/clients/InventoryPackagingProviderTest.java
+@@ -63,7 +63,7 @@ class InventoryPackagingProviderTest {
+     @Test
+     void ok_returnsPackagingPerItem_andSendsTheTokenButNoUserHeaders() {
+         stub(okJson("""
+-                {"grossWeightGrams":180,"lengthCm":22,"widthCm":12,"heightCm":6,"futureField":true}"""));
++                {"grossWeightGrams":180,"lengthCm":22,"widthCm":12,"heightCm":6,"fragile":false,"futureField":true}"""));
+ 
+         List<ItemPackaging> packaging = provider(inventory.baseUrl()).packagingFor(List.of(item(2)));
+ 
+@@ -162,7 +162,7 @@ class InventoryPackagingProviderTest {
+     }
+ 
+     private static String packagingJson() {
+-        return "{\"grossWeightGrams\":100,\"lengthCm\":10,\"widthCm\":10,\"heightCm\":10}";
++        return "{\"grossWeightGrams\":100,\"lengthCm\":10,\"widthCm\":10,\"heightCm\":10,\"fragile\":false}";
+     }
+ 
+     private static InventoryPackagingProvider provider(String baseUrl) {
+diff --git a/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/clients/TracePropagationTest.java b/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/clients/TracePropagationTest.java
+index e73adc9..232e863 100644
+--- a/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/clients/TracePropagationTest.java
++++ b/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/clients/TracePropagationTest.java
+@@ -66,7 +66,7 @@ class TracePropagationTest {
+     void callToAnotherService_carriesTheCurrentTraceIdInTraceparent() {
+         UUID productId = UUID.randomUUID();
+         String path = "/inventory/stock/" + productId + "/packaging";
+-        wireMock.stubFor(get(urlPathEqualTo(path)).willReturn(okJson("{\"grossWeightGrams\":1,\"lengthCm\":1,\"widthCm\":1,\"heightCm\":1}")));
++        wireMock.stubFor(get(urlPathEqualTo(path)).willReturn(okJson("{\"grossWeightGrams\":1,\"lengthCm\":1,\"widthCm\":1,\"heightCm\":1,\"fragile\":false}")));
+         InventoryClient client = ClientsConfiguration.createInventoryClient(
+                 new InventoryClientProperties(wireMock.baseUrl(), Duration.ofSeconds(1), Duration.ofSeconds(1)), TOKEN, observationRegistry);
+         AtomicReference<String> traceId = new AtomicReference<>();
+diff --git a/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/integration/ManualTtnRetryIntegrationTest.java b/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/integration/ManualTtnRetryIntegrationTest.java
+index e1c066e..386502d 100644
+--- a/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/integration/ManualTtnRetryIntegrationTest.java
++++ b/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/integration/ManualTtnRetryIntegrationTest.java
+@@ -224,7 +224,7 @@ class ManualTtnRetryIntegrationTest {
+ 
+     private void packagingIsConfigured() {
+         inventory.stubFor(get(urlPathEqualTo(packagingPath())).willReturn(okJson(
+-                "{\"grossWeightGrams\":180,\"lengthCm\":22,\"widthCm\":12,\"heightCm\":6}")));
++                "{\"grossWeightGrams\":180,\"lengthCm\":22,\"widthCm\":12,\"heightCm\":6,\"fragile\":false}")));
+     }
+ 
+     private String packagingPath() {
+diff --git a/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/services/TtnGenerationJobIntegrationTest.java b/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/services/TtnGenerationJobIntegrationTest.java
+index 75920a2..173cd33 100644
+--- a/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/services/TtnGenerationJobIntegrationTest.java
++++ b/delivery-service/src/test/java/ua/edu/ukma/springers/voltstore/delivery/services/TtnGenerationJobIntegrationTest.java
+@@ -94,7 +94,7 @@ class TtnGenerationJobIntegrationTest {
+         clearInvocations(carrier);
+         inventory.resetAll();
+         inventory.stubFor(get(urlPathMatching(PACKAGING)).willReturn(okJson(
+-                "{\"grossWeightGrams\":180,\"lengthCm\":22,\"widthCm\":12,\"heightCm\":6}")));
++                "{\"grossWeightGrams\":180,\"lengthCm\":22,\"widthCm\":12,\"heightCm\":6,\"fragile\":false}")));
+     }
+ 
+     @Test
