@@ -1,5 +1,6 @@
 package ua.edu.ukma.springers.voltstore.payment.integration;
 
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,14 +62,15 @@ class ChargeIntegrationTest {
 
     @Test
     void approvedCard_isCharged_andRecordedWithTheFirstAttemptKey() throws Exception {
-        String transactionId = charge(APPROVED_CARD)
+        String response = charge(APPROVED_CARD)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
-                .andReturn().getResponse().getContentAsString().replaceAll(".*\"transactionId\":\"([^\"]+)\".*", "$1");
+                .andReturn().getResponse().getContentAsString();
+        String transactionId = JsonPath.read(response, "$.transactionId");
 
         Map<String, Object> row = jdbcTemplate.queryForMap("SELECT * FROM payment_transactions WHERE order_id = ?",
                 orderId);
-        assertThat(row.get("id").toString()).isEqualTo(transactionId);
+        assertThat(row.get("id")).hasToString(transactionId);
         assertThat(row).containsEntry("type", "CHARGE").containsEntry("status", "SUCCESS")
                 .containsEntry("idempotency_key", "charge:" + orderId + ":1");
         assertThat((String) row.get("gateway_transaction_id")).startsWith("mock_ch_");

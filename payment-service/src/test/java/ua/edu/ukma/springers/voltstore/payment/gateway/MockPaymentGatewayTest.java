@@ -98,8 +98,8 @@ class MockPaymentGatewayTest {
     void concurrentChargesWithOneKey_chargeOnce_andAllGetTheSameResult() throws Exception {
         List<Object> results = Concurrently.run(16, () -> gateway.charge(charge("k1", APPROVED)));
 
-        assertThat(results).allSatisfy(result -> assertThat(result).isInstanceOf(GatewayResult.Approved.class));
-        assertThat(results).containsOnly(results.getFirst());
+        assertThat(results).allSatisfy(result -> assertThat(result).isInstanceOf(GatewayResult.Approved.class))
+                .containsOnly(results.getFirst());
         assertThat(gateway.approvedChargeCount()).isEqualTo(1);
     }
 

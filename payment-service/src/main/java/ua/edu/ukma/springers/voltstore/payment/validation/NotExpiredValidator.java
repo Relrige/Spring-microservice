@@ -19,7 +19,7 @@ public class NotExpiredValidator implements ConstraintValidator<NotExpired, Card
         }
         try {
             return !YearMonth.of(card.expiryYear(), card.expiryMonth()).isBefore(YearMonth.now(SHOP_ZONE));
-        } catch (DateTimeException e) {
+        } catch (DateTimeException _) {
             // An impossible month is reported by the field's own @Min/@Max
             return true;
         }

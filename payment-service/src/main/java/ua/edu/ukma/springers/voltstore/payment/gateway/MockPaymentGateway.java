@@ -133,7 +133,7 @@ public class MockPaymentGateway implements PaymentGateway {
     private static void sleep(Duration delay) {
         try {
             Thread.sleep(delay);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         }
     }

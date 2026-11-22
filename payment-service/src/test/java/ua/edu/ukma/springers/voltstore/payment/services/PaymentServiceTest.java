@@ -43,7 +43,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -273,8 +272,8 @@ class PaymentServiceTest {
             // 1499.9 equals 1499.90
             assertThat(refund(new BigDecimal("1499.9"))).isEqualTo(SAVED_ID);
 
-            verify(gateway).refund(eq(new RefundCommand("refund:" + ORDER_ID, "gw-charge", new BigDecimal("1499.9"),
-                    "UAH")));
+            verify(gateway).refund(new RefundCommand("refund:" + ORDER_ID, "gw-charge", new BigDecimal("1499.9"),
+                    "UAH"));
             PaymentTransactionEntity saved = savedEntity();
             assertThat(saved.getType()).isEqualTo(REFUND);
             assertThat(saved.getStatus()).isEqualTo(SUCCESS);
@@ -298,7 +297,7 @@ class PaymentServiceTest {
                     .thenReturn(new GatewayResult.Approved("gw-refund"));
 
             assertThat(refund(AMOUNT)).isEqualTo(SAVED_ID);
-            verify(gateway, times(2)).refund(eq(new RefundCommand("refund:" + ORDER_ID, "gw-charge", AMOUNT, "UAH")));
+            verify(gateway, times(2)).refund(new RefundCommand("refund:" + ORDER_ID, "gw-charge", AMOUNT, "UAH"));
         }
 
         @Test
