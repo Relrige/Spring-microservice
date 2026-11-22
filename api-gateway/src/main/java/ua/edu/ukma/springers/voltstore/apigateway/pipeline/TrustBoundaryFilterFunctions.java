@@ -2,8 +2,10 @@ package ua.edu.ukma.springers.voltstore.apigateway.pipeline;
 
 import org.springframework.cloud.gateway.server.mvc.common.MvcUtils;
 import org.springframework.cloud.gateway.server.mvc.filter.SimpleFilterSupplier;
+import org.springframework.context.ApplicationContext;
 import org.springframework.web.servlet.function.HandlerFilterFunction;
 import org.springframework.web.servlet.function.ServerResponse;
+import ua.edu.ukma.springers.voltstore.apigateway.ratelimit.RateLimitFilter;
 
 /**
  * Makes the {@link TrustBoundaryFilter} usable from the YAML route definitions as {@code filters: - TrustBoundary}.
@@ -17,10 +19,14 @@ public final class TrustBoundaryFilterFunctions {
     private TrustBoundaryFilterFunctions() {
     }
 
+    /** Rate limit first (task 14), so a flood costs no JWT verification; then the trust boundary. */
     public static HandlerFilterFunction<ServerResponse, ServerResponse> trustBoundary() {
-        return (request, next) -> MvcUtils.getApplicationContext(request)
-                .getBean(TrustBoundaryFilter.class)
-                .filter(request, next);
+        return (request, next) -> {
+            ApplicationContext context = MvcUtils.getApplicationContext(request);
+            TrustBoundaryFilter trustBoundary = context.getBean(TrustBoundaryFilter.class);
+            return context.getBean(RateLimitFilter.class)
+                    .filter(request, allowed -> trustBoundary.filter(allowed, next));
+        };
     }
 
     public static class FilterSupplier extends SimpleFilterSupplier {

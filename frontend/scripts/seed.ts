@@ -86,7 +86,7 @@ function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** Runs a step, retrying `503` (and network failures) with back-off or the Retry-After hint. */
+/** Runs a step, retrying `503`, `429` (the gateway's rate limit) and network failures with back-off or the Retry-After hint. */
 async function withRetry<T>(what: string, action: () => Promise<T>, attempts = 5): Promise<T> {
   for (let attempt = 1; ; attempt += 1) {
     try {
@@ -94,7 +94,7 @@ async function withRetry<T>(what: string, action: () => Promise<T>, attempts = 5
     } catch (error) {
       const transient =
         error instanceof ApiError &&
-        (error.status === 503 || error.status === 502 || error.kind === 'network');
+        (error.status === 503 || error.status === 502 || error.status === 429 || error.kind === 'network');
       if (!transient || attempt >= attempts) {
         throw new SeedError(
           `${what} failed: ${describeError(error)}`,
@@ -103,7 +103,7 @@ async function withRetry<T>(what: string, action: () => Promise<T>, attempts = 5
       }
       const waitSeconds =
         error instanceof ApiError && error.retryAfter !== undefined
-          ? Math.min(error.retryAfter, 15)
+          ? Math.min(error.retryAfter, 60)
           : 2 ** attempt;
       log(`  ${what}: ${describeError(error)}; retrying in ${waitSeconds} s`);
       await sleep(waitSeconds * 1000);

@@ -37,6 +37,7 @@ Filters run in this order for every incoming request.
 
 1. **Strip identity headers.** Remove `X-User-Id`, `X-User-Role`, `X-User-Email` and `X-Internal-Token` from the incoming request, so identity can only come from step 5.
 2. **Match a route.** Match method and path against the [route table](#route-table). No match → `404 Not Found`. Internal endpoints are not in the table, so they are always unmatched.
+   **Rate limit** (added 2026-11-22, [task 14](../../tasks/api-getaway/14-rate-limiting.md)). The request is counted against a limit for its client IP address, before any token is read: login (`auth-login`) and registration (`auth-register`) share a strict limit, default 5 per minute; every other route has a general limit, default 50 per second. Over the limit → `429 Too Many Requests` with `Retry-After` in seconds, and the request is not forwarded. Behind the Ingress the client address comes from `X-Forwarded-For` (Spring Boot on Kubernetes). The counters are in memory, which is correct for the single gateway replica; several replicas would need a shared store. Rejections are counted in the metric `gateway.rate.limit.rejected` (tag `limit`: `auth` or `general`).
 3. **Authenticate**, depending on the route's auth mode:
 
    | Mode | No `Authorization` header | Valid JWT | Invalid, expired or malformed JWT |
@@ -52,7 +53,7 @@ Filters run in this order for every incoming request.
 
 ### Implementation
 
-- Steps 1 and 3–6 are one route filter, `TrustBoundary`, declared on every route in the YAML configuration. Each route carries its auth mode and roles as route `metadata` (`authMode`, `roles`). Gateway MVC does not expose metadata at request time, so `RouteAccessPolicy` reads it at startup and the filter looks the rule up by route id. The gateway **refuses to start** if a route has no valid `authMode`, lists `roles` on a non-`REQUIRED` route, or does not apply the `TrustBoundary` filter.
+- The rate limit and steps 1 and 3–6 are one route filter, `TrustBoundary` (rate limit first, `RateLimitFilter`; then `TrustBoundaryFilter`), declared on every route in the YAML configuration. Each route carries its auth mode and roles as route `metadata` (`authMode`, `roles`). Gateway MVC does not expose metadata at request time, so `RouteAccessPolicy` reads it at startup and the filter looks the rule up by route id. The gateway **refuses to start** if a route has no valid `authMode`, lists `roles` on a non-`REQUIRED` route, or does not apply the `TrustBoundary` filter.
 - The filter therefore runs after route matching (step 2). This does not weaken step 1: an unmatched request is answered `404` and never forwarded, and every forwarded request has passed through the filter.
 - The reason a token was rejected is logged at debug level; the token itself is never logged.
 
@@ -65,6 +66,7 @@ Errors produced by the gateway itself use the same problem-details format as the
 | No route (unknown path, unlisted method, non-UUID id, internal endpoint) | `404` | No route matches the request. |
 | Missing or invalid token where one is needed | `401` | Authentication required |
 | Role not allowed on the route | `403` | Access denied |
+| Client over its rate limit (`type` `.../too-many-requests`, header `Retry-After`) | `429` | Too many requests; try again later |
 | Upstream unreachable (connection refused, unknown host, connect timeout) | `502` | The upstream service is unavailable. |
 | Upstream did not answer within the read timeout | `504` | The upstream service did not respond in time. |
 | Unexpected gateway error | `500` | An unexpected error occurred. |
@@ -150,6 +152,8 @@ Derived from the [API Contracts](../services-requirements/api-contracts.md). Row
 | `gateway.upstreams.auth` / `.catalog` / `.inventory` / `.order` / `.customer` / `.delivery` | `GATEWAY_UPSTREAMS_AUTH` / `_CATALOG` / `_INVENTORY` / `_ORDER` / `_CUSTOMER` / `_DELIVERY` | Upstream base URLs. Kubernetes (ConfigMap `gateway-config`): Service name and port, e.g. `http://auth-service:8086`. Compose: service name and container port, e.g. `http://auth-service:8080` |
 | `spring.http.clients.connect-timeout` / `read-timeout` | `SPRING_HTTP_CLIENTS_CONNECT_TIMEOUT` / `_READ_TIMEOUT` | Upstream timeouts; defaults `2s` / `15s` (room for upstreams that call other services with retries) |
 | `management.server.port` | — | Actuator and health probes; `8090` |
+| `gateway.rate-limit.enabled` | `GATEWAY_RATE_LIMIT_ENABLED` | Rate limiting on (`true`, default) or off; off for the k6 load tests and the live Playwright journeys |
+| `gateway.rate-limit.auth-routes`, `.auth.requests` / `.period`, `.general.requests` / `.period` | `GATEWAY_RATE_LIMIT_AUTH_REQUESTS` etc. | Routes with the strict limit (`auth-login`, `auth-register`); strict limit `5` per `1m`; general limit `50` per `1s` |
 | Route definitions | — | `spring.cloud.gateway.server.webmvc.routes` in `application.yml`: one entry per configured row of the route table, with `Method` and `Path` predicates, the `TrustBoundary` filter and `metadata.authMode` / `metadata.roles` |
 
 Upstream cluster addresses at the time of writing: auth `8086`, catalog `8081`, order `8082`, delivery `8083`, inventory `8084`, payment `8085`, customer `8087`.
@@ -163,7 +167,7 @@ The Ingress (`k8s/ingress/ingress.yaml`) forwards **all** external traffic to th
 ## Open Issues and Deferred
 
 - **Carrier webhook:** removed from the contracts (Delivery spec, decision 2026-10-15). The carrier is mocked in-process and reports deliveries without HTTP. If the deferred out-of-process carrier simulator is built, a public `POST /delivery/carrier-webhook` route returns, with an HMAC signature verified by Delivery Service.
-- **Rate limiting** (especially for `/auth/login` and registration), **CORS**, request/response transformation, and observability hooks (such as a correlation ID generated at the edge) are deferred.
+- **CORS**, request/response transformation, and observability hooks (such as a correlation ID generated at the edge) are deferred.
 - **Token revocation / logout** is not supported; tokens live until they expire (default 1 hour). Refresh tokens are out of scope.
 - **HS256** means the gateway could mint valid tokens. Moving to an asymmetric algorithm (gateway holds only the public key) is a possible later improvement.
 - **Order, Delivery and Customer routes** are listed per the contracts but not configured until those services implement the contract paths (Customer Service does not exist yet).
