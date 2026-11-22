@@ -171,7 +171,8 @@ class ProductServiceTest {
         when(productRepository.saveAndFlush(any()))
                 .thenThrow(new ObjectOptimisticLockingFailureException(Product.class, id));
 
-        assertThatThrownBy(() -> productService.updateProduct(id, validRequest()))
+        ProductRequest request = validRequest();
+        assertThatThrownBy(() -> productService.updateProduct(id, request))
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class);
         verifyNoInteractions(outbox);
     }

@@ -102,7 +102,7 @@ class OutboxIntegrationTest {
             relay.publishDueEvents();
             Map<String, Object> row = jdbc.queryForMap("SELECT * FROM outbox_events");
             assertThat(row.get("published_at")).isNull();
-            assertThat(row.get("attempts")).isEqualTo(1);
+            assertThat(row).containsEntry("attempts", 1);
             assertThat((String) row.get("last_error")).contains("broker down");
 
             // Broker back; skip the back-off wait instead of sleeping
@@ -169,8 +169,11 @@ class OutboxIntegrationTest {
 
     @Test
     void append_outsideATransaction_isRejected() {
-        assertThatThrownBy(() -> outbox.append("Product", UUID.randomUUID(), "ProductCreated",
-                KafkaTopics.PRODUCT_EVENTS, UUID.randomUUID(), Map.of()))
+        UUID aggregateId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        Map<String, Object> payload = Map.of();
+        assertThatThrownBy(() -> outbox.append("Product", aggregateId, "ProductCreated",
+                KafkaTopics.PRODUCT_EVENTS, eventId, payload))
                 .isInstanceOf(IllegalTransactionStateException.class);
     }
 
@@ -238,7 +241,7 @@ class OutboxIntegrationTest {
     private static void awaitQuietly(CountDownLatch latch) {
         try {
             latch.await(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         }
     }

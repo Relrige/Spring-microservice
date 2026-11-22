@@ -51,13 +51,14 @@ class ProductRepositoryTest {
 
         assertThat(saved.getId()).isNotNull();
         Map<String, Object> row = jdbcTemplate.queryForMap("SELECT * FROM products WHERE id = ?", saved.getId());
-        assertThat(row.get("title")).isEqualTo("Laptop");
-        assertThat(row.get("description")).isEqualTo("A laptop");
-        assertThat(row.get("category_id")).isEqualTo(categoryId);
-        assertThat(row.get("base_price")).isEqualTo(new BigDecimal("999.99"));
-        // Enums are stored by name, not by ordinal
-        assertThat(row.get("status")).isEqualTo(ProductStatus.NOT_ACTIVE.name());
-        assertThat(row.get("stock_status")).isEqualTo(StockStatus.OUT_OF_STOCK.name());
+        assertThat(row)
+                .containsEntry("title", "Laptop")
+                .containsEntry("description", "A laptop")
+                .containsEntry("category_id", categoryId)
+                .containsEntry("base_price", new BigDecimal("999.99"))
+                // Enums are stored by name, not by ordinal
+                .containsEntry("status", ProductStatus.NOT_ACTIVE.name())
+                .containsEntry("stock_status", StockStatus.OUT_OF_STOCK.name());
     }
 
     @Test
@@ -79,13 +80,15 @@ class ProductRepositoryTest {
 
     @Test
     void save_zeroPrice_violatesCheckConstraint() {
-        assertThatThrownBy(() -> productRepository.saveAndFlush(product(categoryId, "0")))
+        Product product = product(categoryId, "0");
+        assertThatThrownBy(() -> productRepository.saveAndFlush(product))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
     void save_negativePrice_violatesCheckConstraint() {
-        assertThatThrownBy(() -> productRepository.saveAndFlush(product(categoryId, "-1")))
+        Product product = product(categoryId, "-1");
+        assertThatThrownBy(() -> productRepository.saveAndFlush(product))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 

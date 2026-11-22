@@ -141,7 +141,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                                                           WebRequest request) {
         // Framework-built problems (405, 415, ...) get the same type/timestamp/service fields as ours
         if (body instanceof ProblemDetail problem) {
-            if (problem.getType() == null || "about:blank".equals(problem.getType().toString())) {
+            URI type = problem.getType();
+            if (type == null || "about:blank".equals(type.toString())) {
                 HttpStatus status = HttpStatus.resolve(statusCode.value());
                 String slug = status != null ? status.name().toLowerCase().replace('_', '-') : "error";
                 problem.setType(URI.create(ERROR_TYPE_BASE + slug));

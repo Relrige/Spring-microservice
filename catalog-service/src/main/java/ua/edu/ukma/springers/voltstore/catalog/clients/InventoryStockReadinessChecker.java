@@ -92,7 +92,7 @@ public class InventoryStockReadinessChecker implements StockReadinessChecker {
             ReadinessProblem problem = e.getResponseBodyAs(ReadinessProblem.class);
             return problem != null && problem.reason() != null && !problem.reason().isBlank()
                     ? problem.reason() : UNKNOWN_REASON;
-        } catch (RuntimeException unreadableBody) {
+        } catch (RuntimeException _) {
             return UNKNOWN_REASON;
         }
     }
