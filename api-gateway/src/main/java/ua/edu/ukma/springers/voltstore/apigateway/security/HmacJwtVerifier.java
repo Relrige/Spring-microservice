@@ -90,7 +90,7 @@ public class HmacJwtVerifier implements JwtVerifier {
             UUID parsed = UUID.fromString(value);
             // UUID.fromString accepts shortened forms such as "1-1-1-1-1"; require the canonical form
             return parsed.toString().equalsIgnoreCase(value) ? parsed : null;
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException _) {
             return null;
         }
     }
@@ -103,7 +103,7 @@ public class HmacJwtVerifier implements JwtVerifier {
     private static UserRole parseRole(String value) {
         try {
             return value == null ? null : UserRole.valueOf(value);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException _) {
             return null;
         }
     }

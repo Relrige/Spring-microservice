@@ -25,27 +25,32 @@ class RouteAccessPolicyTest {
 
     @Test
     void routeWithoutTrustBoundaryFilter_failsStartup() {
-        assertThatThrownBy(() -> policy(route("r", Map.of("authMode", "PUBLIC"), false)))
+        RouteProperties route = route("r", Map.of("authMode", "PUBLIC"), false);
+        assertThatThrownBy(() -> policy(route))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("TrustBoundary");
     }
 
     @Test
     void routeWithoutAuthMode_failsStartup() {
-        assertThatThrownBy(() -> policy(route("r", Map.of(), true)))
+        RouteProperties route = route("r", Map.of(), true);
+        assertThatThrownBy(() -> policy(route))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("authMode");
     }
 
     @Test
     void unknownAuthModeOrRole_failsStartup() {
-        assertThatThrownBy(() -> policy(route("r", Map.of("authMode", "SOMETIMES"), true)))
+        RouteProperties unknownMode = route("r", Map.of("authMode", "SOMETIMES"), true);
+        assertThatThrownBy(() -> policy(unknownMode))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> policy(route("r", Map.of("authMode", "REQUIRED", "roles", "ROOT"), true)))
+        RouteProperties unknownRole = route("r", Map.of("authMode", "REQUIRED", "roles", "ROOT"), true);
+        assertThatThrownBy(() -> policy(unknownRole))
                 .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
     void rolesOnNonRequiredRoute_failStartup() {
-        assertThatThrownBy(() -> policy(route("r", Map.of("authMode", "OPTIONAL", "roles", "ADMIN"), true)))
+        RouteProperties route = route("r", Map.of("authMode", "OPTIONAL", "roles", "ADMIN"), true);
+        assertThatThrownBy(() -> policy(route))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("not REQUIRED");
     }
 

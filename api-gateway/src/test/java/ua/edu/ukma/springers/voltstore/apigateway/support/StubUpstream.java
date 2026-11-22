@@ -61,9 +61,9 @@ public final class StubUpstream {
                 exchange.getResponseHeaders().add("Content-Type", current.contentType());
                 exchange.sendResponseHeaders(current.status(), response.length == 0 ? -1 : response.length);
                 exchange.getResponseBody().write(response);
-            } catch (InterruptedException e) {
+            } catch (InterruptedException _) {
                 Thread.currentThread().interrupt();
-            } catch (IOException ignored) {
+            } catch (IOException _) {
                 // the gateway already gave up on this request (timeout test)
             } finally {
                 exchange.close();
