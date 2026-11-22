@@ -12,6 +12,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import ua.edu.ukma.springers.voltstore.apigateway.security.UserRole;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -72,7 +73,7 @@ public abstract class GatewayIntegrationTest {
 
     /** Sends a request to the gateway; {@code headers} are name/value pairs. */
     protected HttpResponse<String> send(String method, String path, String body, String token, String... headers)
-            throws Exception {
+            throws IOException, InterruptedException {
         HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
                 .method(method, body == null || body.isEmpty()
                         ? HttpRequest.BodyPublishers.noBody()

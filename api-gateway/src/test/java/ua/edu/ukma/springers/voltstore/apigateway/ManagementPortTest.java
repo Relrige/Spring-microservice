@@ -5,6 +5,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -44,7 +45,7 @@ class ManagementPortTest {
         assertThat(get(port, "/actuator/health/readiness").statusCode()).isEqualTo(404);
     }
 
-    private HttpResponse<String> get(int targetPort, String path) throws Exception {
+    private HttpResponse<String> get(int targetPort, String path) throws IOException, InterruptedException {
         return client.send(HttpRequest.newBuilder(URI.create("http://localhost:" + targetPort + path)).build(),
                 HttpResponse.BodyHandlers.ofString());
     }

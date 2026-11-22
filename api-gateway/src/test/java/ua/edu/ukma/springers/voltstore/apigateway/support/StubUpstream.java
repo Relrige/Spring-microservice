@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -37,7 +38,7 @@ public final class StubUpstream {
     private final String name;
     private final HttpServer server;
     private final List<Received> received = new CopyOnWriteArrayList<>();
-    private volatile Reply reply;
+    private final AtomicReference<Reply> reply = new AtomicReference<>();
 
     public StubUpstream(String name) {
         this.name = name;
@@ -51,7 +52,7 @@ public final class StubUpstream {
             String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             received.add(new Received(exchange.getRequestMethod(), exchange.getRequestURI().toString(), body,
                     copy(exchange.getRequestHeaders())));
-            Reply current = reply;
+            Reply current = reply.get();
             try {
                 if (!current.delay().isZero()) {
                     // intentional: simulates a slow upstream for the gateway timeout tests
@@ -79,15 +80,15 @@ public final class StubUpstream {
 
     public void reset() {
         received.clear();
-        reply = new Reply(200, "text/plain", "stub:" + name, Duration.ZERO);
+        reply.set(new Reply(200, "text/plain", "stub:" + name, Duration.ZERO));
     }
 
     public void replyWith(int status, String contentType, String body) {
-        reply = new Reply(status, contentType, body, Duration.ZERO);
+        reply.set(new Reply(status, contentType, body, Duration.ZERO));
     }
 
     public void replyAfter(Duration delay) {
-        reply = new Reply(200, "text/plain", "stub:" + name, delay);
+        reply.set(new Reply(200, "text/plain", "stub:" + name, delay));
     }
 
     public List<Received> received() {
