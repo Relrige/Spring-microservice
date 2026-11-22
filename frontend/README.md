@@ -24,7 +24,7 @@ The web app of VoltStore: one React + TypeScript single-page app for customers, 
 | `npm run gen:api` | Regenerate the API types in `src/api/generated/` from the services' OpenAPI documents (below). |
 | `npm run check:api` | Fail if the generated API types differ from what the current OpenAPI documents produce. |
 | `npm run check:e2e` | Browser journeys (Playwright, project `mock`) against `dev:mock`; starts the server itself. |
-| `npm run test:e2e:live` | The same journeys (project `live`) against the Compose stack through `npm run dev`, or against a deployment when `E2E_BASE_URL` is set (no dev server then). Seed first. |
+| `npm run test:e2e:live` | The same journeys (project `live`) against the Compose stack through `npm run dev`, or against a deployment when `E2E_BASE_URL` is set (no dev server then). Seed first. The journeys log in more often than the gateway's login limit allows (5 per minute per address): run them with `GATEWAY_RATE_LIMIT_ENABLED=false` in `../api-gateway/.env`. |
 | `npm run seed` | Fill a running stack with the demo data (below). |
 | `npm run format` | Format with Prettier. |
 | `npm test`, `npm run test:watch`, `npm run lint`, `npm run typecheck` | The parts of `check` alone. |
