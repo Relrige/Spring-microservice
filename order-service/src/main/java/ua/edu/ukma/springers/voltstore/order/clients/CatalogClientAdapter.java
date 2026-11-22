@@ -44,7 +44,8 @@ public class CatalogClientAdapter implements ProductCatalog {
         return client.batchGet(ids);
     }
 
-    private List<CatalogProduct> unavailable(Collection<UUID> productIds, Throwable failure) {
+    @SuppressWarnings("java:S1172") // Resilience4j finds the fallback by the protected method's parameters
+    private List<CatalogProduct> unavailable(Collection<UUID> ignoredProductIds, Throwable failure) {
         throw ClientFailures.unavailable("Catalog", failure);
     }
 }

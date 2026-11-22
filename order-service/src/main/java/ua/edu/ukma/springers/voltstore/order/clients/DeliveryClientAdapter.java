@@ -65,11 +65,13 @@ public class DeliveryClientAdapter implements Shipments {
         }
     }
 
-    private List<ShipmentInfo> findUnavailable(Collection<UUID> orderIds, Throwable failure) {
+    @SuppressWarnings("java:S1172") // Resilience4j finds the fallback by the protected method's parameters
+    private List<ShipmentInfo> findUnavailable(Collection<UUID> ignoredOrderIds, Throwable failure) {
         throw ClientFailures.unavailable("Delivery", failure);
     }
 
-    private void cancelUnavailable(UUID orderId, Throwable failure) {
+    @SuppressWarnings("java:S1172") // Resilience4j finds the fallback by the protected method's parameters
+    private void cancelUnavailable(UUID ignoredOrderId, Throwable failure) {
         throw ClientFailures.unavailable("Delivery", failure);
     }
 }

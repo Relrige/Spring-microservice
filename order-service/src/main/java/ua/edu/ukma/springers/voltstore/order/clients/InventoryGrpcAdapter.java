@@ -166,19 +166,23 @@ public class InventoryGrpcAdapter implements StockReservations, StockLevels {
         }
     }
 
-    private ReservationResult reserveUnavailable(UUID orderId, List<ReservationItem> items, Throwable failure) {
+    @SuppressWarnings("java:S1172") // Resilience4j finds the fallback by the protected method's parameters
+    private ReservationResult reserveUnavailable(UUID ignoredOrderId, List<ReservationItem> items, Throwable failure) {
         throw ClientFailures.unavailable(DISPLAY_NAME, failure);
     }
 
-    private void releaseUnavailable(UUID orderId, Throwable failure) {
+    @SuppressWarnings("java:S1172") // Resilience4j finds the fallback by the protected method's parameters
+    private void releaseUnavailable(UUID ignoredOrderId, Throwable failure) {
         throw ClientFailures.unavailable(DISPLAY_NAME, failure);
     }
 
-    private Map<UUID, String> releaseAllUnavailable(Collection<UUID> orderIds, Throwable failure) {
+    @SuppressWarnings("java:S1172") // Resilience4j finds the fallback by the protected method's parameters
+    private Map<UUID, String> releaseAllUnavailable(Collection<UUID> ignoredOrderIds, Throwable failure) {
         throw ClientFailures.unavailable(DISPLAY_NAME, failure);
     }
 
-    private Map<UUID, Integer> availableQuantitiesUnavailable(Collection<UUID> productIds, Throwable failure) {
+    @SuppressWarnings("java:S1172") // Resilience4j finds the fallback by the protected method's parameters
+    private Map<UUID, Integer> availableQuantitiesUnavailable(Collection<UUID> ignoredProductIds, Throwable failure) {
         throw ClientFailures.unavailable(DISPLAY_NAME, failure);
     }
 }

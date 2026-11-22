@@ -15,7 +15,8 @@ public class InvalidOrderStateException extends RuntimeException {
         this(orderId, status, "Order " + orderId + " cannot " + action + " in status " + status, true);
     }
 
-    // For subclasses with their own message
+    // For subclasses with their own message; the unused flag only keeps this signature apart from the public one
+    @SuppressWarnings("java:S1172")
     protected InvalidOrderStateException(UUID orderId, OrderStatus status, String message, boolean ignored) {
         super(message);
         this.orderId = orderId;
