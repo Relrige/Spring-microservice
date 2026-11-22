@@ -9,6 +9,7 @@ This directory contains the documentation and design artifacts for the VoltStore
 ```text
 docs/
 ├── design/
+│   ├── architecture.md
 │   ├── entities/
 │   │   ├── entities.md
 │   │   └── order-state-machine.md
