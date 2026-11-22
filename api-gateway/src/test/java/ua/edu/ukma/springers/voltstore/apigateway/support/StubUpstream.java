@@ -54,6 +54,7 @@ public final class StubUpstream {
             Reply current = reply;
             try {
                 if (!current.delay().isZero()) {
+                    // intentional: simulates a slow upstream for the gateway timeout tests
                     Thread.sleep(current.delay());
                 }
                 byte[] response = current.body().getBytes(StandardCharsets.UTF_8);
