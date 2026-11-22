@@ -38,8 +38,7 @@ public class UserController {
     @PostMapping("/register")
     @ResponseStatus(code = HttpStatus.CREATED)
     public RegisterUserResponse registerUser(@RequestBody @Valid RegisterUserRequest request) {
-        RegisterUserResponse response = userService.registerUser(request);
-        return response;
+        return userService.registerUser(request);
     }
 
     // Only an administrator may call this; the rule lives in SecurityConfig (route-level role rule)
