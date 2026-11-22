@@ -34,6 +34,7 @@ public class JwtTokenService implements TokenService {
     }
 
     @Override
+    @SuppressWarnings("java:S2143") // Nimbus JOSE takes JWT time claims only as java.util.Date
     public String issueToken(UserEntity user) {
         Instant now = Instant.now();
         JWTClaimsSet claims = new JWTClaimsSet.Builder()

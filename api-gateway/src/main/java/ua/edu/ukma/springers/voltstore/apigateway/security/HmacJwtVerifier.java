@@ -61,11 +61,11 @@ public class HmacJwtVerifier implements JwtVerifier {
         }
 
         JWTClaimsSet claims = jwt.getJWTClaimsSet();
-        Date expiration = claims.getExpirationTime();
+        Instant expiration = expirationOf(claims);
         if (expiration == null) {
             return reject("missing exp");
         }
-        if (!expiration.toInstant().plus(leeway).isAfter(Instant.now(clock))) {
+        if (!expiration.plus(leeway).isAfter(Instant.now(clock))) {
             return reject("expired");
         }
 
@@ -107,4 +107,11 @@ public class HmacJwtVerifier implements JwtVerifier {
             return null;
         }
     }
+    // Nimbus JOSE returns JWT time claims only as java.util.Date; everything else uses java.time
+    @SuppressWarnings("java:S2143")
+    private static Instant expirationOf(JWTClaimsSet claims) {
+        Date expiration = claims.getExpirationTime();
+        return expiration == null ? null : expiration.toInstant();
+    }
+
 }

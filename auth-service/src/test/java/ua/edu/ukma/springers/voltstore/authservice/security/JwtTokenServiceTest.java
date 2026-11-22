@@ -10,6 +10,7 @@ import ua.edu.ukma.springers.voltstore.authservice.entities.UserEntity;
 import ua.edu.ukma.springers.voltstore.authservice.entities.UserRole;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.Duration;
 import java.util.Date;
 import java.util.UUID;
@@ -32,8 +33,8 @@ class JwtTokenServiceTest {
         assertThat(claims.getStringClaim("role")).isEqualTo("CATALOG_MANAGER");
         assertThat(claims.getStringClaim("email")).isEqualTo("u@example.com");
         assertThat(claims.getIssueTime()).isNotNull();
-        assertThat(claims.getExpirationTime().getTime() - claims.getIssueTime().getTime())
-                .isEqualTo(Duration.ofHours(1).toMillis());
+        assertThat(Duration.between(claims.getIssueTime().toInstant(), claims.getExpirationTime().toInstant()))
+                .isEqualTo(Duration.ofHours(1));
     }
 
     @Test
@@ -52,7 +53,7 @@ class JwtTokenServiceTest {
         JwtTokenService service = new JwtTokenService(new JwtProperties(SECRET, Duration.ofHours(1)));
         String[] parts = service.issueToken(user(UserRole.CUSTOMER)).split("\\.");
         String forgedClaims = new JWTClaimsSet.Builder().subject(UUID.randomUUID().toString()).claim("role", "ADMIN")
-                .expirationTime(new Date(System.currentTimeMillis() + 60_000)).build()
+                .expirationTime(jwtTime(Instant.now().plusSeconds(60))).build()
                 .toPayload().toBase64URL().toString();
 
         SignedJWT forged = SignedJWT.parse(parts[0] + "." + forgedClaims + "." + parts[2]);
@@ -67,7 +68,7 @@ class JwtTokenServiceTest {
         SignedJWT jwt = SignedJWT.parse(service.issueToken(user(UserRole.CUSTOMER)));
 
         assertThat(jwt.verify(verifier(SECRET))).isTrue();
-        assertThat(jwt.getJWTClaimsSet().getExpirationTime()).isBefore(new Date());
+        assertThat(jwt.getJWTClaimsSet().getExpirationTime().toInstant()).isBefore(Instant.now());
     }
 
     @Test
@@ -84,4 +85,10 @@ class JwtTokenServiceTest {
     private static UserEntity user(UserRole role) {
         return UserEntity.builder().id(UUID.randomUUID()).email("u@example.com").passwordHash("hash").role(role).build();
     }
+    // Nimbus JOSE takes JWT time claims only as java.util.Date; everything else uses java.time
+    @SuppressWarnings("java:S2143")
+    private static Date jwtTime(Instant instant) {
+        return Date.from(instant);
+    }
+
 }

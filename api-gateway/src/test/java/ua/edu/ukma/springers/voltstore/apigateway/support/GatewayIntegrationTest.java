@@ -95,19 +95,19 @@ public abstract class GatewayIntegrationTest {
     public static String token(UUID userId, UserRole role) {
         return sign(SECRET, new JWTClaimsSet.Builder()
                 .subject(userId.toString()).claim("role", role.name())
-                .issueTime(new Date()).expirationTime(Date.from(Instant.now().plusSeconds(3600))).build());
+                .issueTime(jwtTime(Instant.now())).expirationTime(jwtTime(Instant.now().plusSeconds(3600))).build());
     }
 
     public static String token(UUID userId, UserRole role, String email) {
         return sign(SECRET, new JWTClaimsSet.Builder()
                 .subject(userId.toString()).claim("role", role.name()).claim("email", email)
-                .issueTime(new Date()).expirationTime(Date.from(Instant.now().plusSeconds(3600))).build());
+                .issueTime(jwtTime(Instant.now())).expirationTime(jwtTime(Instant.now().plusSeconds(3600))).build());
     }
 
     public static String expiredToken() {
         return sign(SECRET, new JWTClaimsSet.Builder()
                 .subject(UUID.randomUUID().toString()).claim("role", UserRole.ADMIN.name())
-                .expirationTime(Date.from(Instant.now().minusSeconds(3600))).build());
+                .expirationTime(jwtTime(Instant.now().minusSeconds(3600))).build());
     }
 
     public static String adminToken() {
@@ -123,4 +123,10 @@ public abstract class GatewayIntegrationTest {
             throw new IllegalStateException(e);
         }
     }
+    // Nimbus JOSE takes JWT time claims only as java.util.Date; everything else uses java.time
+    @SuppressWarnings("java:S2143")
+    public static Date jwtTime(Instant instant) {
+        return Date.from(instant);
+    }
+
 }

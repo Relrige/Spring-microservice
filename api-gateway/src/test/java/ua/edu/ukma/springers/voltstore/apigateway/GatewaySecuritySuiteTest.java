@@ -23,7 +23,6 @@ import ua.edu.ukma.springers.voltstore.apigateway.support.StubUpstream.Received;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -147,7 +146,7 @@ class GatewaySecuritySuiteTest extends GatewayIntegrationTest {
     }
 
     private static Map<String, String> invalidTokens() {
-        Date future = Date.from(Instant.now().plusSeconds(3600));
+        Instant future = Instant.now().plusSeconds(3600);
         String user = UUID.randomUUID().toString();
         Map<String, String> tokens = new LinkedHashMap<>();
         tokens.put("expired", expiredToken());
@@ -161,8 +160,8 @@ class GatewaySecuritySuiteTest extends GatewayIntegrationTest {
         return tokens;
     }
 
-    private static JWTClaimsSet claims(String subject, String role, Date expiration) {
-        return new JWTClaimsSet.Builder().subject(subject).claim("role", role).expirationTime(expiration).build();
+    private static JWTClaimsSet claims(String subject, String role, Instant expiration) {
+        return new JWTClaimsSet.Builder().subject(subject).claim("role", role).expirationTime(jwtTime(expiration)).build();
     }
 
     private static String hs512(JWTClaimsSet claims) {

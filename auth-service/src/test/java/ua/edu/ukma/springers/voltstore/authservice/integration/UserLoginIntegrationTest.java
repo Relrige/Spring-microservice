@@ -23,8 +23,8 @@ import ua.edu.ukma.springers.voltstore.authservice.entities.UserRole;
 import ua.edu.ukma.springers.voltstore.authservice.repositories.UserRepository;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.Duration;
-import java.util.Date;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -71,9 +71,9 @@ class UserLoginIntegrationTest {
         assertThat(claims.getSubject()).isEqualTo(userId);
         assertThat(claims.getStringClaim("role")).isEqualTo("CUSTOMER");
         assertThat(claims.getStringClaim("email")).isEqualTo("alice@example.com");
-        assertThat(claims.getExpirationTime()).isAfter(new Date());
-        assertThat(claims.getExpirationTime().getTime() - claims.getIssueTime().getTime())
-                .isEqualTo(jwtProperties.expiration().toMillis());
+        assertThat(claims.getExpirationTime().toInstant()).isAfter(Instant.now());
+        assertThat(Duration.between(claims.getIssueTime().toInstant(), claims.getExpirationTime().toInstant()))
+                .isEqualTo(jwtProperties.expiration());
     }
 
     @Test
