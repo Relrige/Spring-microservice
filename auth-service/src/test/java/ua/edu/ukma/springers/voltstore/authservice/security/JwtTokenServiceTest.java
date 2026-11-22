@@ -72,7 +72,8 @@ class JwtTokenServiceTest {
 
     @Test
     void constructor_rejectsTooShortSecret() {
-        assertThatThrownBy(() -> new JwtTokenService(new JwtProperties("short", Duration.ofHours(1))))
+        JwtProperties properties = new JwtProperties("short", Duration.ofHours(1));
+        assertThatThrownBy(() -> new JwtTokenService(properties))
                 .isInstanceOf(IllegalStateException.class);
     }
 

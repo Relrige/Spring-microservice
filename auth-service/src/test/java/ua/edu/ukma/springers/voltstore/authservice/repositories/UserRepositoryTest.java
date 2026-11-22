@@ -86,7 +86,8 @@ class UserRepositoryTest {
     void save_duplicateEmail_violatesUniqueConstraint() {
         userRepository.saveAndFlush(user("eve@example.com", UserRole.CUSTOMER));
 
-        assertThatThrownBy(() -> userRepository.saveAndFlush(user("eve@example.com", UserRole.CATALOG_MANAGER)))
+        UserEntity duplicate = user("eve@example.com", UserRole.CATALOG_MANAGER);
+        assertThatThrownBy(() -> userRepository.saveAndFlush(duplicate))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 

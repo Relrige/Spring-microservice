@@ -54,8 +54,9 @@ class AdminSeederIntegrationTest {
         adminSeeder.run(null);
 
         Map<String, Object> row = jdbcTemplate.queryForMap("SELECT * FROM users");
-        assertThat(row.get("email")).isEqualTo(adminProperties.email());
-        assertThat(row.get("user_role")).isEqualTo("ADMIN");
+        assertThat(row)
+                .containsEntry("email", adminProperties.email())
+                .containsEntry("user_role", "ADMIN");
         String hash = (String) row.get("password_hash");
         assertThat(hash).isNotEqualTo(adminProperties.password());
         assertThat(passwordEncoder.matches(adminProperties.password(), hash)).isTrue();

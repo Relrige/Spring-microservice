@@ -54,8 +54,9 @@ class UserRegistrationIntegrationTest {
 
         Map<String, Object> row = jdbcTemplate.queryForMap("SELECT * FROM users");
         assertThat(body).contains(row.get("id").toString());
-        assertThat(row.get("email")).isEqualTo("alice@example.com");
-        assertThat(row.get("user_role")).isEqualTo("CUSTOMER");
+        assertThat(row)
+                .containsEntry("email", "alice@example.com")
+                .containsEntry("user_role", "CUSTOMER");
         assertThat(row.get("created_at")).isNotNull();
         String hash = (String) row.get("password_hash");
         assertThat(hash).isNotEqualTo("secret1");
