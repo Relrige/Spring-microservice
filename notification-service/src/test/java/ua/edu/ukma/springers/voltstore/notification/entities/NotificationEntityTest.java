@@ -101,12 +101,13 @@ class NotificationEntityTest {
         NotificationEntity failed = Notifications.pending(NOW);
         failed.markFailed("recipient_rejected");
 
+        Instant leaseUntil = NOW.plus(Duration.ofMinutes(2));
         for (NotificationEntity notification : new NotificationEntity[]{sent, failed}) {
             assertThatThrownBy(() -> notification.markSent(NOW)).isInstanceOf(IllegalStateException.class);
             assertThatThrownBy(() -> notification.markFailed("x")).isInstanceOf(IllegalStateException.class);
             assertThatThrownBy(() -> notification.recordFailure("x", NOW))
                     .isInstanceOf(IllegalStateException.class);
-            assertThatThrownBy(() -> notification.lease(NOW.plus(Duration.ofMinutes(2))))
+            assertThatThrownBy(() -> notification.lease(leaseUntil))
                     .isInstanceOf(IllegalStateException.class);
             assertThatThrownBy(() -> notification.assignRecipient("a@example.com"))
                     .isInstanceOf(IllegalStateException.class);

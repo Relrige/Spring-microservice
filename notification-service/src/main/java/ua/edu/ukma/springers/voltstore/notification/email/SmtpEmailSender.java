@@ -62,7 +62,7 @@ public class SmtpEmailSender implements EmailSender {
             helper.setTo(new InternetAddress(message.to(), true));
             helper.setSubject(message.subject());
             helper.setText(message.body(), false);
-        } catch (MessagingException e) {
+        } catch (MessagingException _) {
             throw new EmailSendException("recipient_invalid", false, null);
         }
         try {

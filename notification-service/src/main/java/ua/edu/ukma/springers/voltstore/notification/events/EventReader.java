@@ -38,7 +38,7 @@ public class EventReader {
             // the error handler would log with that message); the record itself is in the dead-letter topic
             throw new PoisonMessageException("Unreadable " + type.getSimpleName() + ": invalid value at "
                     + e.getPathReference(), null);
-        } catch (JacksonException e) {
+        } catch (JacksonException _) {
             throw new PoisonMessageException("Unreadable " + type.getSimpleName() + ": not valid JSON", null);
         }
         if (event == null) {
