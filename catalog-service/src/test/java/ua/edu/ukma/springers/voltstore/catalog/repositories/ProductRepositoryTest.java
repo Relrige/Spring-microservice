@@ -73,7 +73,8 @@ class ProductRepositoryTest {
 
     @Test
     void save_unknownCategory_violatesForeignKey() {
-        assertThatThrownBy(() -> productRepository.saveAndFlush(product(UUID.randomUUID(), "10")))
+        Product product = product(UUID.randomUUID(), "10");
+        assertThatThrownBy(() -> productRepository.saveAndFlush(product))
                 .isInstanceOfSatisfying(DataIntegrityViolationException.class, e ->
                         assertThat(ConstraintViolations.isViolationOf(e, ConstraintViolations.PRODUCT_CATEGORY_FK)).isTrue());
     }

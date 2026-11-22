@@ -76,7 +76,8 @@ class CategoryServiceTest {
     void createCategory_duplicateName_throwsAndDoesNotSave() {
         when(categoryRepository.existsByNameIgnoreCase("laptops")).thenReturn(true);
 
-        assertThatThrownBy(() -> categoryService.createCategory(request(" laptops ")))
+        CategoryRequest request = request(" laptops ");
+        assertThatThrownBy(() -> categoryService.createCategory(request))
                 .isInstanceOf(CategoryNameAlreadyInUseException.class)
                 .hasMessage("Category name already in use");
 
@@ -87,7 +88,8 @@ class CategoryServiceTest {
     void createCategory_uniqueIndexViolation_mapsToNameAlreadyInUse() {
         when(categoryRepository.saveAndFlush(any())).thenThrow(constraintViolation("categories_name_lower_key"));
 
-        assertThatThrownBy(() -> categoryService.createCategory(request("Laptops")))
+        CategoryRequest request = request("Laptops");
+        assertThatThrownBy(() -> categoryService.createCategory(request))
                 .isInstanceOf(CategoryNameAlreadyInUseException.class);
     }
 
@@ -96,7 +98,8 @@ class CategoryServiceTest {
         DataIntegrityViolationException other = constraintViolation("some_other_constraint");
         when(categoryRepository.saveAndFlush(any())).thenThrow(other);
 
-        assertThatThrownBy(() -> categoryService.createCategory(request("Laptops"))).isSameAs(other);
+        CategoryRequest request = request("Laptops");
+        assertThatThrownBy(() -> categoryService.createCategory(request)).isSameAs(other);
     }
 
     // --- rename ---
@@ -120,7 +123,8 @@ class CategoryServiceTest {
         when(categoryRepository.findById(id)).thenReturn(Optional.empty());
 
         // Blank name would be a 400, but the spec checks existence first
-        assertThatThrownBy(() -> categoryService.renameCategory(id, request("  ")))
+        CategoryRequest request = request("  ");
+        assertThatThrownBy(() -> categoryService.renameCategory(id, request))
                 .isInstanceOf(CategoryNotFoundException.class);
     }
 
@@ -129,7 +133,8 @@ class CategoryServiceTest {
         UUID id = UUID.randomUUID();
         when(categoryRepository.findById(id)).thenReturn(Optional.of(new Category("Laptops")));
 
-        assertThatThrownBy(() -> categoryService.renameCategory(id, request("  ")))
+        CategoryRequest request = request("  ");
+        assertThatThrownBy(() -> categoryService.renameCategory(id, request))
                 .isInstanceOfSatisfying(RequestValidationException.class,
                         e -> assertThat(e.getErrors()).containsKey("name"));
         verify(categoryRepository, never()).saveAndFlush(any());
@@ -142,7 +147,8 @@ class CategoryServiceTest {
         when(categoryRepository.findById(id)).thenReturn(Optional.of(category));
         when(categoryRepository.existsByNameIgnoreCaseAndIdNot("laptops", id)).thenReturn(true);
 
-        assertThatThrownBy(() -> categoryService.renameCategory(id, request("laptops")))
+        CategoryRequest request = request("laptops");
+        assertThatThrownBy(() -> categoryService.renameCategory(id, request))
                 .isInstanceOf(CategoryNameAlreadyInUseException.class);
         assertThat(category.getName()).isEqualTo("Phones");
     }
@@ -153,7 +159,8 @@ class CategoryServiceTest {
         when(categoryRepository.findById(id)).thenReturn(Optional.of(new Category("Phones")));
         when(categoryRepository.saveAndFlush(any())).thenThrow(constraintViolation("categories_name_lower_key"));
 
-        assertThatThrownBy(() -> categoryService.renameCategory(id, request("Laptops")))
+        CategoryRequest request = request("Laptops");
+        assertThatThrownBy(() -> categoryService.renameCategory(id, request))
                 .isInstanceOf(CategoryNameAlreadyInUseException.class);
     }
 

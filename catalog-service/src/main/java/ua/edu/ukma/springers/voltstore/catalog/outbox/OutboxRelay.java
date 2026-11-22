@@ -1,6 +1,5 @@
 package ua.edu.ukma.springers.voltstore.catalog.outbox;
 
-import io.micrometer.tracing.CurrentTraceContext;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -79,20 +78,24 @@ public class OutboxRelay {
             try {
                 send(event);
                 event.markPublished(Instant.now());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return recordFailure(event, e);
             } catch (Exception e) {
-                if (e instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();
-                }
-                Instant now = Instant.now();
-                Duration retryAfter = retryDelay(event.getAttempts());
-                event.markFailed(now, retryAfter, e.toString());
-                log.error("Outbox event {} ({} of {} {}) failed to publish: attempt {}, unpublished for {}, next try in {}",
-                        event.getId(), event.getEventType(), event.getAggregateType(), event.getAggregateId(),
-                        event.getAttempts(), Duration.between(event.getCreatedAt(), now), retryAfter, e);
-                return false;
+                return recordFailure(event, e);
             }
         }
         return events.size() == properties.batchSize();
+    }
+
+    private boolean recordFailure(OutboxEvent event, Exception e) {
+        Instant now = Instant.now();
+        Duration retryAfter = retryDelay(event.getAttempts());
+        event.markFailed(now, retryAfter, e.toString());
+        log.error("Outbox event {} ({} of {} {}) failed to publish: attempt {}, unpublished for {}, next try in {}",
+                event.getId(), event.getEventType(), event.getAggregateType(), event.getAggregateId(),
+                event.getAttempts(), Duration.between(event.getCreatedAt(), now), retryAfter, e);
+        return false;
     }
 
     // Published events are only needed for troubleshooting; keep them for the retention period.
@@ -116,7 +119,7 @@ public class OutboxRelay {
         producerRecord.headers().add(KafkaTopics.EVENT_TYPE_HEADER, event.getEventType().getBytes(StandardCharsets.UTF_8));
         producerRecord.headers().add(KafkaTopics.EVENT_ID_HEADER, event.getId().toString().getBytes(StandardCharsets.UTF_8));
         // The producer span becomes a child of the request that wrote the event and sends its traceparent header
-        try (CurrentTraceContext.Scope _ = traceContext.restore(event.getTraceparent())) {
+        try (var _ = traceContext.restore(event.getTraceparent())) {
             kafkaTemplate.send(producerRecord).get(properties.publishTimeout().toMillis(), TimeUnit.MILLISECONDS);
         }
     }
