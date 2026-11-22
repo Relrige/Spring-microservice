@@ -54,7 +54,8 @@ public class ProductService {
     public static final int BATCH_GET_MAX_IDS = 100;
 
     // sortBy values accepted by EP-CAT-04, mapped to entity properties. Never sort by an arbitrary property name.
-    private static final Map<String, String> SORTABLE_FIELDS = Map.of("title", "title", "basePrice", "basePrice");
+    private static final String TITLE = "title";
+    private static final Map<String, String> SORTABLE_FIELDS = Map.of(TITLE, TITLE, "basePrice", "basePrice");
     private static final String SORT_BY_RULE = "must be title or basePrice, optionally followed by ,asc or ,desc";
 
     private final ProductRepository productRepository;
@@ -252,7 +253,7 @@ public class ProductService {
      */
     static Sort parseSort(@Nullable String sortBy) {
         if (sortBy == null || sortBy.isBlank()) {
-            return Sort.by("title", "id");
+            return Sort.by(TITLE, "id");
         }
         String[] parts = sortBy.split(",", -1);
         String property = SORTABLE_FIELDS.get(parts[0].trim());

@@ -70,8 +70,8 @@ public class CategoryService {
             categoryRepository.delete(category);
             categoryRepository.flush();
         } catch (DataIntegrityViolationException e) {
-            // Race condition: a product was assigned to this category after the check above;
-            // the ON DELETE RESTRICT foreign key blocked the delete
+            // Race condition: a product was assigned to this category after the check above.
+            // The ON DELETE RESTRICT foreign key blocked the delete
             if (ConstraintViolations.isViolationOf(e, ConstraintViolations.PRODUCT_CATEGORY_FK)) {
                 throw new CategoryHasProductsException();
             }

@@ -34,29 +34,29 @@ public class StockEventListener {
             topics = KafkaTopics.STOCK_EVENTS,
             groupId = GROUP_ID,
             properties = "spring.json.value.default.type=ua.edu.ukma.springers.voltstore.catalog.events.StockEvent")
-    public void onStockEvent(ConsumerRecord<String, StockEvent> record) {
-        String eventType = header(record, KafkaTopics.EVENT_TYPE_HEADER);
+    public void onStockEvent(ConsumerRecord<String, StockEvent> consumerRecord) {
+        String eventType = header(consumerRecord, KafkaTopics.EVENT_TYPE_HEADER);
         StockStatus stockStatus = switch (eventType) {
             case StockEvent.REPLENISHED -> StockStatus.IN_STOCK;
             case StockEvent.DEPLETED -> StockStatus.OUT_OF_STOCK;
             case null, default -> null;
         };
         // Other event types Inventory may add to its topic later are not Catalog's business
-        if (stockStatus == null || record.value() == null) {
+        if (stockStatus == null || consumerRecord.value() == null) {
             log.warn("Ignoring stock event with eventType={} key={} partition={} offset={}",
-                    eventType, record.key(), record.partition(), record.offset());
+                    eventType, consumerRecord.key(), consumerRecord.partition(), consumerRecord.offset());
             return;
         }
 
-        StockEvent event = record.value();
+        StockEvent event = consumerRecord.value();
         if (!productService.updateStockStatus(event.productId(), stockStatus)) {
             // Acknowledged anyway: retrying cannot make an unknown product appear (spec: log and acknowledge)
             log.warn("Stock event {} for unknown productId={} ignored", eventType, event.productId());
         }
     }
 
-    private static String header(ConsumerRecord<?, ?> record, String name) {
-        Header header = record.headers().lastHeader(name);
+    private static String header(ConsumerRecord<?, ?> consumerRecord, String name) {
+        Header header = consumerRecord.headers().lastHeader(name);
         return header == null || header.value() == null ? null : new String(header.value(), StandardCharsets.UTF_8);
     }
 }

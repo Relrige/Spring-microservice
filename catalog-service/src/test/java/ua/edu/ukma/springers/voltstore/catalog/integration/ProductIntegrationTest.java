@@ -1,5 +1,6 @@
 package ua.edu.ukma.springers.voltstore.catalog.integration;
 
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -291,7 +292,7 @@ class ProductIntegrationTest {
                         .content(json("Laptop", "A laptop", categoryId, "10", imageUrl)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        String id = body.replaceAll(".*\"productId\":\"([^\"]+)\".*", "$1");
+        String id = JsonPath.read(body, "$.productId");
 
         assertThat(jdbc.queryForObject("SELECT image_url FROM products", String.class)).isEqualTo(imageUrl);
         mockMvc.perform(get(URL + "/" + id).headers(asManager()))

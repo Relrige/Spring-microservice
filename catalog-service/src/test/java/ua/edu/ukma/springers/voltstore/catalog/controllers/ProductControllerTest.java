@@ -55,7 +55,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asInternalService;
 import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asManager;
 import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asUser;
-import static ua.edu.ukma.springers.voltstore.catalog.support.TrustedHeaders.asUser;
 
 @WebMvcTest(ProductController.class)
 @Import(SecurityConfig.class)

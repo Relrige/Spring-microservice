@@ -91,16 +91,16 @@ public class KafkaConfig {
 
         // Negative partition: let the producer choose, since the DLT has fewer partitions than the source
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(templates,
-                (record, ex) -> new TopicPartition(KafkaTopics.STOCK_EVENTS_DLT, -1));
+                (failedRecord, ex) -> new TopicPartition(KafkaTopics.STOCK_EVENTS_DLT, -1));
 
         ExponentialBackOffWithMaxRetries backOff = new ExponentialBackOffWithMaxRetries(4);
         backOff.setInitialInterval(1000);
         backOff.setMultiplier(2);
         backOff.setMaxInterval(10_000);
-        return new DefaultErrorHandler((record, ex) -> {
+        return new DefaultErrorHandler((failedRecord, ex) -> {
             log.error("Sending {} key={} partition={} offset={} to {}",
-                    record.topic(), record.key(), record.partition(), record.offset(), KafkaTopics.STOCK_EVENTS_DLT, ex);
-            recoverer.accept(record, ex);
+                    failedRecord.topic(), failedRecord.key(), failedRecord.partition(), failedRecord.offset(), KafkaTopics.STOCK_EVENTS_DLT, ex);
+            recoverer.accept(failedRecord, ex);
         }, backOff);
     }
 }

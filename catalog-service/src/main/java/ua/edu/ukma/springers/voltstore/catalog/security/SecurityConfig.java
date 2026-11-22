@@ -45,8 +45,8 @@ public class SecurityConfig {
                         .accessDeniedHandler(errorHandlers))
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
-                        // OpenAPI documents and Swagger UI. They exist only when springdoc is turned on (Compose);
-                        // otherwise no handler is mapped and the paths answer 404. The gateway never routes them.
+                        // OpenAPI documents and Swagger UI. They exist only when springdoc is turned on (Compose).
+                        // Otherwise no handler is mapped and the paths answer 404. The gateway never routes them.
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
                         // Internal (EP-CAT-09). Must come before the public "/catalog/products/*" rule below, which
                         // would otherwise also match "/catalog/products/batch-get" (the first matching rule wins)

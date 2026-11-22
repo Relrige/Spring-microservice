@@ -135,8 +135,8 @@ class StockEventsIntegrationTest {
 
             await().atMost(WAIT).until(() -> stockStatus(id).equals("IN_STOCK"));
             await().atMost(WAIT).untilAsserted(() -> assertThat(dlt.poll())
-                    .filteredOn(record -> key.equals(record.key()))
-                    .extracting(record -> record.value())
+                    .filteredOn(consumerRecord -> key.equals(consumerRecord.key()))
+                    .extracting(consumerRecord -> consumerRecord.value())
                     .containsExactly("this is not JSON", "{\"timestamp\":\"2026-10-11T10:00:00Z\"}"));
         }
     }
@@ -168,9 +168,9 @@ class StockEventsIntegrationTest {
     }
 
     private void send(String key, String eventType, String json) throws Exception {
-        ProducerRecord<String, String> record = new ProducerRecord<>(KafkaTopics.STOCK_EVENTS, key, json);
-        record.headers().add(KafkaTopics.EVENT_TYPE_HEADER, eventType.getBytes(StandardCharsets.UTF_8));
-        inventory.send(record).get();
+        ProducerRecord<String, String> producerRecord = new ProducerRecord<>(KafkaTopics.STOCK_EVENTS, key, json);
+        producerRecord.headers().add(KafkaTopics.EVENT_TYPE_HEADER, eventType.getBytes(StandardCharsets.UTF_8));
+        inventory.send(producerRecord).get();
     }
 
     private static String payload(UUID productId) {
