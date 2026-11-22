@@ -6,70 +6,32 @@ The whole system on one page: services and their databases, how they talk to eac
 
 ## 1. System Overview
 
-Eight Spring Boot services behind one API Gateway, each with its own PostgreSQL database. Synchronous calls go over HTTP (and gRPC to Inventory); everything that can happen later goes through Kafka.
+Eight Spring Boot services behind one API Gateway, each with its own PostgreSQL database. Synchronous calls go over HTTP (and gRPC to Inventory); everything that can happen later goes through Kafka. Calls between the services are drawn in [section 2](#2-synchronous-communication).
 
 ```mermaid
-flowchart LR
-    browser(["Browser"])
+flowchart TB
+    browser(["Browser"]) --> ingress["Ingress (Kubernetes)"]
+    ingress --> frontend["Frontend<br/>React SPA on nginx"]
+    frontend -->|"/api/*"| gateway["API Gateway<br/>JWT check · rate limit · routing"]
 
-    subgraph edge["Edge"]
-        ingress["Ingress (Kubernetes)"]
-        frontend["Frontend<br/>React SPA on nginx"]
-        gateway["API Gateway<br/>JWT check · rate limit · routing"]
+    subgraph services["Business services: each owns its PostgreSQL database"]
+        direction LR
+        auth["Auth<br/>DB: users"]
+        catalog["Catalog<br/>DB: products"]
+        customer["Customer<br/>DB: carts, profiles"]
+        inventory["Inventory<br/>DB: stock, reservations"]
+        order["Order<br/>DB: orders, outbox"]
+        payment["Payment<br/>DB: transactions"]
+        delivery["Delivery<br/>DB: shipments"]
+        notification["Notification<br/>DB: notifications"]
     end
 
-    subgraph services["Business services"]
-        auth["Auth"]
-        catalog["Catalog"]
-        customer["Customer"]
-        inventory["Inventory"]
-        order["Order<br/>saga orchestrator"]
-        payment["Payment"]
-        delivery["Delivery"]
-        notification["Notification"]
-    end
-
-    subgraph data["Databases (one PostgreSQL each)"]
-        authdb[("auth")]
-        catalogdb[("catalog")]
-        customerdb[("customer")]
-        inventorydb[("inventory")]
-        orderdb[("order")]
-        paymentdb[("payment")]
-        deliverydb[("delivery")]
-        notificationdb[("notification")]
-    end
-
-    kafka{{"Apache Kafka (KRaft)"}}
-    mailpit["Mailpit (SMTP)"]
-
-    browser --> ingress --> frontend -->|"/api/*"| gateway
     gateway --> auth & catalog & customer & inventory & order & delivery
 
-    order -->|HTTP| catalog
-    order -->|HTTP| payment
-    order -->|HTTP| delivery
-    order -->|gRPC| inventory
-    catalog -->|HTTP| inventory
-    inventory -->|HTTP| catalog
-    delivery -->|HTTP| inventory
-
-    auth --- authdb
-    catalog --- catalogdb
-    customer --- customerdb
-    inventory --- inventorydb
-    order --- orderdb
-    payment --- paymentdb
-    delivery --- deliverydb
-    notification --- notificationdb
-
-    catalog <-.->|events| kafka
-    inventory <-.->|events| kafka
-    order <-.->|events| kafka
-    delivery <-.->|events| kafka
-    customer -.->|consumes| kafka
-    notification -.->|consumes| kafka
-    notification --> mailpit
+    kafka{{"Apache Kafka (KRaft)<br/>4 topics, outbox on every producer"}}
+    catalog & inventory & order & delivery <-.->|"publish / consume"| kafka
+    kafka -.->|consume| customer & notification
+    notification --> mailpit["Mailpit (SMTP)"]
 ```
 
 | Service | Owns | Port (cluster) | Role |
