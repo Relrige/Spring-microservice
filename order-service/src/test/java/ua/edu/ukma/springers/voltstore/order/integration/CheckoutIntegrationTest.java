@@ -329,7 +329,7 @@ class CheckoutIntegrationTest {
     }
 
     @Test
-    void twoConcurrentRequestsWithTheSameKey_placeOneOrder() throws Exception {
+    void twoConcurrentRequestsWithTheSameKey_placeOneOrder() {
         catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
         // Slow enough that the second request arrives while the first one is still reserving
         inventory.delayReserve(Duration.ofMillis(1500));

@@ -93,7 +93,7 @@ class PaymentClientAdapterTest extends ClientsTestBase {
         charge();
 
         assertThat(output.getAll()).doesNotContain("4242424242424242").doesNotContain("\"987\"");
-        assertThat(CARD.toString()).isEqualTo("PaymentCard[**** **** **** 4242]");
+        assertThat(CARD).hasToString("PaymentCard[**** **** **** 4242]");
     }
 
     @Test
