@@ -51,7 +51,7 @@ public class OwedRefunds {
             case Payments.Refunded refunded -> settled(orderId, "refunded");
             // An earlier attempt succeeded and its answer was lost
             case Payments.AlreadyRefunded alreadyRefunded -> settled(orderId, "already refunded");
-            case Payments.RefundFailed failed -> failed(orderId, failed.cause());
+            case Payments.RefundFailed(var cause) -> failed(orderId, cause);
         }
     }
 

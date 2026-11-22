@@ -57,7 +57,8 @@ class PaymentWindowExpiryJobTest {
 
     @Test
     void aGraceNotLongerThanThePaymentReadTimeout_isRefusedAtStartup() {
-        assertThatThrownBy(() -> job(clients(Duration.ofSeconds(30))))
+        ClientsProperties clients = clients(Duration.ofSeconds(30));
+        assertThatThrownBy(() -> job(clients))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("order.expiry.grace");
     }

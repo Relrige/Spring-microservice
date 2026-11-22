@@ -205,11 +205,11 @@ class CheckoutIntegrationTest {
             UUID orderId = UUID.fromString(JSON.readTree(response).get("orderId").asString());
 
             Map<String, Object> order = jdbc.queryForMap("SELECT * FROM orders WHERE id = ?", orderId);
-            assertThat(order.get("customer_id")).isEqualTo(CUSTOMER);
-            assertThat(order.get("customer_email")).isEqualTo(TrustedHeaders.EMAIL);
-            assertThat(order.get("status")).isEqualTo("PENDING_PAYMENT");
+            assertThat(order).containsEntry("customer_id", CUSTOMER)
+                    .containsEntry("customer_email", TrustedHeaders.EMAIL)
+                    .containsEntry("status", "PENDING_PAYMENT");
             assertThat((BigDecimal) order.get("total_amount")).isEqualByComparingTo("40498.00");
-            assertThat(order.get("delivery_phone")).isEqualTo("+380501234567");
+            assertThat(order).containsEntry("delivery_phone", "+380501234567");
             List<Map<String, Object>> items = jdbc.queryForList("SELECT product_title, unit_price_at_order, quantity "
                     + "FROM order_items WHERE order_id = ? ORDER BY product_title", orderId);
             assertThat(items).extracting(row -> row.get("product_title")).containsExactly("Case", "Phone");

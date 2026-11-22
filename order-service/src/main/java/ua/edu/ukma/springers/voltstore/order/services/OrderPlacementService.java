@@ -168,10 +168,10 @@ public class OrderPlacementService {
             case StockReservations.Reserved reserved -> {
                 // nothing to do: the reservation is kept for payment
             }
-            case StockReservations.Insufficient insufficient -> {
+            case StockReservations.Insufficient(var insufficientItems) -> {
                 // Inventory reserved nothing, so there is nothing to clean up
                 attempts.deleteById(orderId);
-                throw new InsufficientStockException(insufficient.insufficientItems());
+                throw new InsufficientStockException(insufficientItems);
             }
         }
     }

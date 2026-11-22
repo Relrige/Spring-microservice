@@ -57,7 +57,7 @@ public class TrustedHeaderAuthenticationFilter extends OncePerRequestFilter {
         try {
             return Optional.of(new AuthenticatedUser(UUID.fromString(id), UserRole.valueOf(role),
                     resolveEmail(request.getHeader(USER_EMAIL_HEADER))));
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException _) {
             log.warn("Ignoring malformed {} / {} headers", USER_ID_HEADER, USER_ROLE_HEADER);
             return Optional.empty();
         }

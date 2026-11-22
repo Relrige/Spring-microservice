@@ -58,7 +58,7 @@ public class DeliveryClientAdapter implements Shipments {
         }
         try {
             return DeliveryStatus.valueOf(shipment.status());
-        } catch (IllegalArgumentException unknown) {
+        } catch (IllegalArgumentException _) {
             // A status Delivery added later: show the order without it rather than fail the whole answer
             log.warn("Unknown delivery status {} for order {}", shipment.status(), shipment.orderId());
             return null;

@@ -15,6 +15,7 @@ import ua.edu.ukma.springers.voltstore.order.clients.HttpClients.RefundRequest;
 import ua.edu.ukma.springers.voltstore.order.ports.Payments;
 
 import java.math.BigDecimal;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -99,6 +100,7 @@ public class PaymentClientAdapter implements Payments {
     }
 
     private static String property(ProblemDetail problem, String name) {
-        return problem.getProperties() == null ? null : Objects.toString(problem.getProperties().get(name), null);
+        Map<String, Object> properties = problem.getProperties();
+        return properties == null ? null : Objects.toString(properties.get(name), null);
     }
 }

@@ -75,7 +75,7 @@ public class InterruptedCancellationsJob {
                 orders.saveAndFlush(order);
                 return true;
             }));
-        } catch (OptimisticLockingFailureException e) {
+        } catch (OptimisticLockingFailureException _) {
             log.debug("Order {} was claimed by another run", orderId);
             return false;
         }

@@ -161,7 +161,8 @@ class OutboxIntegrationTest {
 
     @Test
     void appendingOutsideATransaction_isRefused() {
-        assertThatThrownBy(() -> outbox.append(OrderPlacedEvent.of(order(), Instant.now())))
+        OrderPlacedEvent event = OrderPlacedEvent.of(order(), Instant.now());
+        assertThatThrownBy(() -> outbox.append(event))
                 .isInstanceOf(IllegalTransactionStateException.class);
     }
 

@@ -300,8 +300,9 @@ class OrderPlacementServiceTest {
         catalogKnows(active(PHONE, "Phone", "100.00"));
         when(stock.reserve(any(), anyList())).thenReturn(new StockReservations.Reserved());
         doThrow(new DataAccessResourceFailureException("database down")).when(orders).save(any());
+        PlaceOrderRequest request = request(item(PHONE, 1));
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1))))
+        assertThatThrownBy(() -> service.place(CUSTOMER, request))
                 .isInstanceOf(DataAccessResourceFailureException.class);
         verify(attempts, never()).deleteById(any());
     }

@@ -43,8 +43,8 @@ public class IdempotencyKeys {
      */
     public Optional<UUID> claim(UUID customerId, UUID key, PlaceOrderRequest request) {
         String hash = hash(request);
-        Integer claimed = transactions.execute(tx -> keys.claim(customerId, key, hash, clock.instant()));
-        if (claimed != null && claimed == 1) {
+        int claimed = transactions.execute(tx -> keys.claim(customerId, key, hash, clock.instant()));
+        if (claimed == 1) {
             return Optional.empty();
         }
         IdempotencyKey existing = transactions.execute(tx ->

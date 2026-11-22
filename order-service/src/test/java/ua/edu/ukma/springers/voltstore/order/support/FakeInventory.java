@@ -275,7 +275,7 @@ public class FakeInventory extends StockServiceGrpc.StockServiceImplBase {
         try {
             // The scripted delay simulates a slow Inventory answer, which the client timeout tests rely on
             Thread.sleep(delay);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         }
     }
