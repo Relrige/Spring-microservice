@@ -26,7 +26,7 @@ export function customerEmail(n) {
 
 /** Request params: JSON body, optional bearer token, a `name` tag so the summary reports each step. */
 export function params(name, token, extraHeaders) {
-    const headers = Object.assign({ 'Content-Type': 'application/json' }, extraHeaders || {});
+    const headers = { 'Content-Type': 'application/json', ...extraHeaders };
     if (token) {
         headers.Authorization = `Bearer ${token}`;
     }
