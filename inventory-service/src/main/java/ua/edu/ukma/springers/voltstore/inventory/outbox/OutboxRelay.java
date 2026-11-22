@@ -1,6 +1,5 @@
 package ua.edu.ukma.springers.voltstore.inventory.outbox;
 
-import io.micrometer.tracing.CurrentTraceContext;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.MeterBinder;
@@ -154,7 +153,7 @@ public class OutboxRelay implements MeterBinder {
         producerRecord.headers().add(KafkaTopics.EVENT_TYPE_HEADER, event.getEventType().getBytes(StandardCharsets.UTF_8));
         producerRecord.headers().add(KafkaTopics.EVENT_ID_HEADER, event.getId().toString().getBytes(StandardCharsets.UTF_8));
         // The producer span becomes a child of the request that wrote the event and sends its traceparent header
-        try (CurrentTraceContext.Scope _ = traceContext.restore(event.getTraceparent())) {
+        try (var _ = traceContext.restore(event.getTraceparent())) {
             kafkaTemplate.send(producerRecord).get(properties.publishTimeout().toMillis(), TimeUnit.MILLISECONDS);
         }
     }

@@ -11,6 +11,7 @@ import org.slf4j.MDC;
 import ua.edu.ukma.springers.voltstore.inventory.exceptions.CatalogUnavailableException;
 import ua.edu.ukma.springers.voltstore.inventory.services.CatalogProductData;
 
+import java.io.IOException;
 import java.net.ServerSocket;
 import java.time.Duration;
 import java.util.List;
@@ -124,7 +125,9 @@ class CatalogProductCatalogTest {
     void down_serverErrorTwice_isUnavailableAfterOneRetry() {
         catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(aResponse().withStatus(500)));
 
-        assertThatThrownBy(() -> adapter(catalog.baseUrl()).find(productId))
+        CatalogProductCatalog adapter = adapter(catalog.baseUrl());
+
+        assertThatThrownBy(() -> adapter.find(productId))
                 .isInstanceOf(CatalogUnavailableException.class);
         catalog.verify(2, getRequestedFor(urlPathEqualTo(PATH)));
     }
@@ -134,7 +137,9 @@ class CatalogProductCatalogTest {
         catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(okJson("[]")
                 .withFixedDelay((int) READ_TIMEOUT.multipliedBy(2).toMillis())));
 
-        assertThatThrownBy(() -> adapter(catalog.baseUrl()).find(productId))
+        CatalogProductCatalog adapter = adapter(catalog.baseUrl());
+
+        assertThatThrownBy(() -> adapter.find(productId))
                 .isInstanceOf(CatalogUnavailableException.class);
         catalog.verify(2, getRequestedFor(urlPathEqualTo(PATH)));
     }
@@ -156,13 +161,17 @@ class CatalogProductCatalogTest {
     void brokenConnection_isUnavailable() {
         catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(aResponse().withFault(Fault.CONNECTION_RESET_BY_PEER)));
 
-        assertThatThrownBy(() -> adapter(catalog.baseUrl()).find(productId))
+        CatalogProductCatalog adapter = adapter(catalog.baseUrl());
+
+        assertThatThrownBy(() -> adapter.find(productId))
                 .isInstanceOf(CatalogUnavailableException.class);
     }
 
     @Test
-    void connectionRefused_isUnavailable() {
-        assertThatThrownBy(() -> adapter("http://localhost:" + freePort()).find(productId))
+    void connectionRefused_isUnavailable() throws IOException {
+        CatalogProductCatalog adapter = adapter("http://localhost:" + freePort());
+
+        assertThatThrownBy(() -> adapter.find(productId))
                 .isInstanceOf(CatalogUnavailableException.class);
     }
 
@@ -170,7 +179,9 @@ class CatalogProductCatalogTest {
     void unauthorized_isAConfigurationProblem_reportedAsUnavailable() {
         catalog.stubFor(get(urlPathEqualTo(PATH)).willReturn(aResponse().withStatus(401)));
 
-        assertThatThrownBy(() -> adapter(catalog.baseUrl()).find(productId))
+        CatalogProductCatalog adapter = adapter(catalog.baseUrl());
+
+        assertThatThrownBy(() -> adapter.find(productId))
                 .isInstanceOf(CatalogUnavailableException.class)
                 .hasMessageNotContaining(TOKEN);
         // A configuration problem: retrying cannot fix it
@@ -184,7 +195,7 @@ class CatalogProductCatalogTest {
     }
 
     // A port nobody listens on: bound and released at once
-    private static int freePort() throws Exception {
+    private static int freePort() throws IOException {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
         }

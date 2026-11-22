@@ -95,7 +95,9 @@ class ReservationServiceTest {
         StockItemEntity c = item(PRODUCT_C, 2, 0);
         givenLocked(a, b, c);
 
-        assertThatThrownBy(() -> reservationService.reserve(ORDER_ID, Map.of(PRODUCT_C, 5, PRODUCT_B, 3, PRODUCT_A, 4)))
+        Map<UUID, Integer> quantities = Map.of(PRODUCT_C, 5, PRODUCT_B, 3, PRODUCT_A, 4);
+
+        assertThatThrownBy(() -> reservationService.reserve(ORDER_ID, quantities))
                 .isInstanceOf(InsufficientStockForReservationException.class)
                 .extracting(e -> ((InsufficientStockForReservationException) e).getInsufficientItems())
                 .isEqualTo(List.of(new InsufficientItem(PRODUCT_A, 4, 1), new InsufficientItem(PRODUCT_C, 5, 2)));
@@ -113,7 +115,9 @@ class ReservationServiceTest {
         StockItemEntity a = item(PRODUCT_A, 10, 0);
         givenLocked(a);
 
-        assertThatThrownBy(() -> reservationService.reserve(ORDER_ID, Map.of(PRODUCT_A, 1, PRODUCT_B, 2)))
+        Map<UUID, Integer> quantities = Map.of(PRODUCT_A, 1, PRODUCT_B, 2);
+
+        assertThatThrownBy(() -> reservationService.reserve(ORDER_ID, quantities))
                 .isInstanceOf(InsufficientStockForReservationException.class)
                 .extracting(e -> ((InsufficientStockForReservationException) e).getInsufficientItems())
                 .isEqualTo(List.of(new InsufficientItem(PRODUCT_B, 2, 0)));
@@ -129,7 +133,9 @@ class ReservationServiceTest {
         givenLocked(a);
         when(reservationRepository.existsByOrderIdAndStatus(ORDER_ID, ReservationStatus.ACTIVE)).thenReturn(true);
 
-        assertThatThrownBy(() -> reservationService.reserve(ORDER_ID, Map.of(PRODUCT_A, 1)))
+        Map<UUID, Integer> quantities = Map.of(PRODUCT_A, 1);
+
+        assertThatThrownBy(() -> reservationService.reserve(ORDER_ID, quantities))
                 .isInstanceOf(ReservationAlreadyExistsException.class);
 
         assertThat(a.getAvailableQuantity()).isEqualTo(10);
@@ -143,7 +149,9 @@ class ReservationServiceTest {
         givenLocked(item(PRODUCT_A, 0, 1));
         when(reservationRepository.existsByOrderIdAndStatus(ORDER_ID, ReservationStatus.ACTIVE)).thenReturn(true);
 
-        assertThatThrownBy(() -> reservationService.reserve(ORDER_ID, Map.of(PRODUCT_A, 1)))
+        Map<UUID, Integer> quantities = Map.of(PRODUCT_A, 1);
+
+        assertThatThrownBy(() -> reservationService.reserve(ORDER_ID, quantities))
                 .isInstanceOf(ReservationAlreadyExistsException.class);
     }
 
