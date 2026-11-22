@@ -51,79 +51,7 @@ public class StockGrpcService extends StockServiceGrpc.StockServiceImplBase {
     /** Client streaming: collect the order's items, reserve them all or nothing when the client completes. */
     @Override
     public StreamObserver<ReserveItem> reserveStock(StreamObserver<ReserveStockResponse> response) {
-        return new StreamObserver<>() {
-            private UUID orderId;
-            private final Map<UUID, Integer> quantities = new LinkedHashMap<>();
-            private Status invalid;
-
-            @Override
-            public void onNext(ReserveItem item) {
-                if (invalid != null) {
-                    return;
-                }
-                try {
-                    UUID itemOrder = GrpcErrors.uuid(ORDER_ID, item.getOrderId());
-                    UUID productId = GrpcErrors.uuid("product_id", item.getProductId());
-                    if (orderId != null && !orderId.equals(itemOrder)) {
-                        throw GrpcErrors.invalid("all items must have the same order_id");
-                    }
-                    if (item.getQuantity() < 1) {
-                        throw GrpcErrors.invalid("quantity must be at least 1");
-                    }
-                    if (quantities.putIfAbsent(productId, item.getQuantity()) != null) {
-                        throw GrpcErrors.invalid("product " + productId + " is listed twice");
-                    }
-                    if (quantities.size() > MAX_ITEMS) {
-                        throw GrpcErrors.invalid("at most " + MAX_ITEMS + " items");
-                    }
-                    orderId = itemOrder;
-                } catch (io.grpc.StatusRuntimeException e) {
-                    // The rest of the stream is read but ignored; the error is the answer once the client completes
-                    invalid = e.getStatus();
-                }
-            }
-
-            @Override
-            public void onError(Throwable t) {
-                log.debug("Client cancelled the reservation stream of order {}: {}", orderId, t.toString());
-            }
-
-            @Override
-            public void onCompleted() {
-                if (invalid == null && orderId == null) {
-                    invalid = Status.INVALID_ARGUMENT.withDescription("at least one item is required");
-                }
-                if (invalid != null) {
-                    response.onError(invalid.asRuntimeException());
-                    return;
-                }
-                try {
-                    response.onNext(reserve());
-                    response.onCompleted();
-                } catch (RuntimeException e) {
-                    response.onError(GrpcErrors.toStatus(e).asRuntimeException());
-                }
-            }
-
-            private ReserveStockResponse reserve() {
-                try {
-                    reservations.reserve(orderId, quantities);
-                    return ReserveStockResponse.newBuilder().setOutcome(ReserveStockResponse.Outcome.RESERVED).build();
-                } catch (ReservationAlreadyExistsException _) {
-                    return ReserveStockResponse.newBuilder()
-                            .setOutcome(ReserveStockResponse.Outcome.ALREADY_RESERVED).build();
-                } catch (InsufficientStockForReservationException e) {
-                    ReserveStockResponse.Builder answer = ReserveStockResponse.newBuilder()
-                            .setOutcome(ReserveStockResponse.Outcome.INSUFFICIENT_STOCK);
-                    for (InsufficientItem item : e.getInsufficientItems()) {
-                        answer.addInsufficientItems(ua.edu.ukma.springers.voltstore.inventory.grpc.v1.InsufficientItem
-                                .newBuilder().setProductId(item.productId().toString())
-                                .setRequested(item.requested()).setAvailable(item.available()));
-                    }
-                    return answer.build();
-                }
-            }
-        };
+        return new ReservationStream(response);
     }
 
     /** Server streaming: one level per requested product, in the requested order. */
@@ -171,5 +99,85 @@ public class StockGrpcService extends StockServiceGrpc.StockServiceImplBase {
                 response.onCompleted();
             }
         };
+    }
+
+    /** One reserveStock call: validates each item as it arrives and reserves once the client completes. */
+    private final class ReservationStream implements StreamObserver<ReserveItem> {
+        private final StreamObserver<ReserveStockResponse> response;
+        private UUID orderId;
+        private final Map<UUID, Integer> quantities = new LinkedHashMap<>();
+        private Status invalid;
+
+        private ReservationStream(StreamObserver<ReserveStockResponse> response) {
+            this.response = response;
+        }
+
+        @Override
+        public void onNext(ReserveItem item) {
+            if (invalid != null) {
+                return;
+            }
+            try {
+                UUID itemOrder = GrpcErrors.uuid(ORDER_ID, item.getOrderId());
+                UUID productId = GrpcErrors.uuid("product_id", item.getProductId());
+                if (orderId != null && !orderId.equals(itemOrder)) {
+                    throw GrpcErrors.invalid("all items must have the same order_id");
+                }
+                if (item.getQuantity() < 1) {
+                    throw GrpcErrors.invalid("quantity must be at least 1");
+                }
+                if (quantities.putIfAbsent(productId, item.getQuantity()) != null) {
+                    throw GrpcErrors.invalid("product " + productId + " is listed twice");
+                }
+                if (quantities.size() > MAX_ITEMS) {
+                    throw GrpcErrors.invalid("at most " + MAX_ITEMS + " items");
+                }
+                orderId = itemOrder;
+            } catch (io.grpc.StatusRuntimeException e) {
+                // The rest of the stream is read but ignored; the error is the answer once the client completes
+                invalid = e.getStatus();
+            }
+        }
+
+        @Override
+        public void onError(Throwable t) {
+            log.debug("Client cancelled the reservation stream of order {}: {}", orderId, t.toString());
+        }
+
+        @Override
+        public void onCompleted() {
+            if (invalid == null && orderId == null) {
+                invalid = Status.INVALID_ARGUMENT.withDescription("at least one item is required");
+            }
+            if (invalid != null) {
+                response.onError(invalid.asRuntimeException());
+                return;
+            }
+            try {
+                response.onNext(reserve());
+                response.onCompleted();
+            } catch (RuntimeException e) {
+                response.onError(GrpcErrors.toStatus(e).asRuntimeException());
+            }
+        }
+
+        private ReserveStockResponse reserve() {
+            try {
+                reservations.reserve(orderId, quantities);
+                return ReserveStockResponse.newBuilder().setOutcome(ReserveStockResponse.Outcome.RESERVED).build();
+            } catch (ReservationAlreadyExistsException _) {
+                return ReserveStockResponse.newBuilder()
+                        .setOutcome(ReserveStockResponse.Outcome.ALREADY_RESERVED).build();
+            } catch (InsufficientStockForReservationException e) {
+                ReserveStockResponse.Builder answer = ReserveStockResponse.newBuilder()
+                        .setOutcome(ReserveStockResponse.Outcome.INSUFFICIENT_STOCK);
+                for (InsufficientItem item : e.getInsufficientItems()) {
+                    answer.addInsufficientItems(ua.edu.ukma.springers.voltstore.inventory.grpc.v1.InsufficientItem
+                            .newBuilder().setProductId(item.productId().toString())
+                            .setRequested(item.requested()).setAvailable(item.available()));
+                }
+                return answer.build();
+            }
+        }
     }
 }
