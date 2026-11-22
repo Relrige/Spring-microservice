@@ -110,7 +110,8 @@ export type OrderProblem =
   | { kind: 'order-state'; orderStatus: OrderStatus }
   | { kind: 'payment-in-progress' };
 
-export function orderProblem(error: unknown): OrderProblem | undefined {
+// `| undefined` only means "not an order problem"; OrderProblem itself is the alias (S4323)
+export function orderProblem(error: unknown): OrderProblem | undefined { // NOSONAR
   const ineligible = problemOf<Schemas['IneligibleItemsProblem']>(error, 'ineligible-items');
   if (ineligible) return { kind: 'ineligible-items', items: ineligible.ineligibleItems };
   const insufficient = problemOf<Schemas['InsufficientStockProblem']>(error, 'insufficient-stock');
