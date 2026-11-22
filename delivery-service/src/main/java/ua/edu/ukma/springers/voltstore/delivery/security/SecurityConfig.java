@@ -47,8 +47,8 @@ public class SecurityConfig {
                         .accessDeniedHandler(errorHandlers))
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
-                        // OpenAPI documents and Swagger UI. They exist only when springdoc is turned on (Compose);
-                        // otherwise no handler is mapped and the paths answer 404. The gateway never routes them.
+                        // OpenAPI documents and Swagger UI exist only when springdoc is turned on (Compose).
+                        // Otherwise no handler is mapped and the paths answer 404. The gateway never routes them.
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
                         // Role rules per route: callers without the role are rejected here, before the controller
                         // is reached and before the request body is parsed or validated
