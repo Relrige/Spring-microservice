@@ -1,11 +1,13 @@
 package ua.edu.ukma.springers.voltstore.apigateway.errors;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.servlet.function.ServerResponse;
 
 import java.net.URI;
+import java.time.Duration;
 import java.time.Instant;
 
 /**
@@ -24,6 +26,16 @@ public final class GatewayProblems {
 
     public static ServerResponse forbidden() {
         return response(problem(HttpStatus.FORBIDDEN, "forbidden", "Forbidden", "Access denied"));
+    }
+
+    /** {@code Retry-After} in whole seconds, rounded up and at least 1. */
+    public static ServerResponse tooManyRequests(Duration retryAfter) {
+        long seconds = Math.max(1, (retryAfter.toMillis() + 999) / 1000);
+        return ServerResponse.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(seconds))
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(problem(HttpStatus.TOO_MANY_REQUESTS, "too-many-requests", "Too Many Requests",
+                        "Too many requests; try again later"));
     }
 
     public static ProblemDetail problem(HttpStatus status, String errorType, String title, String detail) {

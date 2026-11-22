@@ -353,6 +353,21 @@ spring:
                 authMode: REQUIRED
                 roles: INVENTORY_WORKER
 
+gateway:
+  # Per client IP address, before the JWT is checked (task 14). GATEWAY_RATE_LIMIT_ENABLED=false turns it off,
+  # for the k6 load tests, which send many requests from one machine
+  rate-limit:
+    enabled: true
+    # Login and registration: where passwords can be guessed
+    auth-routes: auth-login, auth-register
+    auth:
+      requests: 5
+      period: 1m
+    # Every other route
+    general:
+      requests: 50
+      period: 1s
+
 auth:
   jwt:
     leeway: 30s

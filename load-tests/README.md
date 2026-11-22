@@ -22,6 +22,9 @@ the Gateway on the host through `host.docker.internal:8080` (override with `-e B
    ```bash
    docker compose up -d --build
    ```
+   Turn the gateway's rate limiter off first: k6 sends every request from one address, so it would get `429`
+   answers. Add `GATEWAY_RATE_LIMIT_ENABLED=false` to `api-gateway/.env` (then `docker compose up -d api-gateway`),
+   and remove it again afterwards.
 2. Choose the passwords of the load-test users and read the administrator's credentials from the local env
    file. They are passed to k6 as `-e` variables and are never written into the scripts or the results:
    ```bash
