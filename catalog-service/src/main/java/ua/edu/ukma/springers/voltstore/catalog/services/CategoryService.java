@@ -34,7 +34,7 @@ public class CategoryService {
     // EP-CAT-06. The request is already validated by @Valid in the controller.
     @Transactional
     public CategoryResponse createCategory(CategoryRequest request) {
-        String name = CategoryNameNormalizer.normalize(request.getName());
+        String name = CategoryNameNormalizer.normalize(request.name());
         if (categoryRepository.existsByNameIgnoreCase(name)) {
             throw new CategoryNameAlreadyInUseException();
         }
@@ -49,7 +49,7 @@ public class CategoryService {
         Category category = findCategory(id);
         requestValidator.validate(request);
 
-        String name = CategoryNameNormalizer.normalize(request.getName());
+        String name = CategoryNameNormalizer.normalize(request.name());
         // Excluding the category itself makes a no-op rename or a casing-only change succeed
         if (categoryRepository.existsByNameIgnoreCaseAndIdNot(name, id)) {
             throw new CategoryNameAlreadyInUseException();
@@ -83,8 +83,8 @@ public class CategoryService {
     @Transactional(readOnly = true)
     public PageResponse<CategoryResponse> listCategories(CategorySearchQuery query) {
         // Stable order by name; id breaks ties so pages never overlap
-        Pageable pageable = Paging.pageRequest(query.getPage(), query.getSize(), Sort.by("name", "id"));
-        String search = query.getSearch() != null ? query.getSearch().trim() : "";
+        Pageable pageable = Paging.pageRequest(query.page(), query.size(), Sort.by("name", "id"));
+        String search = query.search() != null ? query.search().trim() : "";
         Page<Category> page = search.isEmpty()
                 ? categoryRepository.findAll(pageable)
                 : categoryRepository.findByNameContainingIgnoreCase(search, pageable);

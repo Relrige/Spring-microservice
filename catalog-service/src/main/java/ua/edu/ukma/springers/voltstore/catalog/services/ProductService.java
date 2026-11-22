@@ -67,11 +67,11 @@ public class ProductService {
 
     @Transactional
     public CreateProductResponse createProduct(ProductRequest request) {
-        requireCategoryExists(request.getCategoryId());
+        requireCategoryExists(request.categoryId());
 
-        Product product = Product.createNew(request.getTitle().trim(), request.getDescription().trim(),
-                request.getCategoryId(), request.getBasePrice());
-        product.changeImageUrl(request.getImageUrl());
+        Product product = Product.createNew(request.title().trim(), request.description().trim(),
+                request.categoryId(), request.basePrice());
+        product.changeImageUrl(request.imageUrl());
         saveAndFlush(product);
 
         // Same transaction as the product: the event is stored if and only if the product is (outbox)
@@ -94,11 +94,11 @@ public class ProductService {
     public ProductResponse updateProduct(UUID id, ProductRequest request) {
         Product product = findProduct(id);
         requestValidator.validate(request);
-        requireCategoryExists(request.getCategoryId());
+        requireCategoryExists(request.categoryId());
 
-        product.updateDetails(request.getTitle().trim(), request.getDescription().trim(),
-                request.getCategoryId(), request.getBasePrice());
-        product.changeImageUrl(request.getImageUrl());
+        product.updateDetails(request.title().trim(), request.description().trim(),
+                request.categoryId(), request.basePrice());
+        product.changeImageUrl(request.imageUrl());
         // The flush runs the UPDATE now: an overlapping save fails here (409) before any event is stored, and the
         // event below carries the incremented version. An update that changes nothing issues no UPDATE; its event
         // repeats the current version, which consumers ignore.
@@ -121,7 +121,7 @@ public class ProductService {
         findProduct(id);
         requestValidator.validate(request);
 
-        ProductStatus status = request.getStatus();
+        ProductStatus status = request.status();
         if (status == ProductStatus.ACTIVE) {
             // Re-run even if the product is already ACTIVE: activation always means "ready right now", and an
             // already active product that is no longer ready gets 422 (its status stays ACTIVE)
@@ -165,35 +165,35 @@ public class ProductService {
      */
     @Transactional(readOnly = true)
     public PageResponse<ProductSummaryResponse> browseProducts(ProductSearchQuery query, @Nullable UserRole callerRole) {
-        if (query.getMinPrice() != null && query.getMaxPrice() != null
-                && query.getMinPrice().compareTo(query.getMaxPrice()) > 0) {
+        if (query.minPrice() != null && query.maxPrice() != null
+                && query.minPrice().compareTo(query.maxPrice()) > 0) {
             throw new RequestValidationException(Map.of("minPrice", List.of("must not be greater than maxPrice")));
         }
-        Sort sort = parseSort(query.getSortBy());
+        Sort sort = parseSort(query.sortBy());
 
         List<Specification<Product>> filters = new ArrayList<>();
-        ProductStatus status = visibleStatus(query.getStatus(), callerRole);
+        ProductStatus status = visibleStatus(query.status(), callerRole);
         if (status != null) {
             filters.add(ProductSpecifications.hasStatus(status));
         }
-        if (query.getIds() != null) {
-            filters.add(ProductSpecifications.idIn(distinctIds(query.getIds())));
+        if (query.ids() != null) {
+            filters.add(ProductSpecifications.idIn(distinctIds(query.ids())));
         }
-        if (query.getCategoryId() != null) {
-            filters.add(ProductSpecifications.inCategory(query.getCategoryId()));
+        if (query.categoryId() != null) {
+            filters.add(ProductSpecifications.inCategory(query.categoryId()));
         }
-        if (query.getMinPrice() != null) {
-            filters.add(ProductSpecifications.priceAtLeast(query.getMinPrice()));
+        if (query.minPrice() != null) {
+            filters.add(ProductSpecifications.priceAtLeast(query.minPrice()));
         }
-        if (query.getMaxPrice() != null) {
-            filters.add(ProductSpecifications.priceAtMost(query.getMaxPrice()));
+        if (query.maxPrice() != null) {
+            filters.add(ProductSpecifications.priceAtMost(query.maxPrice()));
         }
-        if (query.getSearch() != null && !query.getSearch().isBlank()) {
-            filters.add(ProductSpecifications.titleOrDescriptionContains(query.getSearch().trim()));
+        if (query.search() != null && !query.search().isBlank()) {
+            filters.add(ProductSpecifications.titleOrDescriptionContains(query.search().trim()));
         }
 
         var page = productRepository.findAll(Specification.allOf(filters),
-                Paging.pageRequest(query.getPage(), query.getSize(), sort));
+                Paging.pageRequest(query.page(), query.size(), sort));
         return PageResponse.from(page, ProductSummaryResponse::from);
     }
 
