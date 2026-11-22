@@ -144,7 +144,7 @@ class SetPackagingIntegrationTest {
                 },
                 () -> stockService.adjustStock(productId, 6));
 
-        assertThat(outcomes).noneMatch(o -> o instanceof Exception);
+        assertThat(outcomes).noneMatch(Exception.class::isInstance);
         StockItemEntity item = repository.findById(productId).orElseThrow();
         assertThat(item.getAvailableQuantity()).isEqualTo(6);
         assertThat(item.isPackagingConfigured()).isTrue();

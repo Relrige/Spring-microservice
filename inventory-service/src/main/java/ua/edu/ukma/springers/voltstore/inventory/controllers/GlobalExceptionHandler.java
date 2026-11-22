@@ -36,6 +36,8 @@ import java.util.TreeMap;
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final String SERVICE_NAME = "inventory-service";
+    private static final String VALIDATION_FAILED = "Validation failed";
+    private static final String ERRORS = "errors";
     private static final URI VALIDATION_TYPE = URI.create("https://voltstore.com/errors/validation");
     static final String CATALOG_UNAVAILABLE_DETAIL =
             "The product cannot be checked in the catalog right now. Please try again later.";
@@ -92,8 +94,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(InvalidQueryParameterException.class)
     public ProblemDetail handleInvalidQueryParameter(InvalidQueryParameterException ex) {
-        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "validation", "Validation failed", ex.getMessage());
-        problem.setProperty("errors", Map.of(ex.getParameter(), List.of(ex.getMessage())));
+        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "validation", VALIDATION_FAILED, ex.getMessage());
+        problem.setProperty(ERRORS, Map.of(ex.getParameter(), List.of(ex.getMessage())));
         return problem;
     }
 
@@ -108,9 +110,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                     .add(error.getDefaultMessage());
         }
         ProblemDetail problem = ex.getBody();
-        problem.setTitle("Validation failed");
+        problem.setTitle(VALIDATION_FAILED);
         problem.setDetail("One or more fields are invalid.");
-        problem.setProperty("errors", fieldErrors);
+        problem.setProperty(ERRORS, fieldErrors);
         return handleExceptionInternal(ex, problem, headers, status, request);
     }
 
@@ -123,11 +125,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     protected ResponseEntity<Object> handleTypeMismatch(TypeMismatchException ex, HttpHeaders headers,
                                                         HttpStatusCode status, WebRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "One or more parameters are invalid.");
-        problem.setTitle("Validation failed");
+        problem.setTitle(VALIDATION_FAILED);
         String parameter = ex instanceof MethodArgumentTypeMismatchException mismatch ? mismatch.getName()
                 : ex.getPropertyName();
         if (parameter != null) {
-            problem.setProperty("errors", Map.of(parameter, List.of(expectation(parameter, ex.getRequiredType()))));
+            problem.setProperty(ERRORS, Map.of(parameter, List.of(expectation(parameter, ex.getRequiredType()))));
         }
         return handleExceptionInternal(ex, problem, headers, status, request);
     }

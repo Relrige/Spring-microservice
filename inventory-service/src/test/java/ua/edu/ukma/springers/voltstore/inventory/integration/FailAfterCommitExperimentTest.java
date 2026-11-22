@@ -70,10 +70,10 @@ class FailAfterCommitExperimentTest {
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
                 ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
                 ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class))) {
-            ProducerRecord<String, String> record = new ProducerRecord<>("catalog.product-events", productId.toString(),
+            ProducerRecord<String, String> producerRecord = new ProducerRecord<>("catalog.product-events", productId.toString(),
                     "{\"eventId\":\"" + eventId + "\",\"productId\":\"" + productId + "\",\"timestamp\":\"2026-10-12T10:00:00Z\"}");
-            record.headers().add(KafkaTopics.EVENT_TYPE_HEADER, "ProductCreated".getBytes(StandardCharsets.UTF_8));
-            catalog.send(record).get();
+            producerRecord.headers().add(KafkaTopics.EVENT_TYPE_HEADER, "ProductCreated".getBytes(StandardCharsets.UTF_8));
+            catalog.send(producerRecord).get();
         }
 
         // 1st delivery: committed, then the simulated failure; 2nd delivery (retry topic): duplicate, skipped

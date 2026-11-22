@@ -105,16 +105,17 @@ public class KafkaConfig {
         // Values are read as JSON text (StringDeserializer), so they are republished as the same text
         // Negative partition: let the producer choose, since a DLT has fewer partitions than its source
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(textTemplate,
-                (record, ex) -> new TopicPartition(KafkaTopics.deadLetterTopicOf(record.topic()), -1));
+                (consumerRecord, ex) -> new TopicPartition(KafkaTopics.deadLetterTopicOf(consumerRecord.topic()), -1));
 
         ExponentialBackOffWithMaxRetries backOff = new ExponentialBackOffWithMaxRetries(4);
         backOff.setInitialInterval(1000);
         backOff.setMultiplier(2);
         backOff.setMaxInterval(10_000);
-        return new DefaultErrorHandler((record, ex) -> {
-            log.error("Sending {} key={} partition={} offset={} to {}", record.topic(), record.key(),
-                    record.partition(), record.offset(), KafkaTopics.deadLetterTopicOf(record.topic()), ex);
-            recoverer.accept(record, ex);
+        return new DefaultErrorHandler((consumerRecord, ex) -> {
+            log.error("Sending {} key={} partition={} offset={} to {}", consumerRecord.topic(),
+                    consumerRecord.key(), consumerRecord.partition(), consumerRecord.offset(),
+                    KafkaTopics.deadLetterTopicOf(consumerRecord.topic()), ex);
+            recoverer.accept(consumerRecord, ex);
         }, backOff);
     }
 
@@ -140,13 +141,13 @@ public class KafkaConfig {
     }
 
     static RecordFilterStrategy<String, String> onlyEventTypes(Set<String> eventTypes) {
-        return record -> {
-            Header header = record.headers().lastHeader(KafkaTopics.EVENT_TYPE_HEADER);
+        return consumerRecord -> {
+            Header header = consumerRecord.headers().lastHeader(KafkaTopics.EVENT_TYPE_HEADER);
             boolean wanted = header != null
                     && eventTypes.contains(new String(header.value(), StandardCharsets.UTF_8));
             if (!wanted) {
-                log.debug("Skipping {} record key={} offset={}: not one of {}", record.topic(), record.key(),
-                        record.offset(), eventTypes);
+                log.debug("Skipping {} record key={} offset={}: not one of {}", consumerRecord.topic(),
+                        consumerRecord.key(), consumerRecord.offset(), eventTypes);
             }
             // true = discard
             return !wanted;

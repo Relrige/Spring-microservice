@@ -223,6 +223,7 @@ class StockGrpcServiceIntegrationTest {
 
             @Override
             public void onCompleted() {
+                // no-op: the answer is completed in onNext or onError
             }
         });
         for (ReserveItem item : items) {

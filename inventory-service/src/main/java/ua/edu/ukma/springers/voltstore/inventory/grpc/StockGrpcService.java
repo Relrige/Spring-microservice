@@ -34,6 +34,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class StockGrpcService extends StockServiceGrpc.StockServiceImplBase {
     static final int MAX_ITEMS = 100;
+    private static final String ORDER_ID = "order_id";
 
     private final ReservationService reservations;
     private final StockService stock;
@@ -42,7 +43,7 @@ public class StockGrpcService extends StockServiceGrpc.StockServiceImplBase {
     @Override
     public void releaseReservation(ReleaseReservationRequest request,
                                    StreamObserver<ReleaseReservationResponse> response) {
-        reservations.release(GrpcErrors.uuid("order_id", request.getOrderId()));
+        reservations.release(GrpcErrors.uuid(ORDER_ID, request.getOrderId()));
         response.onNext(ReleaseReservationResponse.getDefaultInstance());
         response.onCompleted();
     }
@@ -61,7 +62,7 @@ public class StockGrpcService extends StockServiceGrpc.StockServiceImplBase {
                     return;
                 }
                 try {
-                    UUID itemOrder = GrpcErrors.uuid("order_id", item.getOrderId());
+                    UUID itemOrder = GrpcErrors.uuid(ORDER_ID, item.getOrderId());
                     UUID productId = GrpcErrors.uuid("product_id", item.getProductId());
                     if (orderId != null && !orderId.equals(itemOrder)) {
                         throw GrpcErrors.invalid("all items must have the same order_id");
@@ -150,7 +151,7 @@ public class StockGrpcService extends StockServiceGrpc.StockServiceImplBase {
             public void onNext(ReleaseReservationRequest request) {
                 ReleaseResult.Builder result = ReleaseResult.newBuilder().setOrderId(request.getOrderId());
                 try {
-                    reservations.release(GrpcErrors.uuid("order_id", request.getOrderId()));
+                    reservations.release(GrpcErrors.uuid(ORDER_ID, request.getOrderId()));
                     result.setReleased(true);
                 } catch (RuntimeException e) {
                     log.warn("Releasing the reservation of order {} failed: {}", request.getOrderId(), e.toString());

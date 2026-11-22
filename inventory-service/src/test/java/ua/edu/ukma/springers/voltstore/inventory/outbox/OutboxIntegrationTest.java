@@ -131,13 +131,13 @@ class OutboxIntegrationTest {
             relay.publishDueEvents();
 
             assertThat(rowsFor(productId).getFirst().get("published_at")).isNotNull();
-            ConsumerRecord<String, String> record = awaitRecords(probe, productId, 1).getFirst();
+            ConsumerRecord<String, String> consumerRecord = awaitRecords(probe, productId, 1).getFirst();
             UUID eventId = (UUID) rows.getFirst().get("id");
-            assertThat(record.key()).isEqualTo(productId.toString());
-            assertThat(header(record, KafkaTopics.EVENT_TYPE_HEADER)).isEqualTo(REPLENISHED);
-            assertThat(header(record, KafkaTopics.EVENT_ID_HEADER)).isEqualTo(eventId.toString());
+            assertThat(consumerRecord.key()).isEqualTo(productId.toString());
+            assertThat(header(consumerRecord, KafkaTopics.EVENT_TYPE_HEADER)).isEqualTo(REPLENISHED);
+            assertThat(header(consumerRecord, KafkaTopics.EVENT_ID_HEADER)).isEqualTo(eventId.toString());
             // A JSON object, not a JSON string holding the JSON text (the double-encoding trap)
-            JsonNode value = JSON.readTree(record.value());
+            JsonNode value = JSON.readTree(consumerRecord.value());
             assertThat(value.isObject()).isTrue();
             assertThat(value.get("eventId").asString()).isEqualTo(eventId.toString());
             assertThat(value.get("productId").asString()).isEqualTo(productId.toString());
@@ -250,8 +250,8 @@ class OutboxIntegrationTest {
 
             AtomicBoolean failedOnce = new AtomicBoolean();
             doAnswer(invocation -> {
-                ProducerRecord<String, Object> record = invocation.getArgument(0);
-                boolean first = expectedIds.getFirst().toString().equals(header(record, KafkaTopics.EVENT_ID_HEADER));
+                ProducerRecord<String, Object> producerRecord = invocation.getArgument(0);
+                boolean first = expectedIds.getFirst().toString().equals(header(producerRecord, KafkaTopics.EVENT_ID_HEADER));
                 return first && failedOnce.compareAndSet(false, true)
                         ? CompletableFuture.failedFuture(new KafkaException("transient"))
                         : invocation.callRealMethod();
@@ -286,8 +286,8 @@ class OutboxIntegrationTest {
             adjust(failing, -5).andExpect(status().isOk());
             adjust(healthy, 3).andExpect(status().isOk());
             doAnswer(invocation -> {
-                ProducerRecord<String, Object> record = invocation.getArgument(0);
-                return failing.toString().equals(record.key())
+                ProducerRecord<String, Object> producerRecord = invocation.getArgument(0);
+                return failing.toString().equals(producerRecord.key())
                         ? CompletableFuture.failedFuture(new KafkaException("rejected"))
                         : invocation.callRealMethod();
             }).when(kafkaTemplate).send(any(ProducerRecord.class));
@@ -397,12 +397,12 @@ class OutboxIntegrationTest {
                 records -> records.size() >= count);
     }
 
-    private static String header(ConsumerRecord<String, String> record, String name) {
-        return new String(record.headers().lastHeader(name).value(), StandardCharsets.UTF_8);
+    private static String header(ConsumerRecord<String, String> consumerRecord, String name) {
+        return new String(consumerRecord.headers().lastHeader(name).value(), StandardCharsets.UTF_8);
     }
 
-    private static String header(ProducerRecord<String, Object> record, String name) {
-        return new String(record.headers().lastHeader(name).value(), StandardCharsets.UTF_8);
+    private static String header(ProducerRecord<String, Object> producerRecord, String name) {
+        return new String(producerRecord.headers().lastHeader(name).value(), StandardCharsets.UTF_8);
     }
 
     private static void awaitQuietly(CountDownLatch latch) {

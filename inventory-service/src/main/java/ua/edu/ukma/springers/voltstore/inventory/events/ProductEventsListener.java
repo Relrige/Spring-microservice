@@ -117,15 +117,15 @@ public class ProductEventsListener {
     // Final stop for records that could not be processed: logged for an operator, who can fix the cause and
     // re-publish the record to the source topic (its eventId or version still protects against double application)
     @DltHandler
-    public void onDeadLetter(ConsumerRecord<String, String> record) {
+    public void onDeadLetter(ConsumerRecord<String, String> consumerRecord) {
         log.error("Product event dead-lettered: type={} key={} topic={} partition={} offset={} cause={}: {}",
-                headerText(record, KafkaTopics.EVENT_TYPE_HEADER), record.key(), record.topic(), record.partition(),
-                record.offset(), headerText(record, KafkaHeaders.EXCEPTION_CAUSE_FQCN),
-                headerText(record, KafkaHeaders.EXCEPTION_MESSAGE));
+                headerText(consumerRecord, KafkaTopics.EVENT_TYPE_HEADER), consumerRecord.key(), consumerRecord.topic(),
+                consumerRecord.partition(), consumerRecord.offset(), headerText(consumerRecord, KafkaHeaders.EXCEPTION_CAUSE_FQCN),
+                headerText(consumerRecord, KafkaHeaders.EXCEPTION_MESSAGE));
     }
 
-    private static String headerText(ConsumerRecord<?, ?> record, String name) {
-        var header = record.headers().lastHeader(name);
+    private static String headerText(ConsumerRecord<?, ?> consumerRecord, String name) {
+        var header = consumerRecord.headers().lastHeader(name);
         return header == null ? null : new String(header.value(), StandardCharsets.UTF_8);
     }
 }

@@ -10,6 +10,7 @@ class InventoryServiceApplicationTests {
 
 	@Test
 	void contextLoads() {
+		// no-op: the test passes when the application context starts
 	}
 
 }

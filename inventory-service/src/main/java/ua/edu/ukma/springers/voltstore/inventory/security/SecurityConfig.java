@@ -21,6 +21,7 @@ import org.springframework.security.web.authentication.AnonymousAuthenticationFi
 @EnableWebSecurity
 @EnableConfigurationProperties(InternalTokenProperties.class)
 public class SecurityConfig {
+    private static final String SERVICE_ROLE = "SERVICE";
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
@@ -44,7 +45,7 @@ public class SecurityConfig {
                         .accessDeniedHandler(errorHandlers))
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
-                        // OpenAPI documents and Swagger UI. They exist only when springdoc is turned on (Compose);
+                        // OpenAPI documents and Swagger UI. They exist only when springdoc is turned on (Compose),
                         // otherwise no handler is mapped and the paths answer 404. The gateway never routes them.
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
                         // Role rules per route: callers without the role are rejected here, before the controller
@@ -59,15 +60,15 @@ public class SecurityConfig {
                                 .hasRole(UserRole.INVENTORY_WORKER.name())
                         // Internal-only (Catalog, via X-Internal-Token); not routed by the API Gateway
                         .requestMatchers(HttpMethod.GET, "/inventory/stock/{productId}/readiness")
-                                .hasRole("SERVICE")
+                                .hasRole(SERVICE_ROLE)
                         // Internal-only (Delivery); the PUT on the same path keeps its worker rule above
                         .requestMatchers(HttpMethod.GET, "/inventory/stock/{productId}/packaging")
-                                .hasRole("SERVICE")
+                                .hasRole(SERVICE_ROLE)
                         // Internal-only (Order)
                         .requestMatchers(HttpMethod.POST, "/inventory/reservations")
-                                .hasRole("SERVICE")
+                                .hasRole(SERVICE_ROLE)
                         .requestMatchers(HttpMethod.POST, "/inventory/reservations/{orderId}/release")
-                                .hasRole("SERVICE")
+                                .hasRole(SERVICE_ROLE)
                         // Fail closed: a route nobody wrote a rule for is unreachable until a rule is added
                         .anyRequest().denyAll())
                 // Internal token first: if present and valid, the request is a service call and user headers are ignored

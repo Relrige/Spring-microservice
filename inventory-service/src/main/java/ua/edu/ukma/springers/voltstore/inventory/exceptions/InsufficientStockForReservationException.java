@@ -7,7 +7,7 @@ import java.util.List;
 
 @Getter
 public class InsufficientStockForReservationException extends RuntimeException {
-    private final List<InsufficientItem> insufficientItems;
+    private final transient List<InsufficientItem> insufficientItems;
 
     public InsufficientStockForReservationException(List<InsufficientItem> insufficientItems) {
         super("Insufficient stock for one or more items");

@@ -129,10 +129,12 @@ class GlobalExceptionHandlerTest {
     static class ProbeController {
         @PostMapping("/probe/body")
         void body(@Valid @RequestBody ProbeRequest request) {
+            // no-op: only the request validation is exercised
         }
 
         @GetMapping("/probe/{id}/typed")
         void typed(@PathVariable UUID id) {
+            // no-op: only the path variable conversion is exercised
         }
 
         @GetMapping("/probe/not-found")

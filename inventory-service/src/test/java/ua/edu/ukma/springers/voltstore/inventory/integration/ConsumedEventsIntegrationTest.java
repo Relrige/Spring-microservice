@@ -226,7 +226,7 @@ class ConsumedEventsIntegrationTest {
 
         await().atMost(WAIT).untilAsserted(() -> assertThat(deadLetterRecords(PRODUCT_EVENTS_DLT, productId.toString()))
                 .singleElement()
-                .extracting(record -> new String(record.headers().lastHeader("traceparent").value(),
+                .extracting(consumerRecord -> new String(consumerRecord.headers().lastHeader("traceparent").value(),
                         StandardCharsets.UTF_8).split("-")[1])
                 .isEqualTo(traceId));
     }
@@ -484,14 +484,14 @@ class ConsumedEventsIntegrationTest {
     }
 
     private void send(String topic, UUID key, String eventType, String json, String traceparent) throws Exception {
-        ProducerRecord<String, String> record = new ProducerRecord<>(topic, key.toString(), json);
+        ProducerRecord<String, String> producerRecord = new ProducerRecord<>(topic, key.toString(), json);
         if (eventType != null) {
-            record.headers().add(KafkaTopics.EVENT_TYPE_HEADER, eventType.getBytes(StandardCharsets.UTF_8));
+            producerRecord.headers().add(KafkaTopics.EVENT_TYPE_HEADER, eventType.getBytes(StandardCharsets.UTF_8));
         }
         if (traceparent != null) {
-            record.headers().add("traceparent", traceparent.getBytes(StandardCharsets.UTF_8));
+            producerRecord.headers().add("traceparent", traceparent.getBytes(StandardCharsets.UTF_8));
         }
-        producer.send(record).get();
+        producer.send(producerRecord).get();
     }
 
     private List<String> deadLetters(String topic, String key) {
@@ -508,9 +508,9 @@ class ConsumedEventsIntegrationTest {
             consumer.subscribe(List.of(topic));
             List<ConsumerRecord<String, String>> records = new ArrayList<>();
             for (int i = 0; i < 5; i++) {
-                for (ConsumerRecord<String, String> record : consumer.poll(Duration.ofMillis(500))) {
-                    if (key.equals(record.key())) {
-                        records.add(record);
+                for (ConsumerRecord<String, String> consumerRecord : consumer.poll(Duration.ofMillis(500))) {
+                    if (key.equals(consumerRecord.key())) {
+                        records.add(consumerRecord);
                     }
                 }
             }

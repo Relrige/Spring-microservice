@@ -79,6 +79,7 @@ class StockItemReservationRepositoryTest {
         StockItemReservationEntity saved = repository.saveAndFlush(reservation(UUID.randomUUID(), PRODUCT_A, 1).build());
         Instant createdAt = saved.getCreatedAt();
         Instant updatedAt = saved.getUpdatedAt();
+        // Lets the clock move on, so the updated timestamp is strictly later than the creation one
         Thread.sleep(5);
 
         saved.setStatus(ReservationStatus.RELEASED);

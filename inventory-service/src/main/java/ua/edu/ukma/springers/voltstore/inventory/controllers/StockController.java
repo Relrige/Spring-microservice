@@ -47,13 +47,16 @@ import static ua.edu.ukma.springers.voltstore.inventory.openapi.OpenApiConfig.BE
 @RequestMapping("/inventory/stock")
 @RequiredArgsConstructor
 public class StockController {
+    private static final String PRODUCT_ID = "productId";
+    private static final String TITLE = "title";
+
     // Public sortBy names mapped to entity properties; productId is the tiebreaker (and the default order). Rows
     // without a copied title come last in both directions.
     private static final PageableParser PAGEABLE_PARSER = new PageableParser(Map.of(
-            "productId", "productId",
-            "title", "title",
+            PRODUCT_ID, PRODUCT_ID,
+            TITLE, TITLE,
             "availableQuantity", "availableQuantity",
-            "reservedQuantity", "reservedQuantity"), "productId", Set.of("title"));
+            "reservedQuantity", "reservedQuantity"), PRODUCT_ID, Set.of(TITLE));
 
     private final StockService stockService;
 
