@@ -24,6 +24,6 @@ public record CancellationProperties(@NotNull Duration retryInterval, @Min(1) in
 
     /** How long to wait after the last attempt, given the failed attempts so far (0 = only the first run). */
     public Duration backoffAfter(int failedAttempts) {
-        return backoff.get(Math.clamp(failedAttempts - 1, 0, backoff.size() - 1));
+        return backoff.get(Math.clamp(failedAttempts - 1L, 0, backoff.size() - 1));
     }
 }

@@ -165,7 +165,7 @@ public class OrderPlacementService {
         }
         switch (result) {
             // Also an earlier call for this order whose answer was lost (409)
-            case StockReservations.Reserved reserved -> {
+            case StockReservations.Reserved _ -> {
                 // nothing to do: the reservation is kept for payment
             }
             case StockReservations.Insufficient(var insufficientItems) -> {

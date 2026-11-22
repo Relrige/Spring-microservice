@@ -1,5 +1,6 @@
 package ua.edu.ukma.springers.voltstore.catalog.integration;
 
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -137,7 +138,7 @@ class StockEventsIntegrationTest {
             await().atMost(WAIT).until(() -> stockStatus(id).equals("IN_STOCK"));
             await().atMost(WAIT).untilAsserted(() -> assertThat(dlt.poll())
                     .filteredOn(consumerRecord -> key.equals(consumerRecord.key()))
-                    .extracting(consumerRecord -> consumerRecord.value())
+                    .extracting(ConsumerRecord::value)
                     .containsExactly("this is not JSON", "{\"timestamp\":\"2026-10-11T10:00:00Z\"}"));
         }
     }

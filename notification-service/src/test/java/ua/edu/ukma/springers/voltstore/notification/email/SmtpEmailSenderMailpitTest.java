@@ -73,7 +73,7 @@ class SmtpEmailSenderMailpitTest {
         // Accepts the connection but never sends the SMTP greeting
         try (ServerSocket silent = new ServerSocket(0)) {
             Thread acceptor = Thread.ofVirtual().start(() -> {
-                try (Socket ignored = silent.accept()) {
+                try (Socket _ = silent.accept()) {
                     // keeps the connection open without a greeting, so the client has to hit its timeout
                     Thread.sleep(Duration.ofSeconds(30));
                 } catch (IOException | InterruptedException e) {

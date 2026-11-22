@@ -30,6 +30,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -166,7 +167,7 @@ class ReservationServiceTest {
         reservationService.reserve(ORDER_ID, Map.of(PRODUCT_A, 1, PRODUCT_B, 2));
 
         ArgumentCaptor<StockEvent> events = ArgumentCaptor.forClass(StockEvent.class);
-        verify(stockEventPublisher, org.mockito.Mockito.times(2)).publish(events.capture());
+        verify(stockEventPublisher, times(2)).publish(events.capture());
         assertThat(events.getAllValues()).allMatch(ProductStockDepletedEvent.class::isInstance)
                 .extracting(StockEvent::productId).containsExactly(PRODUCT_A, PRODUCT_B);
     }

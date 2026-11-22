@@ -135,7 +135,7 @@ public class NotificationSenderJob {
         Instant now = clock.instant();
         int attempt = notification.getAttempts() + 1;
         return switch (outcome) {
-            case SendOutcome.Sent ignored -> {
+            case SendOutcome.Sent _ -> {
                 notification.markSent(now);
                 log.info("Sent {} notification {} of order {} (attempt {})", notification.getType(),
                         notification.getId(), notification.getOrderId(), attempt);

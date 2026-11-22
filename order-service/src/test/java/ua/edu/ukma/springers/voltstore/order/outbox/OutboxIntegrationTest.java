@@ -125,7 +125,7 @@ class OutboxIntegrationTest {
     void anEventWrittenInATrace_isPublishedInThatTrace_underANewProducerSpan() {
         try (TopicProbe probe = probe()) {
             Span request = tracer.nextSpan().name("request").start();
-            try (Tracer.SpanInScope ignored = tracer.withSpan(request)) {
+            try (Tracer.SpanInScope _ = tracer.withSpan(request)) {
                 tx.executeWithoutResult(status -> outbox.append(OrderPlacedEvent.of(order(), Instant.now())));
             } finally {
                 request.end();

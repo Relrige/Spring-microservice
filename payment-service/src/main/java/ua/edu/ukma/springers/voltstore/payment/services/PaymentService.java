@@ -101,7 +101,7 @@ public class PaymentService {
                 repository.saveAndFlush(PaymentTransactionEntity.failed(CHARGE, orderId, amount, currency, reason, key));
                 throw new PaymentDeclinedException(reason);
             }
-            case GatewayResult.IdempotencyKeyMismatch ignored -> throw new PaymentAttemptInProgressException(orderId);
+            case GatewayResult.IdempotencyKeyMismatch _ -> throw new PaymentAttemptInProgressException(orderId);
         };
     }
 
@@ -140,7 +140,7 @@ public class PaymentService {
                         toFailureReason(declineReason), key));
                 throw new RefundRejectedException(orderId);
             }
-            case GatewayResult.IdempotencyKeyMismatch ignored -> throw new PaymentAttemptInProgressException(orderId);
+            case GatewayResult.IdempotencyKeyMismatch _ -> throw new PaymentAttemptInProgressException(orderId);
         };
     }
 

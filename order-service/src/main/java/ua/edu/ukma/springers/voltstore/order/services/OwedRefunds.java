@@ -48,9 +48,9 @@ public class OwedRefunds {
         }
         Payments.RefundResult result = payments.refund(orderId, owed.getAmount(), owed.getCurrency());
         switch (result) {
-            case Payments.Refunded refunded -> settled(orderId, "refunded");
+            case Payments.Refunded _ -> settled(orderId, "refunded");
             // An earlier attempt succeeded and its answer was lost
-            case Payments.AlreadyRefunded alreadyRefunded -> settled(orderId, "already refunded");
+            case Payments.AlreadyRefunded _ -> settled(orderId, "already refunded");
             case Payments.RefundFailed(var cause) -> failed(orderId, cause);
         }
     }

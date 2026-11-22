@@ -71,9 +71,9 @@ public class PaymentMetrics {
     /** Outcome tag of a definitive gateway answer. */
     public static String outcomeOf(GatewayResult result) {
         return switch (result) {
-            case GatewayResult.Approved ignored -> "approved";
-            case GatewayResult.Declined ignored -> "declined";
-            case GatewayResult.IdempotencyKeyMismatch ignored -> "key_mismatch";
+            case GatewayResult.Approved _ -> "approved";
+            case GatewayResult.Declined _ -> "declined";
+            case GatewayResult.IdempotencyKeyMismatch _ -> "key_mismatch";
         };
     }
 

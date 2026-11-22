@@ -73,12 +73,12 @@ public class OrderPaymentService {
         Payments.ChargeResult result = payments.charge(orderId, order.getTotalAmount(), order.getCurrency(),
                 card.toPaymentCard());
         return switch (result) {
-            case Payments.Paid paid -> recordPayment(order);
+            case Payments.Paid _ -> recordPayment(order);
             // An earlier attempt succeeded and its answer was lost: the same money, not a second charge
-            case Payments.AlreadyCharged alreadyCharged -> recordPayment(order);
+            case Payments.AlreadyCharged _ -> recordPayment(order);
             // The window is not extended: the customer may try another card while it lasts
             case Payments.Declined(var reason) -> throw new PaymentDeclinedException(reason);
-            case Payments.AttemptInProgress inProgress -> throw new PaymentAttemptInProgressException(orderId);
+            case Payments.AttemptInProgress _ -> throw new PaymentAttemptInProgressException(orderId);
             case Payments.ChargeUnavailable(var cause) ->
                     throw new DependencyUnavailableException("Payment", cause, null);
         };
