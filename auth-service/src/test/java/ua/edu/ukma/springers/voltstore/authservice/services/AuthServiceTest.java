@@ -73,7 +73,8 @@ class AuthServiceTest {
         when(userRepo.findByEmail("alice@example.com")).thenReturn(Optional.of(user()));
         when(passwordEncoder.matches("wrong", "stored-hash")).thenReturn(false);
 
-        assertThatThrownBy(() -> authService.login(request("alice@example.com", "wrong")))
+        LoginRequest request = request("alice@example.com", "wrong");
+        assertThatThrownBy(() -> authService.login(request))
                 .isInstanceOf(InvalidCredentialsException.class);
 
         verify(tokenService, never()).issueToken(any());
@@ -84,7 +85,8 @@ class AuthServiceTest {
         when(userRepo.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
         when(passwordEncoder.matches("secret1", "dummy-hash")).thenReturn(false);
 
-        assertThatThrownBy(() -> authService.login(request("nobody@example.com", "secret1")))
+        LoginRequest request = request("nobody@example.com", "secret1");
+        assertThatThrownBy(() -> authService.login(request))
                 .isInstanceOf(InvalidCredentialsException.class)
                 .hasMessage("Invalid credentials");
 
