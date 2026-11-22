@@ -50,14 +50,14 @@ export default function iteration(data) {
     expectStatus(http.post(`${BASE_URL}/customers/cart/items`, JSON.stringify({ productId, quantity: 1 }),
         params(ADD, token)), ADD, 200);
     // An explicit quantity (1–3) keeps every product under the per-product limit of 10
-    expectStatus(http.patch(item, JSON.stringify({ quantity: 1 + Math.floor(Math.random() * 3) }),
+    expectStatus(http.patch(item, JSON.stringify({ quantity: 1 + Math.floor(Math.random() * 3) }), // NOSONAR(S2245): picks test data and traffic mix, not security-relevant
         params(SET, token)), SET, 200);
     const cart = http.get(`${BASE_URL}/customers/cart`, params(GET, token));
     expectStatus(cart, GET, 200);
 
     // Remove sometimes, and always once the cart nears its limit of 10 products
     const size = cart.status === 200 ? cart.json().length : 0;
-    if (size >= 8 || Math.random() < 0.3) {
+    if (size >= 8 || Math.random() < 0.3) { // NOSONAR(S2245): picks test data and traffic mix, not security-relevant
         expectStatus(http.del(item, null, params(REMOVE, token)), REMOVE, 200);
     }
 }
