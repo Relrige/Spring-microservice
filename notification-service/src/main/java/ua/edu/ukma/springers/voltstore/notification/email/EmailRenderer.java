@@ -24,6 +24,7 @@ import java.util.UUID;
 @Component
 public class EmailRenderer {
     private static final String SUBJECT_PREFIX = "VoltStore — ";
+    private static final String ORDER_PREFIX = "Order #";
     private static final String SIGNATURE = """
 
             —
@@ -41,7 +42,7 @@ public class EmailRenderer {
 
     public RenderedEmail orderPlaced(UUID orderId, BigDecimal totalAmount, String currency,
                                      Instant reservationExpiresAt) {
-        return email("Order #" + orderId + " placed, awaiting payment", """
+        return email(ORDER_PREFIX + orderId + " placed, awaiting payment", """
                 Hello,
 
                 thank you for your order #%s at VoltStore.
@@ -67,7 +68,7 @@ public class EmailRenderer {
     }
 
     public RenderedEmail orderShipped(UUID orderId, String ttn) {
-        return email("Order #" + orderId + " has been shipped", """
+        return email(ORDER_PREFIX + orderId + " has been shipped", """
                 Hello,
 
                 your order #%s has been handed over to the carrier.
@@ -79,7 +80,7 @@ public class EmailRenderer {
     }
 
     public RenderedEmail orderDelivered(UUID orderId, String ttn) {
-        return email("Order #" + orderId + " delivered", """
+        return email(ORDER_PREFIX + orderId + " delivered", """
                 Hello,
 
                 your order #%s (tracking number %s) has been delivered.
@@ -90,7 +91,7 @@ public class EmailRenderer {
 
     // Used for unpaid and paid orders alike: the event does not say whether a refund was made (spec D3)
     public RenderedEmail orderCancelled(UUID orderId) {
-        return email("Order #" + orderId + " cancelled", """
+        return email(ORDER_PREFIX + orderId + " cancelled", """
                 Hello,
 
                 your order #%s has been cancelled.
@@ -101,7 +102,7 @@ public class EmailRenderer {
     }
 
     public RenderedEmail orderExpired(UUID orderId) {
-        return email("Order #" + orderId + " expired, payment deadline missed", """
+        return email(ORDER_PREFIX + orderId + " expired, payment deadline missed", """
                 Hello,
 
                 your order #%s was not paid in time, so it has expired.

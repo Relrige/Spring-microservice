@@ -28,19 +28,19 @@ class EventDispatcher {
         this.reader = reader;
     }
 
-    void dispatch(ConsumerRecord<String, String> record) {
-        Header header = record.headers().lastHeader(KafkaTopics.EVENT_TYPE_HEADER);
+    void dispatch(ConsumerRecord<String, String> consumerRecord) {
+        Header header = consumerRecord.headers().lastHeader(KafkaTopics.EVENT_TYPE_HEADER);
         String eventType = header == null ? null : new String(header.value(), StandardCharsets.UTF_8);
         EventHandler<?> handler = eventType == null ? null : handlers.get(eventType);
         if (handler == null) {
-            log.debug("Skipping {} key={} offset={} of type {}", record.topic(), record.key(), record.offset(),
+            log.debug("Skipping {} key={} offset={} of type {}", consumerRecord.topic(), consumerRecord.key(), consumerRecord.offset(),
                     eventType);
             return;
         }
-        handle(handler, record);
+        handle(handler, consumerRecord);
     }
 
-    private <T> void handle(EventHandler<T> handler, ConsumerRecord<String, String> record) {
-        handler.handle(reader.read(record.value(), handler.payloadType()));
+    private <T> void handle(EventHandler<T> handler, ConsumerRecord<String, String> consumerRecord) {
+        handler.handle(reader.read(consumerRecord.value(), handler.payloadType()));
     }
 }

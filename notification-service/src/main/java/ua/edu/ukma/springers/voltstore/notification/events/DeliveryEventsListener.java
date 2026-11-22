@@ -20,7 +20,7 @@ public class DeliveryEventsListener {
     }
 
     @KafkaListener(id = "delivery-events", idIsGroup = false, topics = "${notification.kafka.topics.delivery-events}")
-    public void onDeliveryEvent(ConsumerRecord<String, String> record) {
-        dispatcher.dispatch(record);
+    public void onDeliveryEvent(ConsumerRecord<String, String> consumerRecord) {
+        dispatcher.dispatch(consumerRecord);
     }
 }

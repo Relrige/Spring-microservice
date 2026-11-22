@@ -52,17 +52,17 @@ public class KafkaConfig {
     public DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<String, String> kafkaTemplate) {
         // Negative partition: let the producer choose, since a DLT has fewer partitions than its source
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(kafkaTemplate,
-                (record, ex) -> new TopicPartition(KafkaTopics.deadLetterTopicOf(record.topic()), -1));
+                (consumerRecord, ex) -> new TopicPartition(KafkaTopics.deadLetterTopicOf(consumerRecord.topic()), -1));
 
         ExponentialBackOffWithMaxRetries backOff = new ExponentialBackOffWithMaxRetries(4);
         backOff.setInitialInterval(1000);
         backOff.setMultiplier(2);
         backOff.setMaxInterval(10_000);
         // The record value holds email addresses, so only its coordinates are logged
-        DefaultErrorHandler errorHandler = new DefaultErrorHandler((record, ex) -> {
-            log.error("Sending {} key={} partition={} offset={} to {}", record.topic(), record.key(),
-                    record.partition(), record.offset(), KafkaTopics.deadLetterTopicOf(record.topic()), ex);
-            recoverer.accept(record, ex);
+        DefaultErrorHandler errorHandler = new DefaultErrorHandler((consumerRecord, ex) -> {
+            log.error("Sending {} key={} partition={} offset={} to {}", consumerRecord.topic(), consumerRecord.key(),
+                    consumerRecord.partition(), consumerRecord.offset(), KafkaTopics.deadLetterTopicOf(consumerRecord.topic()), ex);
+            recoverer.accept(consumerRecord, ex);
         }, backOff);
         errorHandler.addNotRetryableExceptions(PoisonMessageException.class);
         return errorHandler;

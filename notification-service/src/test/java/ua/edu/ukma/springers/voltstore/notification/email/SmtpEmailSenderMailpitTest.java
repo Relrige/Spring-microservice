@@ -74,8 +74,12 @@ class SmtpEmailSenderMailpitTest {
         try (ServerSocket silent = new ServerSocket(0)) {
             Thread acceptor = Thread.ofVirtual().start(() -> {
                 try (Socket ignored = silent.accept()) {
+                    // keeps the connection open without a greeting, so the client has to hit its timeout
                     Thread.sleep(Duration.ofSeconds(30));
-                } catch (IOException | InterruptedException ignored) {
+                } catch (IOException | InterruptedException e) {
+                    if (e instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
                     // the test is over
                 }
             });

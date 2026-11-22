@@ -118,7 +118,8 @@ public class SmtpEmailSender implements EmailSender {
     }
 
     private static void collect(Throwable throwable, List<Throwable> causes) {
-        for (Throwable t = throwable; t != null && !causes.contains(t); ) {
+        Throwable t = throwable;
+        while (t != null && !causes.contains(t)) {
             causes.add(t);
             Throwable next = t instanceof MessagingException messaging ? messaging.getNextException() : null;
             if (next != null && next != t.getCause()) {
