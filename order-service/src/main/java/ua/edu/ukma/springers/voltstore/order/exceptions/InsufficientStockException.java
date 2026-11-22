@@ -8,7 +8,7 @@ import java.util.List;
 /** Inventory could not reserve every item; nothing was reserved. Answered with 422 and Inventory's list. */
 @Getter
 public class InsufficientStockException extends RuntimeException {
-    private final List<InsufficientItem> insufficientItems;
+    private final transient List<InsufficientItem> insufficientItems;
 
     public InsufficientStockException(List<InsufficientItem> insufficientItems) {
         super("Insufficient stock for some items");

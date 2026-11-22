@@ -144,11 +144,11 @@ class CancellationIntegrationTest {
 
             List<ConsumerRecord<String, String>> records = await().atMost(Duration.ofSeconds(20))
                     .until(probe::poll, received -> !received.isEmpty());
-            ConsumerRecord<String, String> record = records.getFirst();
-            assertThat(record.key()).isEqualTo(orderId.toString());
-            assertThat(new String(record.headers().lastHeader("eventType").value(), StandardCharsets.UTF_8))
+            ConsumerRecord<String, String> consumerRecord = records.getFirst();
+            assertThat(consumerRecord.key()).isEqualTo(orderId.toString());
+            assertThat(new String(consumerRecord.headers().lastHeader("eventType").value(), StandardCharsets.UTF_8))
                     .isEqualTo("OrderCancelled");
-            assertThat(JSON.readTree(record.value()).get("reason").asString()).isEqualTo("CUSTOMER_CANCELLED");
+            assertThat(JSON.readTree(consumerRecord.value()).get("reason").asString()).isEqualTo("CUSTOMER_CANCELLED");
         }
     }
 

@@ -45,6 +45,7 @@ import java.util.TreeMap;
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final String SERVICE_NAME = "order-service";
+    private static final String CONFLICT_CODE = "conflict";
     private static final URI VALIDATION_TYPE = URI.create("https://voltstore.com/errors/validation");
     static final String SERVICE_UNAVAILABLE_DETAIL =
             "The order cannot be processed right now because a required service is unavailable. Please try again later.";
@@ -98,7 +99,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(InvalidOrderStateException.class)
     public ProblemDetail handleInvalidOrderState(InvalidOrderStateException ex) {
-        ProblemDetail problem = problem(HttpStatus.CONFLICT, "conflict", "Order state conflict", ex.getMessage());
+        ProblemDetail problem = problem(HttpStatus.CONFLICT, CONFLICT_CODE, "Order state conflict", ex.getMessage());
         problem.setProperty("orderStatus", ex.getStatus());
         return problem;
     }
@@ -110,7 +111,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(PaymentAttemptInProgressException.class)
     public ProblemDetail handlePaymentAttemptInProgress(PaymentAttemptInProgressException ex) {
-        return problem(HttpStatus.CONFLICT, "conflict", "Payment attempt in progress", ex.getMessage());
+        return problem(HttpStatus.CONFLICT, CONFLICT_CODE, "Payment attempt in progress", ex.getMessage());
     }
 
     @ExceptionHandler(PaymentDeclinedException.class)
@@ -125,7 +126,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(TtnNotGeneratedException.class)
     public ProblemDetail handleTtnNotGenerated(TtnNotGeneratedException ex) {
-        return problem(HttpStatus.CONFLICT, "conflict", "TTN not generated", ex.getMessage());
+        return problem(HttpStatus.CONFLICT, CONFLICT_CODE, "TTN not generated", ex.getMessage());
     }
 
     @ExceptionHandler(InvalidQueryParameterException.class)

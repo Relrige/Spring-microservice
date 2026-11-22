@@ -166,6 +166,7 @@ public class OrderPlacementService {
         switch (result) {
             // Also an earlier call for this order whose answer was lost (409)
             case StockReservations.Reserved reserved -> {
+                // nothing to do: the reservation is kept for payment
             }
             case StockReservations.Insufficient insufficient -> {
                 // Inventory reserved nothing, so there is nothing to clean up

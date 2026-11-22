@@ -227,11 +227,11 @@ class CheckoutIntegrationTest {
             List<ConsumerRecord<String, String>> records = await().atMost(Duration.ofSeconds(20))
                     .until(probe::poll, received -> received.stream()
                             .anyMatch(r -> orderId.toString().equals(r.key())));
-            ConsumerRecord<String, String> record = records.stream()
+            ConsumerRecord<String, String> consumerRecord = records.stream()
                     .filter(r -> orderId.toString().equals(r.key())).findFirst().orElseThrow();
-            assertThat(new String(record.headers().lastHeader("eventType").value(), StandardCharsets.UTF_8))
+            assertThat(new String(consumerRecord.headers().lastHeader("eventType").value(), StandardCharsets.UTF_8))
                     .isEqualTo("OrderPlaced");
-            JsonNode event = JSON.readTree(record.value());
+            JsonNode event = JSON.readTree(consumerRecord.value());
             assertThat(event.get("customerEmail").asString()).isEqualTo(TrustedHeaders.EMAIL);
             assertThat(event.get("totalAmount").decimalValue()).isEqualByComparingTo("40498.00");
             // The reservation now belongs to a stored order; the attempt was deleted with it

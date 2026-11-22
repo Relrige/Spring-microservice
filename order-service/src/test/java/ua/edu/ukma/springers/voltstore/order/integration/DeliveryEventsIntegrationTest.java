@@ -167,9 +167,9 @@ class DeliveryEventsIntegrationTest {
     }
 
     private void send(UUID key, String eventType, String payload) {
-        ProducerRecord<String, String> record = new ProducerRecord<>(topic, key.toString(), payload);
-        record.headers().add(KafkaTopics.EVENT_TYPE_HEADER, eventType.getBytes(StandardCharsets.UTF_8));
-        producer.send(record);
+        ProducerRecord<String, String> producerRecord = new ProducerRecord<>(topic, key.toString(), payload);
+        producerRecord.headers().add(KafkaTopics.EVENT_TYPE_HEADER, eventType.getBytes(StandardCharsets.UTF_8));
+        producer.send(producerRecord);
         producer.flush();
     }
 

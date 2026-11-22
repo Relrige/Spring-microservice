@@ -8,7 +8,7 @@ import java.util.List;
 /** Some products are not active, unknown, or out of stock. Answered with 422 and the full list. */
 @Getter
 public class IneligibleItemsException extends RuntimeException {
-    private final List<IneligibleItem> ineligibleItems;
+    private final transient List<IneligibleItem> ineligibleItems;
 
     public IneligibleItemsException(List<IneligibleItem> ineligibleItems) {
         super("Some items cannot be ordered");

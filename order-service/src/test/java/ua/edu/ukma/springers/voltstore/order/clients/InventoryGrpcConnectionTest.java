@@ -109,6 +109,7 @@ class InventoryGrpcConnectionTest {
             FakeInventory inventory = new FakeInventory();
             CompletableFuture<Void> started = CompletableFuture.runAsync(() -> {
                 try {
+                    // Starts Inventory only after the client has begun waiting for it
                     TimeUnit.MILLISECONDS.sleep(300);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

@@ -173,11 +173,11 @@ class PaymentAndQueriesIntegrationTest {
 
             List<ConsumerRecord<String, String>> records = await().atMost(Duration.ofSeconds(20))
                     .until(probe::poll, received -> !received.isEmpty());
-            ConsumerRecord<String, String> record = records.getFirst();
-            assertThat(record.key()).isEqualTo(orderId.toString());
-            assertThat(new String(record.headers().lastHeader("eventType").value(), StandardCharsets.UTF_8))
+            ConsumerRecord<String, String> consumerRecord = records.getFirst();
+            assertThat(consumerRecord.key()).isEqualTo(orderId.toString());
+            assertThat(new String(consumerRecord.headers().lastHeader("eventType").value(), StandardCharsets.UTF_8))
                     .isEqualTo("OrderPaid");
-            JsonNode event = JSON.readTree(record.value());
+            JsonNode event = JSON.readTree(consumerRecord.value());
             assertThat(event.get("customerId").asString()).isEqualTo(ALICE.toString());
             JsonNode delivery = event.get("deliveryDetails");
             for (String field : List.of("name", "phone", "address", "carrier")) {
