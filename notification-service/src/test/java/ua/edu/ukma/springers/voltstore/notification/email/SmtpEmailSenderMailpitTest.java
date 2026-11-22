@@ -9,7 +9,6 @@ import ua.edu.ukma.springers.voltstore.notification.support.MailpitContainer;
 
 import java.io.IOException;
 import java.net.ServerSocket;
-import java.net.Socket;
 import java.time.Duration;
 import java.util.List;
 import java.util.Properties;
@@ -73,13 +72,13 @@ class SmtpEmailSenderMailpitTest {
         // Accepts the connection but never sends the SMTP greeting
         try (ServerSocket silent = new ServerSocket(0)) {
             Thread acceptor = Thread.ofVirtual().start(() -> {
-                try (Socket _ = silent.accept()) {
+                try (var _ = silent.accept()) {
                     // keeps the connection open without a greeting, so the client has to hit its timeout
                     Thread.sleep(Duration.ofSeconds(30));
-                } catch (IOException | InterruptedException e) {
-                    if (e instanceof InterruptedException) {
-                        Thread.currentThread().interrupt();
-                    }
+                } catch (InterruptedException _) {
+                    // the test is over
+                    Thread.currentThread().interrupt();
+                } catch (IOException _) {
                     // the test is over
                 }
             });
