@@ -31,7 +31,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: inventory-service
-          image: voltstore/inventory-service:latest
+          image: voltstore/inventory-service:1.0.0
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false

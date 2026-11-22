@@ -7,30 +7,31 @@ minikube start --cpus=6 --memory=6g --cni=calico
 # The dashboard addon runs extra pods; enable it only when needed
 minikube addons disable dashboard
 
+# Images carry a fixed tag (1.0.0), set in every k8s\<service>\app-deployment.yaml. After rebuilding and
+# loading an image with the same tag, restart its pods: kubectl rollout restart deployment <name> -n voltstore
+docker build -t  voltstore/api-gateway:1.0.0 .\api-gateway
+docker build -t  voltstore/auth-service:1.0.0 .\auth-service
+docker build -t  voltstore/catalog-service:1.0.0 .\catalog-service
+docker build -t  voltstore/customer-service:1.0.0 .\customer-service
+docker build -t  voltstore/delivery-service:1.0.0 .\delivery-service
+docker build -t  voltstore/inventory-service:1.0.0 .\inventory-service
+docker build -t  voltstore/notification-service:1.0.0 .\notification-service
+docker build -t  voltstore/order-service:1.0.0 .\order-service
+docker build -t  voltstore/payment-service:1.0.0 .\payment-service
+docker build -t  voltstore/frontend:1.0.0 .\frontend
 
-docker build -t  voltstore/api-gateway:latest .\api-gateway
-docker build -t  voltstore/auth-service:latest .\auth-service
-docker build -t  voltstore/catalog-service:latest .\catalog-service
-docker build -t  voltstore/customer-service:latest .\customer-service
-docker build -t  voltstore/delivery-service:latest .\delivery-service
-docker build -t  voltstore/inventory-service:latest .\inventory-service
-docker build -t  voltstore/notification-service:latest .\notification-service
-docker build -t  voltstore/order-service:latest .\order-service
-docker build -t  voltstore/payment-service:latest .\payment-service
-docker build -t  voltstore/frontend:latest .\frontend
 
 
-
-minikube image load voltstore/api-gateway:latest
-minikube image load voltstore/auth-service:latest
-minikube image load voltstore/catalog-service:latest
-minikube image load voltstore/customer-service:latest
-minikube image load voltstore/delivery-service:latest
-minikube image load voltstore/inventory-service:latest
-minikube image load voltstore/notification-service:latest
-minikube image load voltstore/order-service:latest
-minikube image load voltstore/payment-service:latest
-minikube image load voltstore/frontend:latest
+minikube image load voltstore/api-gateway:1.0.0
+minikube image load voltstore/auth-service:1.0.0
+minikube image load voltstore/catalog-service:1.0.0
+minikube image load voltstore/customer-service:1.0.0
+minikube image load voltstore/delivery-service:1.0.0
+minikube image load voltstore/inventory-service:1.0.0
+minikube image load voltstore/notification-service:1.0.0
+minikube image load voltstore/order-service:1.0.0
+minikube image load voltstore/payment-service:1.0.0
+minikube image load voltstore/frontend:1.0.0
 
 # Ordering: "apply -R" goes through folders alphabetically, so "auth" comes before "base" (the namespace).
 # Apply the namespace first, then the Kafka broker (services start without it, but log connection
@@ -51,7 +52,7 @@ kubectl apply -f k8s\ -R
 #   kubectl apply -f k8s\gateway\
 # AUTH_JWT_SECRET must have the same value in auth-secrets and gateway-secrets.
 # Images already built by Docker Compose can be reused instead of "docker build":
-#   docker tag spring-microservice-inventory-service:latest voltstore/inventory-service:latest
+#   docker tag spring-microservice-inventory-service:latest voltstore/inventory-service:1.0.0
 
 # Every service runs with 1 replica. To test that several replicas share one consumer group, scale up
 # temporarily: kubectl scale deployment inventory-service -n voltstore --replicas=2

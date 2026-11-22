@@ -37,22 +37,22 @@ The Deployments use `voltstore/<service>:latest` with `imagePullPolicy: IfNotPre
 copied into minikube (it has its own image store). Build them, or reuse images already built by Docker Compose:
 
 ```bash
-docker build -t voltstore/catalog-service:latest ./catalog-service
-docker build -t voltstore/inventory-service:latest ./inventory-service
+docker build -t voltstore/catalog-service:1.0.0 ./catalog-service
+docker build -t voltstore/inventory-service:1.0.0 ./inventory-service
 ```
 
 or, if `docker compose up --build` was run on the current code:
 
 ```bash
-docker tag spring-microservice-catalog-service:latest voltstore/catalog-service:latest
-docker tag spring-microservice-inventory-service:latest voltstore/inventory-service:latest
+docker tag spring-microservice-catalog-service:latest voltstore/catalog-service:1.0.0
+docker tag spring-microservice-inventory-service:latest voltstore/inventory-service:1.0.0
 ```
 
 Copy them into minikube (slow: each image is exported and imported, about a minute each):
 
 ```bash
-minikube image load voltstore/catalog-service:latest
-minikube image load voltstore/inventory-service:latest
+minikube image load voltstore/catalog-service:1.0.0
+minikube image load voltstore/inventory-service:1.0.0
 ```
 
 After rebuilding an image with the same tag, load it again and restart the Deployment

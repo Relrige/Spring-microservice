@@ -31,7 +31,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: delivery-service
-          image: voltstore/delivery-service:latest
+          image: voltstore/delivery-service:1.0.0
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
