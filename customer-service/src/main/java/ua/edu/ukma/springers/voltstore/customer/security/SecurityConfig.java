@@ -27,6 +27,10 @@ public class SecurityConfig {
     private static final String CART_PATH = "/customers/cart";
 
     @Bean
+    // CSRF needs a credential the browser sends by itself (a session cookie). There is none: no session (STATELESS),
+    // no form login or Basic; the caller comes from gateway headers or the internal token, which a forged
+    // cross-site request cannot set
+    @SuppressWarnings("java:S4502")
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    @Value("${spring.application.name}") String serviceName) {
         SecurityErrorHandlers errorHandlers = new SecurityErrorHandlers(serviceName);
