@@ -28,31 +28,33 @@ public final class Concurrently {
      * Starts all tasks at the same moment and returns each task's result or thrown exception, in task order.
      */
     public static List<Object> run(Callable<?>... tasks) throws Exception {
-        ExecutorService executor = Executors.newFixedThreadPool(tasks.length);
-        try {
-            CountDownLatch ready = new CountDownLatch(tasks.length);
-            CountDownLatch start = new CountDownLatch(1);
-            List<Future<Object>> futures = new ArrayList<>();
-            for (Callable<?> task : tasks) {
-                futures.add(executor.submit(() -> {
-                    ready.countDown();
-                    start.await();
-                    try {
-                        return task.call();
-                    } catch (Exception e) {
-                        return e;
-                    }
-                }));
+        try (ExecutorService executor = Executors.newFixedThreadPool(tasks.length)) {
+            try {
+                CountDownLatch ready = new CountDownLatch(tasks.length);
+                CountDownLatch start = new CountDownLatch(1);
+                List<Future<Object>> futures = new ArrayList<>();
+                for (Callable<?> task : tasks) {
+                    futures.add(executor.submit(() -> {
+                        ready.countDown();
+                        start.await();
+                        try {
+                            return task.call();
+                        } catch (Exception e) {
+                            return e;
+                        }
+                    }));
+                }
+                ready.await();
+                start.countDown();
+                List<Object> results = new ArrayList<>();
+                for (Future<Object> future : futures) {
+                    results.add(future.get());
+                }
+                return results;
+            } finally {
+                // interrupt hung tasks so close() does not wait on them
+                executor.shutdownNow();
             }
-            ready.await();
-            start.countDown();
-            List<Object> results = new ArrayList<>();
-            for (Future<Object> future : futures) {
-                results.add(future.get());
-            }
-            return results;
-        } finally {
-            executor.shutdownNow();
         }
     }
 }

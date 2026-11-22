@@ -54,4 +54,15 @@ public class MutableClock extends Clock {
     public Clock withZone(ZoneId zone) {
         return this;
     }
+
+    // A mutable clock is only equal to itself
+    @Override
+    public boolean equals(Object o) {
+        return this == o;
+    }
+
+    @Override
+    public int hashCode() {
+        return System.identityHashCode(this);
+    }
 }

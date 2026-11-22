@@ -20,6 +20,7 @@ import java.util.UUID;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -63,10 +64,12 @@ class MockCarrierGatewayTest {
     void failureRateZero_neverFails() {
         MockCarrierGateway gateway = gateway(0.0);
 
-        for (int i = 0; i < 1000; i++) {
-            gateway.register(REQUEST);
-            gateway.cancel("20450000000001");
-        }
+        assertThatCode(() -> {
+            for (int i = 0; i < 1000; i++) {
+                gateway.register(REQUEST);
+                gateway.cancel("20450000000001");
+            }
+        }).doesNotThrowAnyException();
     }
 
     @Test
