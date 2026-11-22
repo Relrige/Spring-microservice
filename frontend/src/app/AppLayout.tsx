@@ -56,7 +56,7 @@ function isActiveLink(to: string, pathname: string): boolean {
   return to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(`${to}/`);
 }
 
-function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
+function NavLinks({ items, onNavigate }: Readonly<{ items: NavItem[]; onNavigate?: () => void }>) {
   const { pathname } = useLocation();
   return (
     <>

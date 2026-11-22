@@ -14,7 +14,7 @@ interface CancelOrderProps {
   onCancelled?: () => void;
 }
 
-export function CancelOrder({ order, onCancelled }: CancelOrderProps) {
+export function CancelOrder({ order, onCancelled }: Readonly<CancelOrderProps>) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
   const [cancelling, setCancelling] = useState(false);

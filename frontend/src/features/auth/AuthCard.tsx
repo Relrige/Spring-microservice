@@ -6,11 +6,11 @@ export function AuthCard({
   title,
   subtitle,
   children,
-}: {
-  title: string;
-  subtitle: string;
-  children: ReactNode;
-}) {
+}: Readonly<{
+    title: string;
+    subtitle: string;
+    children: ReactNode;
+}>) {
   return (
     <Box
       px="md"

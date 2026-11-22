@@ -12,10 +12,10 @@ import { useCart } from './CartProvider';
 export function AddToCart({
   productId,
   stockStatus,
-}: {
-  productId: string;
-  stockStatus: StockStatus;
-}) {
+}: Readonly<{
+    productId: string;
+    stockStatus: StockStatus;
+}>) {
   const cart = useCart();
   const navigate = useNavigate();
   const [quantity, setQuantity] = useState<string | number>(1);
