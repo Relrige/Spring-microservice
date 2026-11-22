@@ -117,22 +117,27 @@ class SecurityConfigTest {
 
         @RequestMapping(method = RequestMethod.PUT, path = "/customers/me/profile")
         void putProfile() {
+            // no-op: only the security rules are under test
         }
 
         @RequestMapping(method = {RequestMethod.GET, RequestMethod.PUT, RequestMethod.DELETE}, path = "/customers/cart")
         void cart() {
+            // no-op: only the security rules are under test
         }
 
         @RequestMapping(method = RequestMethod.POST, path = {"/customers/cart/merge", "/customers/cart/items"})
         void post() {
+            // no-op: only the security rules are under test
         }
 
         @RequestMapping(method = {RequestMethod.PATCH, RequestMethod.DELETE}, path = "/customers/cart/items/{productId}")
         void item() {
+            // no-op: only the security rules are under test
         }
 
         @GetMapping("/customers/unlisted")
         void unlisted() {
+            // no-op: only the security rules are under test
         }
     }
 }

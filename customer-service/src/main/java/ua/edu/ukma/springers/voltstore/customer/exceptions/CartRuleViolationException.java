@@ -17,7 +17,7 @@ import java.util.UUID;
 public class CartRuleViolationException extends RuntimeException {
     private final CartRuleViolation violation;
     /** Extra Problem Details properties, in the order they are documented in the spec. */
-    private final Map<String, Object> details;
+    private final transient Map<String, Object> details;
 
     private CartRuleViolationException(CartRuleViolation violation, String message, Map<String, Object> details) {
         super(message);

@@ -50,11 +50,11 @@ public class OrderEvents implements AutoCloseable {
 
     /** Sends a record keyed by {@code key}; {@code eventType} null sends no header. */
     public void send(UUID key, String eventType, String json) throws Exception {
-        ProducerRecord<String, String> record = new ProducerRecord<>(TOPIC, key.toString(), json);
+        ProducerRecord<String, String> producerRecord = new ProducerRecord<>(TOPIC, key.toString(), json);
         if (eventType != null) {
-            record.headers().add("eventType", eventType.getBytes(StandardCharsets.UTF_8));
+            producerRecord.headers().add("eventType", eventType.getBytes(StandardCharsets.UTF_8));
         }
-        producer.send(record).get();
+        producer.send(producerRecord).get();
     }
 
     /** The fat OrderPaid of the Event Catalogue for one product nobody has in the cart. */
@@ -88,9 +88,9 @@ public class OrderEvents implements AutoCloseable {
             consumer.subscribe(List.of(DEAD_LETTER_TOPIC));
             List<String> values = new ArrayList<>();
             for (int i = 0; i < 5; i++) {
-                for (ConsumerRecord<String, String> record : consumer.poll(Duration.ofMillis(500))) {
-                    if (key.toString().equals(record.key())) {
-                        values.add(record.value());
+                for (ConsumerRecord<String, String> consumerRecord : consumer.poll(Duration.ofMillis(500))) {
+                    if (key.toString().equals(consumerRecord.key())) {
+                        values.add(consumerRecord.value());
                     }
                 }
             }

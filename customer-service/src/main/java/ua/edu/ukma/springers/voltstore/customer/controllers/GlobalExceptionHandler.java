@@ -33,6 +33,8 @@ import java.util.TreeMap;
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final String SERVICE_NAME = "customer-service";
     private static final URI VALIDATION_TYPE = URI.create("https://voltstore.com/errors/validation");
+    private static final String VALIDATION_TITLE = "Validation failed";
+    private static final String ERRORS_PROPERTY = "errors";
 
     @ExceptionHandler(CartItemNotFoundException.class)
     public ProblemDetail handleCartItemNotFound(CartItemNotFoundException ex) {
@@ -60,9 +62,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                     .add(error.getDefaultMessage());
         }
         ProblemDetail problem = ex.getBody();
-        problem.setTitle("Validation failed");
+        problem.setTitle(VALIDATION_TITLE);
         problem.setDetail("One or more fields are invalid.");
-        problem.setProperty("errors", fieldErrors);
+        problem.setProperty(ERRORS_PROPERTY, fieldErrors);
         return handleExceptionInternal(ex, problem, headers, status, request);
     }
 
@@ -74,8 +76,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 ? argument.getName() : ex.getPropertyName();
         String requiredType = ex.getRequiredType() == null ? "value" : ex.getRequiredType().getSimpleName();
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "Invalid value for '" + name + "'.");
-        problem.setTitle("Validation failed");
-        problem.setProperty("errors", Map.of(String.valueOf(name), List.of("must be a valid " + requiredType)));
+        problem.setTitle(VALIDATION_TITLE);
+        problem.setProperty(ERRORS_PROPERTY, Map.of(String.valueOf(name), List.of("must be a valid " + requiredType)));
         return handleExceptionInternal(ex, problem, headers, status, request);
     }
 
@@ -84,8 +86,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                                                                   HttpHeaders headers, HttpStatusCode status,
                                                                   WebRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "Failed to read request.");
-        problem.setTitle("Validation failed");
-        problem.setProperty("errors", Map.of("body", List.of("malformed JSON")));
+        problem.setTitle(VALIDATION_TITLE);
+        problem.setProperty(ERRORS_PROPERTY, Map.of("body", List.of("malformed JSON")));
         return handleExceptionInternal(ex, problem, headers, status, request);
     }
 
