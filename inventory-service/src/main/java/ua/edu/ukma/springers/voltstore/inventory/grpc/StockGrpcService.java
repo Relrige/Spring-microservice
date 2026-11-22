@@ -109,7 +109,7 @@ public class StockGrpcService extends StockServiceGrpc.StockServiceImplBase {
                 try {
                     reservations.reserve(orderId, quantities);
                     return ReserveStockResponse.newBuilder().setOutcome(ReserveStockResponse.Outcome.RESERVED).build();
-                } catch (ReservationAlreadyExistsException e) {
+                } catch (ReservationAlreadyExistsException _) {
                     return ReserveStockResponse.newBuilder()
                             .setOutcome(ReserveStockResponse.Outcome.ALREADY_RESERVED).build();
                 } catch (InsufficientStockForReservationException e) {

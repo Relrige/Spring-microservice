@@ -121,7 +121,8 @@ class StockItemReservationRepositoryTest {
         UUID orderId = UUID.randomUUID();
         repository.saveAndFlush(reservation(orderId, PRODUCT_A, 1).build());
 
-        assertThatThrownBy(() -> repository.saveAndFlush(reservation(orderId, PRODUCT_A, 2).build()))
+        StockItemReservationEntity second = reservation(orderId, PRODUCT_A, 2).build();
+        assertThatThrownBy(() -> repository.saveAndFlush(second))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -167,10 +168,12 @@ class StockItemReservationRepositoryTest {
 
     @Test
     void unknownStatusValue_violatesCheck() {
+        UUID id = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
         assertThatThrownBy(() -> jdbcTemplate.update(
                 "INSERT INTO stock_item_reservations (id, order_id, product_id, quantity, status) "
                         + "VALUES (?, ?, ?, 1, 'EXPIRED')",
-                UUID.randomUUID(), UUID.randomUUID(), PRODUCT_A))
+                id, orderId, PRODUCT_A))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 

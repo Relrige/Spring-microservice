@@ -117,7 +117,7 @@ class AdjustStockIntegrationTest {
                 () -> stockService.adjustStock(productId, 4),
                 () -> stockService.adjustStock(productId, 6));
 
-        assertThat(outcomes).allMatch(Integer.class::isInstance);
+        assertThat(outcomes).hasSize(2).allMatch(Integer.class::isInstance);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM stock_items WHERE product_id = ?", Integer.class, productId)).isEqualTo(1);
         assertThat(repository.findById(productId).orElseThrow().getAvailableQuantity()).isEqualTo(10);

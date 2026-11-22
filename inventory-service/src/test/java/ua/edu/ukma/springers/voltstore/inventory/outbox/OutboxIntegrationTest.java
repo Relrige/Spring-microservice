@@ -125,7 +125,7 @@ class OutboxIntegrationTest {
 
             List<Map<String, Object>> rows = rowsFor(productId);
             assertThat(rows).hasSize(1);
-            assertThat(rows.getFirst().get("event_type")).isEqualTo(REPLENISHED);
+            assertThat(rows.getFirst()).containsEntry("event_type", REPLENISHED);
             assertThat(rows.getFirst().get("published_at")).isNull();
 
             relay.publishDueEvents();
@@ -157,7 +157,7 @@ class OutboxIntegrationTest {
 
             Map<String, Object> row = rowsFor(productId).getFirst();
             assertThat(row.get("published_at")).isNull();
-            assertThat(row.get("attempts")).isEqualTo(1);
+            assertThat(row).containsEntry("attempts", 1);
             assertThat((String) row.get("last_error")).contains("broker down");
             assertThat(relay.oldestUnpublishedAgeSeconds()).isPositive();
 
@@ -299,9 +299,9 @@ class OutboxIntegrationTest {
             assertThat(awaitRecords(probe, healthy, 1)).isNotEmpty();
             List<Map<String, Object>> failingRows = rowsFor(failing);
             assertThat(failingRows).allSatisfy(row -> assertThat(row.get("published_at")).isNull());
-            assertThat(failingRows.get(0).get("attempts")).isEqualTo(1);
+            assertThat(failingRows.get(0)).containsEntry("attempts", 1);
             // The later event was never even tried: it must not overtake the failing one
-            assertThat(failingRows.get(1).get("attempts")).isEqualTo(0);
+            assertThat(failingRows.get(1)).containsEntry("attempts", 0);
         }
     }
 
@@ -332,7 +332,8 @@ class OutboxIntegrationTest {
 
     @Test
     void publish_outsideATransaction_isRejected() {
-        assertThatThrownBy(() -> publisher.publish(ProductStockReplenishedEvent.forProduct(UUID.randomUUID())))
+        ProductStockReplenishedEvent event = ProductStockReplenishedEvent.forProduct(UUID.randomUUID());
+        assertThatThrownBy(() -> publisher.publish(event))
                 .isInstanceOf(IllegalTransactionStateException.class);
     }
 
@@ -408,7 +409,7 @@ class OutboxIntegrationTest {
     private static void awaitQuietly(CountDownLatch latch) {
         try {
             latch.await(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         }
     }

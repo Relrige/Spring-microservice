@@ -202,7 +202,8 @@ class StockGrpcServiceIntegrationTest {
     @Test
     void aCallWithoutTheInternalToken_isUnauthenticated() {
         StockServiceGrpc.StockServiceBlockingStub anonymous = StockServiceGrpc.newBlockingStub(channel);
-        assertThatThrownBy(() -> anonymous.releaseReservation(release(UUID.randomUUID())))
+        ReleaseReservationRequest request = release(UUID.randomUUID());
+        assertThatThrownBy(() -> anonymous.releaseReservation(request))
                 .isInstanceOf(StatusRuntimeException.class)
                 .satisfies(e -> assertThat(((StatusRuntimeException) e).getStatus().getCode())
                         .isEqualTo(Status.Code.UNAUTHENTICATED));

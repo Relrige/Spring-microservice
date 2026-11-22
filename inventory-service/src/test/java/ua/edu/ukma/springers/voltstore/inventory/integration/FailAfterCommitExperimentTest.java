@@ -30,7 +30,6 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -81,7 +80,7 @@ class FailAfterCommitExperimentTest {
                 output.getAll().contains("Duplicate ProductCreated eventId=" + eventId));
 
         assertThat(output.getAll()).contains("EXPERIMENT: simulated consumer failure after commit, eventId=" + eventId);
-        verify(stockItemRepository, times(1)).insertIfAbsent(eq(productId));
+        verify(stockItemRepository, times(1)).insertIfAbsent(productId);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM stock_items WHERE product_id = ?", Integer.class, productId))
                 .isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM processed_events WHERE event_id = ?", Integer.class, eventId))

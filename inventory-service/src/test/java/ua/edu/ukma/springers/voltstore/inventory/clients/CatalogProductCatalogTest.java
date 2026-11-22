@@ -161,7 +161,7 @@ class CatalogProductCatalogTest {
     }
 
     @Test
-    void connectionRefused_isUnavailable() throws Exception {
+    void connectionRefused_isUnavailable() {
         assertThatThrownBy(() -> adapter("http://localhost:" + freePort()).find(productId))
                 .isInstanceOf(CatalogUnavailableException.class);
     }
