@@ -68,7 +68,8 @@ type PathArgs<T extends string> = [TemplateParams<T>] extends [never]
 
 /** Fills `{name}` placeholders with URL-encoded values. */
 export function fillPath(template: string, params: Record<string, string | number> = {}): string {
-  return template.replace(/\{([^}]+)\}/g, (_, name: string) => {
+  // `{` is excluded too, so an unclosed `{` stops at the next one: linear time on any input
+  return template.replace(/\{([^{}]+)\}/g, (_, name: string) => {
     const value = params[name];
     if (value === undefined) throw new Error(`Missing path parameter "${name}" for ${template}`);
     return encodeURIComponent(String(value));
