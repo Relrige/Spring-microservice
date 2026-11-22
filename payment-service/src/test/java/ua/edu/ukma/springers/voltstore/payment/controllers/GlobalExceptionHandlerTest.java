@@ -154,6 +154,7 @@ class GlobalExceptionHandlerTest {
     static class ProbeController {
         @PostMapping("/probe/body")
         void body(@Valid @RequestBody ProbeRequest request) {
+            // no-op: only request validation is under test
         }
 
         @GetMapping("/probe/declined")

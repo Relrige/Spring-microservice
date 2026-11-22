@@ -44,6 +44,7 @@ import java.util.TreeMap;
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final String SERVICE_NAME = "payment-service";
     private static final URI VALIDATION_TYPE = URI.create("https://voltstore.com/errors/validation");
+    private static final String CONFLICT_TYPE = "conflict";
     static final String GATEWAY_UNAVAILABLE_DETAIL = "The payment provider could not be reached. Please try again later.";
     static final String GATEWAY_TIMEOUT_DETAIL = "The payment provider did not answer in time. Please try again later.";
 
@@ -59,17 +60,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(OrderAlreadyChargedException.class)
     public ProblemDetail handleOrderAlreadyCharged(OrderAlreadyChargedException ex) {
-        return problem(HttpStatus.CONFLICT, "conflict", "Order already charged", ex.getMessage());
+        return problem(HttpStatus.CONFLICT, CONFLICT_TYPE, "Order already charged", ex.getMessage());
     }
 
     @ExceptionHandler(OrderAlreadyRefundedException.class)
     public ProblemDetail handleOrderAlreadyRefunded(OrderAlreadyRefundedException ex) {
-        return problem(HttpStatus.CONFLICT, "conflict", "Order already refunded", ex.getMessage());
+        return problem(HttpStatus.CONFLICT, CONFLICT_TYPE, "Order already refunded", ex.getMessage());
     }
 
     @ExceptionHandler(PaymentAttemptInProgressException.class)
     public ProblemDetail handlePaymentAttemptInProgress(PaymentAttemptInProgressException ex) {
-        return problem(HttpStatus.CONFLICT, "conflict", "Payment attempt in progress", ex.getMessage());
+        return problem(HttpStatus.CONFLICT, CONFLICT_TYPE, "Payment attempt in progress", ex.getMessage());
     }
 
     @ExceptionHandler(NoSuccessfulChargeException.class)
