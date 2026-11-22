@@ -51,11 +51,15 @@ spec:
           ports:
             - containerPort: 5432
           envFrom:
-            - configMapRef:
-                name: auth-config
             - secretRef:
                 name: auth-db-credentials
           env:
+            # Only the database name; the rest of the ConfigMap is the application's settings
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: auth-config
+                  key: POSTGRES_DB
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           volumeMounts:

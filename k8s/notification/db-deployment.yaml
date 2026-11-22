@@ -51,11 +51,15 @@ spec:
           ports:
             - containerPort: 5432
           envFrom:
-            - configMapRef:
-                name: notification-config
             - secretRef:
                 name: notification-db-credentials
           env:
+            # Only the database name; the rest of the ConfigMap is the application's settings
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: notification-config
+                  key: POSTGRES_DB
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           volumeMounts:
