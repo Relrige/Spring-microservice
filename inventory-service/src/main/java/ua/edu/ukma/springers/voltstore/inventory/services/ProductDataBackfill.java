@@ -75,7 +75,8 @@ public class ProductDataBackfill {
         return filled;
     }
 
-    // null when Catalog is unavailable: the run stops and the next one tries again
+    // null when Catalog is unavailable: the run stops and the next one tries again (an empty list means "none known")
+    @SuppressWarnings("java:S1168")
     private List<CatalogProductData> findProducts(List<UUID> ids) {
         try {
             return productCatalog.findAll(ids);
