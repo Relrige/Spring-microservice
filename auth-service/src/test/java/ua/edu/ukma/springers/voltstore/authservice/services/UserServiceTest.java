@@ -53,7 +53,7 @@ class UserServiceTest {
 
         RegisterUserResponse response = userService.registerUser(request("alice@example.com", "secret"));
 
-        assertThat(response.getUserId()).isEqualTo(id);
+        assertThat(response.userId()).isEqualTo(id);
         ArgumentCaptor<UserEntity> saved = ArgumentCaptor.forClass(UserEntity.class);
         verify(userRepo).saveAndFlush(saved.capture());
         assertThat(saved.getValue().getEmail()).isEqualTo("alice@example.com");
@@ -137,11 +137,7 @@ class UserServiceTest {
     }
 
     private static CreateNonCustomerUserRequest nonCustomerRequest(String email, UserRole role) {
-        CreateNonCustomerUserRequest request = new CreateNonCustomerUserRequest();
-        request.setEmail(email);
-        request.setPassword("secret");
-        request.setRole(role);
-        return request;
+        return new CreateNonCustomerUserRequest(email, "secret", role);
     }
 
     private static DataIntegrityViolationException constraintViolation(String constraintName) {
@@ -150,9 +146,6 @@ class UserServiceTest {
     }
 
     private static RegisterUserRequest request(String email, String password) {
-        RegisterUserRequest request = new RegisterUserRequest();
-        request.setEmail(email);
-        request.setPassword(password);
-        return request;
+        return new RegisterUserRequest(email, password);
     }
 }

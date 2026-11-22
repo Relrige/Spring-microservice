@@ -53,7 +53,7 @@ class AuthServiceTest {
 
         LoginResponse response = authService.login(request("alice@example.com", "secret1"));
 
-        assertThat(response.getToken()).isEqualTo("jwt-token");
+        assertThat(response.token()).isEqualTo("jwt-token");
     }
 
     @Test
@@ -101,9 +101,6 @@ class AuthServiceTest {
     }
 
     private static LoginRequest request(String email, String password) {
-        LoginRequest request = new LoginRequest();
-        request.setEmail(email);
-        request.setPassword(password);
-        return request;
+        return new LoginRequest(email, password);
     }
 }

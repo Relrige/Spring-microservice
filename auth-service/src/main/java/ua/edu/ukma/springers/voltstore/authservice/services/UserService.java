@@ -27,16 +27,16 @@ public class UserService {
 
     @Transactional
     public RegisterUserResponse registerUser(RegisterUserRequest request) {
-        return createUser(request.getEmail(), request.getPassword(), UserRole.CUSTOMER);
+        return createUser(request.email(), request.password(), UserRole.CUSTOMER);
     }
 
     @Transactional
     public RegisterUserResponse createNonCustomerUser(CreateNonCustomerUserRequest request) {
         // Customers must go through public registration; this path is for staff accounts only
-        if (request.getRole() == UserRole.CUSTOMER) {
+        if (request.role() == UserRole.CUSTOMER) {
             throw new InvalidUserRoleException("Role CUSTOMER cannot be assigned here; customers register themselves");
         }
-        return createUser(request.getEmail(), request.getPassword(), request.getRole());
+        return createUser(request.email(), request.password(), request.role());
     }
 
     @Transactional

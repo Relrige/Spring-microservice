@@ -29,12 +29,12 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public LoginResponse login(LoginRequest request) {
-        String email = EmailNormalizer.normalize(request.getEmail());
+        String email = EmailNormalizer.normalize(request.email());
         UserEntity user = userRepo.findByEmail(email).orElse(null);
 
         // Unknown email and wrong password must be indistinguishable to the caller (user enumeration defence)
         String hashToCheck = user != null ? user.getPasswordHash() : dummyPasswordHash;
-        boolean passwordMatches = passwordEncoder.matches(request.getPassword(), hashToCheck);
+        boolean passwordMatches = passwordEncoder.matches(request.password(), hashToCheck);
         if (user == null || !passwordMatches) {
             throw new InvalidCredentialsException();
         }
