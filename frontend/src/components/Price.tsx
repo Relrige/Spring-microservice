@@ -11,6 +11,6 @@ export function formatPrice(value: number): string {
   return formatter.format(value).replace(/\s/g, ' ');
 }
 
-export function Price({ value, large = false }: { value: number; large?: boolean }) {
+export function Price({ value, large = false }: Readonly<{ value: number; large?: boolean }>) {
   return <span className={large ? 'vs-price vs-price-lg' : 'vs-price'}>{formatPrice(value)}</span>;
 }

@@ -9,6 +9,7 @@ export function CartButton() {
   const { pathname } = useLocation();
   if (owner === 'none') return null;
   const current = pathname === '/cart';
+  const items = `${count} item${count === 1 ? '' : 's'}`;
   return (
     <Box pos="relative" style={{ flex: 'none' }}>
       <ActionIcon
@@ -17,7 +18,7 @@ export function CartButton() {
         size={40}
         radius={6}
         variant="subtle"
-        aria-label={count > 0 ? `Cart, ${count} item${count === 1 ? '' : 's'}` : 'Cart'}
+        aria-label={count > 0 ? `Cart, ${items}` : 'Cart'}
         aria-current={current ? 'page' : undefined}
         style={{
           color: current ? 'var(--vs-primary)' : 'var(--vs-ink)',

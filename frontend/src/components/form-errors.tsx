@@ -30,7 +30,7 @@ export function applyServerErrors(
 }
 
 /** The general error area of a form. */
-export function FormError({ message }: { message: string | null }) {
+export function FormError({ message }: Readonly<{ message: string | null }>) {
   if (!message) return null;
   return (
     <Alert

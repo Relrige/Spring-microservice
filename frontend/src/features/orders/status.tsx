@@ -41,12 +41,12 @@ export const CANCELLABLE: ReadonlySet<OrderStatus> = new Set([
   'PENDING_SHIPPING',
 ]);
 
-export function OrderStatusChip({ status }: { status: OrderStatus }) {
+export function OrderStatusChip({ status }: Readonly<{ status: OrderStatus }>) {
   const { label, tone } = ORDER_STATUS[status];
   return <StatusChip tone={tone}>{label}</StatusChip>;
 }
 
-export function DeliveryStatusChip({ status }: { status: DeliveryStatus }) {
+export function DeliveryStatusChip({ status }: Readonly<{ status: DeliveryStatus }>) {
   const { label, tone } = DELIVERY_STATUS[status];
   return <StatusChip tone={tone}>{label}</StatusChip>;
 }

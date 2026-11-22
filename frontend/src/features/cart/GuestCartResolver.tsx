@@ -29,7 +29,7 @@ export function GuestCartResolver() {
   return <Resolver key={session.token} source={source} />;
 }
 
-function Resolver({ source }: { source: SessionSource }) {
+function Resolver({ source }: Readonly<{ source: SessionSource }>) {
   const queryClient = useQueryClient();
   const guest = useGuestCart();
   const [state, setState] = useState<State>({ kind: 'idle' });
@@ -110,7 +110,7 @@ function Resolver({ source }: { source: SessionSource }) {
   return <ChoiceDialog guest={guest} state={state} onChoose={(choice) => void choose(choice)} />;
 }
 
-function CartList({ title, items }: { title: string; items: CartItem[] }) {
+function CartList({ title, items }: Readonly<{ title: string; items: CartItem[] }>) {
   const products = useQueries({
     queries: items.map((item) => ({
       queryKey: catalogKeys.product(item.productId),
@@ -141,11 +141,11 @@ function ChoiceDialog({
   guest,
   state,
   onChoose,
-}: {
+}: Readonly<{
   guest: CartItem[];
   state: Extract<State, { kind: 'asking' }>;
   onChoose: (choice: Choice) => void;
-}) {
+}>) {
   const busy = state.choosing !== undefined;
   const button = (choice: Choice) => ({
     loading: state.choosing === choice,

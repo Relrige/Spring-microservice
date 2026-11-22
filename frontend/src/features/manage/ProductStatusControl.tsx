@@ -36,7 +36,7 @@ export function ProductStatusControl({
   product,
   compact = false,
   onFailure,
-}: ProductStatusControlProps) {
+}: Readonly<ProductStatusControlProps>) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
   const activate = product.status === 'NOT_ACTIVE';

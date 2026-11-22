@@ -2,7 +2,7 @@ import { Anchor } from '@mantine/core';
 import { Link } from 'react-router';
 
 /** "VoltStore" in Inter 700 with a volt bar under "Volt" (design-system README, Wordmark). */
-export function Wordmark({ size = 20 }: { size?: number }) {
+export function Wordmark({ size = 20 }: Readonly<{ size?: number }>) {
   return (
     <Anchor
       component={Link}

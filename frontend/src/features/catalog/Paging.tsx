@@ -14,7 +14,7 @@ function window5(page: number, totalPages: number): number[] {
 }
 
 /** Previous / numbered pages / Next; controls leading outside the result are disabled. */
-export function Paging({ page, totalPages, onPage }: PagingProps) {
+export function Paging({ page, totalPages, onPage }: Readonly<PagingProps>) {
   if (totalPages <= 1) return null;
   return (
     <Group component="nav" aria-label="Pages" justify="center" gap="sm">

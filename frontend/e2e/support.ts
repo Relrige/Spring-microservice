@@ -40,9 +40,10 @@ export async function shortenSession(page: Page, seconds: number) {
       if (!token) throw new Error('no session');
       const [header, payload] = token.split('.');
       const decode = (part: string) =>
-        JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, unknown>;
+        JSON.parse(atob(part.replaceAll('-', '+').replaceAll('_', '/'))) as Record<string, unknown>;
       const encode = (value: unknown) =>
-        btoa(JSON.stringify(value)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        // btoa pads only at the end, so dropping every '=' strips the padding.
+        btoa(JSON.stringify(value)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
       const claims = decode(payload!);
       claims.exp = Math.floor(Date.now() / 1000) + seconds;
       window.localStorage.setItem(key, `${header}.${encode(claims)}.unsigned`);

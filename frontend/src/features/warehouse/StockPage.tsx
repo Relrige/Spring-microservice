@@ -30,6 +30,12 @@ const SORTS: Record<string, string> = {
 };
 const NUMBER = { fontVariantNumeric: 'tabular-nums', textAlign: 'right' } as const;
 
+function packagingFilter(value: string): boolean | undefined {
+  if (value === 'set') return true;
+  if (value === 'missing') return false;
+  return undefined;
+}
+
 export function StockPage() {
   const [params, setParams] = useSearchParams();
   const q = params.get('q') ?? '';
@@ -43,7 +49,7 @@ export function StockPage() {
 
   const query: StockQuery = {
     search: q || undefined,
-    packagingConfigured: packaging === 'set' ? true : packaging === 'missing' ? false : undefined,
+    packagingConfigured: packagingFilter(packaging),
     productStatus: status === 'ACTIVE' || status === 'NOT_ACTIVE' ? status : undefined,
     sortBy: SORTS[sort],
     page: page - 1,

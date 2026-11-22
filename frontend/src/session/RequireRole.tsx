@@ -6,7 +6,7 @@ import { loginUrl } from './roles';
 import { useSession } from './SessionProvider';
 
 /** Guards a role area (spec app-navigation, Protected pages need a login). */
-export function RequireRole({ allow, children }: { allow: Role; children: ReactNode }) {
+export function RequireRole({ allow, children }: Readonly<{ allow: Role; children: ReactNode }>) {
   const { session, ending } = useSession();
   const location = useLocation();
   if (!session) {

@@ -168,7 +168,7 @@ function useCreatedNotice() {
   }, [created, location.pathname, navigate]);
 }
 
-function DangerAlert({ children }: { children: ReactNode }) {
+function DangerAlert({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <Alert
       role="alert"
@@ -191,11 +191,11 @@ function ConflictAlert({
   children,
   onReload,
   reloading,
-}: {
+}: Readonly<{
   children: ReactNode;
   onReload: () => void;
   reloading: boolean;
-}) {
+}>) {
   return (
     <DangerAlert>
       <Stack gap="sm" align="flex-start">

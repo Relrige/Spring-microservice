@@ -72,7 +72,7 @@ export function ProductImage({
   ratio = '4 / 3',
   radius = 10,
   size,
-}: ProductImageProps) {
+}: Readonly<ProductImageProps>) {
   // The URL that failed to load; a new URL is tried again.
   const [failed, setFailed] = useState<string | null>(null);
   const { kind, slot, icon: CategoryIcon } = placeholderFor(categoryName);

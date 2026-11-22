@@ -67,9 +67,25 @@ function guestChange(change: (items: CartItem[]) => RuleResult): CartChange {
   return { ok: true };
 }
 
-export function CartProvider({ children }: { children: ReactNode }) {
+function ownerOf(session: ReturnType<typeof useSession>['session']): CartOwner {
+  if (!session) return 'guest';
+  return session.role === 'CUSTOMER' ? 'customer' : 'none';
+}
+
+function linesOf(owner: CartOwner, guestItems: CartItem[], serverItems: CartItem[] | undefined) {
+  if (owner === 'guest') return guestItems;
+  if (owner === 'customer') return serverItems ?? [];
+  return [];
+}
+
+function serverStatus(query: { data?: unknown; isError: boolean }): CartContextValue['status'] {
+  if (query.data) return 'ready';
+  return query.isError ? 'error' : 'loading';
+}
+
+export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
   const { session } = useSession();
-  const owner: CartOwner = !session ? 'guest' : session.role === 'CUSTOMER' ? 'customer' : 'none';
+  const owner = ownerOf(session);
   const queryClient = useQueryClient();
   const guestItems = useGuestCart();
   const query = useQuery({ ...cartQuery, enabled: owner === 'customer' });
@@ -105,7 +121,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<CartContextValue>(() => {
     const noCart = async (): Promise<CartChange> => ({ ok: false, message: userMessage(null) });
-    const lines = owner === 'guest' ? guestItems : owner === 'customer' ? (query.data ?? []) : [];
+    const lines = linesOf(owner, guestItems, query.data);
     const base = {
       owner,
       lines,
@@ -129,7 +145,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (owner === 'customer') {
       return {
         ...base,
-        status: query.data ? 'ready' : query.isError ? 'error' : 'loading',
+        status: serverStatus(query),
         error: query.error,
         add: (productId, quantity) =>
           serverChange(productId, () => addCartItem({ productId, quantity })),

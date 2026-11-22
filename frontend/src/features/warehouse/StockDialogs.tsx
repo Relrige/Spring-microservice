@@ -17,16 +17,19 @@ import { Loading } from '../../components/Loading';
 
 export const stockKey = ['stock'] as const;
 
-const wholeAboveZero = (value: string | number) =>
-  value === ''
-    ? 'Required'
-    : Number.isInteger(Number(value)) && Number(value) >= 1
-      ? null
-      : 'Enter a whole number above 0';
+const wholeAboveZero = (value: string | number) => {
+  if (value === '') return 'Required';
+  return Number.isInteger(Number(value)) && Number(value) >= 1
+    ? null
+    : 'Enter a whole number above 0';
+};
 
 const nameOf = (item: StockItem) => item.title ?? item.productId;
 
-export function AdjustDialog({ item, onClose }: { item: StockItem | null; onClose: () => void }) {
+export function AdjustDialog({
+  item,
+  onClose,
+}: Readonly<{ item: StockItem | null; onClose: () => void }>) {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -50,13 +53,9 @@ export function AdjustDialog({ item, onClose }: { item: StockItem | null; onClos
       close();
     } catch (error) {
       const status = error instanceof ApiError ? error.status : undefined;
-      setMessage(
-        status === 422
-          ? 'Not enough available stock to write off'
-          : status === 404
-            ? 'This product no longer exists in the catalog'
-            : userMessage(error),
-      );
+      if (status === 422) setMessage('Not enough available stock to write off');
+      else if (status === 404) setMessage('This product no longer exists in the catalog');
+      else setMessage(userMessage(error));
     } finally {
       setSaving(false);
     }
@@ -112,10 +111,10 @@ const FIELDS = [
 export function PackagingDialog({
   item,
   onClose,
-}: {
+}: Readonly<{
   item: StockItem | null;
   onClose: () => void;
-}) {
+}>) {
   return (
     <Modal opened={item !== null} onClose={onClose} title="Set packaging">
       {item && <PackagingContent key={item.productId} item={item} onClose={onClose} />}
@@ -124,7 +123,7 @@ export function PackagingDialog({
 }
 
 /** Reads the stored values first (EP-INV-08), so the form starts from them (change packaging-prefill, D1). */
-function PackagingContent({ item, onClose }: { item: StockItem; onClose: () => void }) {
+function PackagingContent({ item, onClose }: Readonly<{ item: StockItem; onClose: () => void }>) {
   const stored = useQuery({
     queryKey: [...stockKey, item.productId],
     queryFn: () => getStockItem(item.productId),
@@ -136,13 +135,9 @@ function PackagingContent({ item, onClose }: { item: StockItem; onClose: () => v
         Needed before the product can be activated and shipped. All four values are replaced
         together.
       </Text>
-      {stored.isPending ? (
-        <Loading lines={2} label="Loading packaging…" />
-      ) : stored.isError ? (
-        <ErrorState error={stored.error} onRetry={() => void stored.refetch()} />
-      ) : (
-        <PackagingForm item={item} stored={stored.data} onClose={onClose} />
-      )}
+      {stored.isPending && <Loading lines={2} label="Loading packaging…" />}
+      {stored.isError && <ErrorState error={stored.error} onRetry={() => void stored.refetch()} />}
+      {stored.isSuccess && <PackagingForm item={item} stored={stored.data} onClose={onClose} />}
     </Stack>
   );
 }
@@ -151,11 +146,11 @@ function PackagingForm({
   item,
   stored,
   onClose,
-}: {
+}: Readonly<{
   item: StockItem;
   stored: StockItemDetails;
   onClose: () => void;
-}) {
+}>) {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);

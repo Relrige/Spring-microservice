@@ -22,6 +22,12 @@ import { parseCategoriesState, serializeCategoriesState, type CategoriesState } 
 
 type Editing = { category: Category | null } | null;
 
+/** The count under the title; a space keeps the line while loading. */
+function countText(total: number | undefined): string {
+  if (total === undefined) return ' ';
+  return `${total} ${total === 1 ? 'category' : 'categories'}`;
+}
+
 export function CategoriesPage() {
   const [params, setParams] = useSearchParams();
   const state = parseCategoriesState(params);
@@ -64,6 +70,17 @@ export function CategoriesPage() {
     ? Math.max(1, Math.ceil(categories.data.totalElements / categories.data.size))
     : 1;
 
+  const noRows = state.search ? (
+    <>
+      <Title order={3}>No categories match your search</Title>
+      <Button variant="outline" onClick={() => update({ search: '' })}>
+        Clear search
+      </Button>
+    </>
+  ) : (
+    <Title order={3}>There are no categories yet</Title>
+  );
+
   return (
     <PageContainer>
       <Stack gap="lg">
@@ -71,7 +88,7 @@ export function CategoriesPage() {
           <Stack gap={4}>
             <Title order={1}>Categories</Title>
             <Text size="sm" c="dimmed" aria-live="polite">
-              {total === undefined ? ' ' : `${total} categor${total === 1 ? 'y' : 'ies'}`}
+              {countText(total)}
             </Text>
           </Stack>
           <Button
@@ -128,15 +145,8 @@ export function CategoriesPage() {
                   Go to the first page
                 </Button>
               </>
-            ) : state.search ? (
-              <>
-                <Title order={3}>No categories match your search</Title>
-                <Button variant="outline" onClick={() => update({ search: '' })}>
-                  Clear search
-                </Button>
-              </>
             ) : (
-              <Title order={3}>There are no categories yet</Title>
+              noRows
             )}
           </Stack>
         )}

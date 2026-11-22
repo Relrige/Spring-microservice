@@ -12,7 +12,7 @@ interface FilterPanelProps {
 const legendClass = 'vs-label';
 
 /** Category and price filters (spec catalog-browsing, Search and filters). */
-export function FilterPanel({ state, onChange, onClear }: FilterPanelProps) {
+export function FilterPanel({ state, onChange, onClear }: Readonly<FilterPanelProps>) {
   const categories = useCategories();
 
   return (
@@ -60,7 +60,7 @@ const normalized = (value: string) => value.trim().replace(',', '.');
 function inputError(value: string): string | undefined {
   const text = normalized(value);
   if (!text || isCatalogPrice(text)) return undefined;
-  if (!/^\d*\.?\d*$/.test(text) || text === '.') return 'Enter a price of 0 or more';
+  if (!/^\d*(?:\.\d*)?$/.test(text) || text === '.') return 'Enter a price of 0 or more';
   if (/\.\d{3,}$/.test(text)) return 'Use at most two decimals';
   return 'Use at most 10 digits before the decimal point';
 }
@@ -75,11 +75,11 @@ function PriceFilter({
   minPrice,
   maxPrice,
   onApply,
-}: {
+}: Readonly<{
   minPrice: number | null;
   maxPrice: number | null;
   onApply: (minPrice: number | null, maxPrice: number | null) => void;
-}) {
+}>) {
   const [min, setMin] = useState(minPrice === null ? '' : String(minPrice));
   const [max, setMax] = useState(maxPrice === null ? '' : String(maxPrice));
   const [errors, setErrors] = useState<{ min?: string; max?: string }>({});

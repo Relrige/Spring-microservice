@@ -24,9 +24,12 @@ export default defineConfig({
     { name: 'mock', use: { baseURL: 'http://localhost:5174' } },
     { name: 'live', use: { baseURL: baseUrl ?? 'http://localhost:5173' } },
   ],
-  webServer: baseUrl
-    ? undefined
-    : live
-      ? { command: 'npm run dev', port: 5173, reuseExistingServer: true, timeout: 60_000 }
-      : { command: 'npm run dev:mock', port: 5174, reuseExistingServer: true, timeout: 60_000 },
+  webServer: webServer(),
 });
+
+function webServer() {
+  if (baseUrl) return undefined;
+  return live
+    ? { command: 'npm run dev', port: 5173, reuseExistingServer: true, timeout: 60_000 }
+    : { command: 'npm run dev:mock', port: 5174, reuseExistingServer: true, timeout: 60_000 };
+}

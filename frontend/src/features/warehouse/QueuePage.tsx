@@ -40,7 +40,7 @@ function failureText(order: QueueEntry, reason: string): ReactNode {
   );
 }
 
-function QueueCard({ order, actions }: { order: QueueEntry; actions: boolean }) {
+function QueueCard({ order, actions }: Readonly<{ order: QueueEntry; actions: boolean }>) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);

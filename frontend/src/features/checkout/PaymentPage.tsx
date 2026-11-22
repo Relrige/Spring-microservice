@@ -45,7 +45,7 @@ const card = {
   borderRadius: 10,
 } as const;
 
-function Notice({ children }: { children: ReactNode }) {
+function Notice({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <Stack align="flex-start" gap="sm" p="lg" style={card}>
       {children}
@@ -53,7 +53,7 @@ function Notice({ children }: { children: ReactNode }) {
   );
 }
 
-function Summary({ order, children }: { order: OrderDetails; children?: ReactNode }) {
+function Summary({ order, children }: Readonly<{ order: OrderDetails; children?: ReactNode }>) {
   return (
     <Stack
       component="aside"

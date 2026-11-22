@@ -33,14 +33,16 @@ import { createMockToken, readMockToken, type MockClaims } from './tokens';
 
 const api = (path: string) => `*/api${path}`;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Same as the form's EMAIL in RegisterPage, without backtracking in the domain.
+const EMAIL = /^[^\s@]+@[^\s@][^\s@.]*\.[^\s@]+$/;
 
 /**
  * Catalog's PostgreSQL orders text by code point (`ASUS…` before `Acer…`),
  * not by locale; the mock does the same (found in the live run, task 8.3).
  */
 export function compareText(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
+  if (a < b) return -1;
+  return a > b ? 1 : 0;
 }
 
 type AuthSchemas = AuthComponents['schemas'];
@@ -816,7 +818,9 @@ const workerHandlers: HttpHandler[] = [
       .sort((a, b) => {
         const [x, y] = [a[field!], b[field!]];
         // Rows without a title come last in both directions.
-        if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1;
+        if (x == null && y == null) return 0;
+        if (x == null) return 1;
+        if (y == null) return -1;
         const order = typeof x === 'number' ? x - (y as number) : compareText(String(x), String(y));
         return order * direction || compareText(a.productId, b.productId);
       });

@@ -76,7 +76,7 @@ function writeStoredToken(token: string | null): void {
   }
 }
 
-export function SessionProvider({ children }: { children: ReactNode }) {
+export function SessionProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [session, setSession] = useState<Session | null>(readStoredSession);
   const [source, setSource] = useState<SessionSource>('stored');
   const sessionRef = useRef(session);

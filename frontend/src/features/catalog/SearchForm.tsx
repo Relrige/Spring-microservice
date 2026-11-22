@@ -7,7 +7,7 @@ import { catalogUrl, DEFAULT_STATE, parseCatalogState } from './url-state';
  * Keyword search of the product list (spec catalog-browsing, Search and filters).
  * Updates the URL on submit, not on every keystroke (design D8), and starts at page 1.
  */
-export function SearchForm({ size = 'sm' }: { size?: 'sm' | 'md' }) {
+export function SearchForm({ size = 'sm' }: Readonly<{ size?: 'sm' | 'md' }>) {
   const [params] = useSearchParams();
   const { pathname } = useLocation();
   const current = pathname === '/' ? parseCatalogState(params) : DEFAULT_STATE;
@@ -15,7 +15,7 @@ export function SearchForm({ size = 'sm' }: { size?: 'sm' | 'md' }) {
   return <SearchFormInner key={current.search} initial={current.search} size={size} />;
 }
 
-function SearchFormInner({ initial, size }: { initial: string; size: 'sm' | 'md' }) {
+function SearchFormInner({ initial, size }: Readonly<{ initial: string; size: 'sm' | 'md' }>) {
   const [value, setValue] = useState(initial);
   const [params] = useSearchParams();
   const { pathname } = useLocation();

@@ -42,7 +42,7 @@ export const CARRIERS = [{ value: 'NOVA_POSHTA', label: 'Nova Poshta' }];
 const required = (message: string) => (value: string) => (value.trim() ? null : message);
 const wait = (seconds: number) => new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 
-export function StepIndicator({ step }: { step: 1 | 2 }) {
+export function StepIndicator({ step }: Readonly<{ step: 1 | 2 }>) {
   return (
     <Group
       component="ol"

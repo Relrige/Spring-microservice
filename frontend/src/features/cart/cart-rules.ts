@@ -25,8 +25,10 @@ export const CART_MESSAGES: Record<CartViolation, string> = {
   DUPLICATE_PRODUCT: MESSAGES.unexpected,
 };
 
-const byProductId = (a: CartItem, b: CartItem) =>
-  a.productId < b.productId ? -1 : a.productId > b.productId ? 1 : 0;
+function byProductId(a: CartItem, b: CartItem): number {
+  if (a.productId < b.productId) return -1;
+  return a.productId > b.productId ? 1 : 0;
+}
 
 function assertQuantity(quantity: number) {
   // The service answers 400 for these; the UI never sends them.

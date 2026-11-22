@@ -7,7 +7,7 @@ interface LoadingProps {
 }
 
 /** Skeleton blocks in `surface-sunken` shown while content loads (design-system README, States). */
-export function Loading({ lines = 3, label = 'Loading…' }: LoadingProps) {
+export function Loading({ lines = 3, label = 'Loading…' }: Readonly<LoadingProps>) {
   return (
     <Stack gap="sm" role="status" aria-busy="true" aria-live="polite">
       <VisuallyHidden>{label}</VisuallyHidden>
