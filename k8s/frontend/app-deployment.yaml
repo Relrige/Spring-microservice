@@ -47,9 +47,11 @@ spec:
             requests:
               cpu: 50m
               memory: 32Mi
+              ephemeral-storage: 128Mi
             limits:
               cpu: 200m
               memory: 64Mi
+              ephemeral-storage: 1Gi
           livenessProbe:
             httpGet:
               path: /healthz
