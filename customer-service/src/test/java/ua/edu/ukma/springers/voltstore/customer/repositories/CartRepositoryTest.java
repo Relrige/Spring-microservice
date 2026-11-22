@@ -110,18 +110,21 @@ class CartRepositoryTest {
         repository.createIfMissing(customerId);
 
         for (int quantity : new int[]{0, 11}) {
+            UUID productId = UUID.randomUUID();
             assertThatThrownBy(() -> jdbc.update(
                     "INSERT INTO cart_items (cart_id, product_id, quantity) VALUES (?, ?, ?)",
-                    customerId, UUID.randomUUID(), quantity))
+                    customerId, productId, quantity))
                     .isInstanceOf(DataIntegrityViolationException.class);
         }
     }
 
     @Test
     void itemWithoutCart_isRejectedByTheForeignKey() {
+        UUID cartId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
         assertThatThrownBy(() -> jdbc.update(
                 "INSERT INTO cart_items (cart_id, product_id, quantity) VALUES (?, ?, 1)",
-                UUID.randomUUID(), UUID.randomUUID()))
+                cartId, productId))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 

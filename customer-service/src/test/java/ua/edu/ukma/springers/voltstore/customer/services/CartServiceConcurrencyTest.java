@@ -50,7 +50,7 @@ class CartServiceConcurrencyTest {
                         cart -> cart.add(UUID.randomUUID(), 1)))
                 .toArray(Callable<?>[]::new));
 
-        assertThat(results).allSatisfy(result -> assertThat(result).isInstanceOf(List.class));
+        assertThat(results).isNotEmpty().allSatisfy(result -> assertThat(result).isInstanceOf(List.class));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM carts", Integer.class)).isEqualTo(1);
         assertThat(cartService.getCart(customerId)).hasSize(8);
     }
@@ -60,7 +60,7 @@ class CartServiceConcurrencyTest {
         List<Object> results = Concurrently.run(10,
                 () -> cartService.changeCreatingIfMissing(customerId, cart -> cart.add(PRODUCT, 1)));
 
-        assertThat(results).allSatisfy(result -> assertThat(result).isInstanceOf(List.class));
+        assertThat(results).isNotEmpty().allSatisfy(result -> assertThat(result).isInstanceOf(List.class));
         assertThat(cartService.getCart(customerId)).containsExactly(new CartLine(PRODUCT, 10));
     }
 
