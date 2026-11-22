@@ -19,7 +19,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
 
@@ -125,8 +124,8 @@ public abstract class GatewayIntegrationTest {
     }
     // Nimbus JOSE takes JWT time claims only as java.util.Date; everything else uses java.time
     @SuppressWarnings("java:S2143")
-    public static Date jwtTime(Instant instant) {
-        return Date.from(instant);
+    public static java.util.Date jwtTime(Instant instant) {
+        return java.util.Date.from(instant);
     }
 
 }

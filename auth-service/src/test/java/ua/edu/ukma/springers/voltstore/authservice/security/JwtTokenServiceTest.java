@@ -12,7 +12,6 @@ import ua.edu.ukma.springers.voltstore.authservice.entities.UserRole;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.Duration;
-import java.util.Date;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -87,8 +86,8 @@ class JwtTokenServiceTest {
     }
     // Nimbus JOSE takes JWT time claims only as java.util.Date; everything else uses java.time
     @SuppressWarnings("java:S2143")
-    private static Date jwtTime(Instant instant) {
-        return Date.from(instant);
+    private static java.util.Date jwtTime(Instant instant) {
+        return java.util.Date.from(instant);
     }
 
 }

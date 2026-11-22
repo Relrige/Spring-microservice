@@ -15,7 +15,6 @@ import java.text.ParseException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Date;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -110,7 +109,7 @@ public class HmacJwtVerifier implements JwtVerifier {
     // Nimbus JOSE returns JWT time claims only as java.util.Date; everything else uses java.time
     @SuppressWarnings("java:S2143")
     private static Instant expirationOf(JWTClaimsSet claims) {
-        Date expiration = claims.getExpirationTime();
+        java.util.Date expiration = claims.getExpirationTime();
         return expiration == null ? null : expiration.toInstant();
     }
 

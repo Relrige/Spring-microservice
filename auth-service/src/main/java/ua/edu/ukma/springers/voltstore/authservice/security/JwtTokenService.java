@@ -14,7 +14,6 @@ import ua.edu.ukma.springers.voltstore.authservice.entities.UserEntity;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Date;
 
 @Service
 public class JwtTokenService implements TokenService {
@@ -42,8 +41,8 @@ public class JwtTokenService implements TokenService {
                 .claim(ROLE_CLAIM, user.getRole().name())
                 // Stored normalized (see EmailNormalizer); the gateway forwards it as X-User-Email
                 .claim(EMAIL_CLAIM, user.getEmail())
-                .issueTime(Date.from(now))
-                .expirationTime(Date.from(now.plus(expiration)))
+                .issueTime(java.util.Date.from(now))
+                .expirationTime(java.util.Date.from(now.plus(expiration)))
                 .build();
         SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);
         try {
