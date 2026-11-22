@@ -253,11 +253,7 @@ class ProductIntegrationTest {
     @Test
     void update_overlappingWithAnotherSave_isRejectedAndChangesNothing() {
         UUID id = insertProduct(jdbc, categoryId, ProductStatus.NOT_ACTIVE, StockStatus.OUT_OF_STOCK);
-        ProductRequest request = new ProductRequest();
-        request.setTitle("Mine");
-        request.setDescription("Mine");
-        request.setCategoryId(categoryId);
-        request.setBasePrice(new BigDecimal("10"));
+        ProductRequest request = new ProductRequest("Mine", "Mine", categoryId, new BigDecimal("10"), null);
 
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(tx -> {
             // This transaction loads version 0 ...

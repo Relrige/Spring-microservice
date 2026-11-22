@@ -104,7 +104,7 @@ class ProductServiceTest {
 
         CreateProductResponse response = productService.createProduct(validRequest());
 
-        assertThat(response.getProductId()).isEqualTo(productId);
+        assertThat(response.productId()).isEqualTo(productId);
         ProductEvent event = appendedEvent("ProductCreated", productId);
         assertThat(event.title()).isEqualTo("Phone");
         assertThat(event.categoryId()).isEqualTo(CATEGORY_ID);
@@ -218,7 +218,7 @@ class ProductServiceTest {
         assertThat(product.getBasePrice()).isEqualTo(new BigDecimal("20.50"));
         assertThat(product.getStatus()).isEqualTo(ProductStatus.NOT_ACTIVE);
         assertThat(product.getStockStatus()).isEqualTo(StockStatus.OUT_OF_STOCK);
-        assertThat(response.getTitle()).isEqualTo("New");
+        assertThat(response.title()).isEqualTo("New");
         verify(productRepository).saveAndFlush(product);
     }
 
@@ -227,7 +227,7 @@ class ProductServiceTest {
         UUID id = UUID.randomUUID();
         when(productRepository.findById(id)).thenReturn(Optional.empty());
 
-        ProductRequest request = new ProductRequest();
+        ProductRequest request = new ProductRequest(null, null, null, null, null);
         assertThatThrownBy(() -> productService.updateProduct(id, request))
                 .isInstanceOf(ProductNotFoundException.class);
         verifyNoInteractions(categoryRepository);
@@ -360,7 +360,7 @@ class ProductServiceTest {
         UUID id = UUID.randomUUID();
         when(productRepository.findById(id)).thenReturn(Optional.of(existingProduct()));
 
-        ProductStatusRequest request = new ProductStatusRequest();
+        ProductStatusRequest request = new ProductStatusRequest(null);
         assertThatThrownBy(() -> productService.changeStatus(id, request))
                 .isInstanceOf(RequestValidationException.class);
         verifyNoInteractions(stockReadinessChecker);
@@ -371,7 +371,7 @@ class ProductServiceTest {
         UUID id = UUID.randomUUID();
         when(productRepository.findById(id)).thenReturn(Optional.empty());
 
-        ProductStatusRequest request = new ProductStatusRequest();
+        ProductStatusRequest request = new ProductStatusRequest(null);
         assertThatThrownBy(() -> productService.changeStatus(id, request))
                 .isInstanceOf(ProductNotFoundException.class);
     }
@@ -381,7 +381,7 @@ class ProductServiceTest {
         UUID id = UUID.randomUUID();
         when(productRepository.findById(id)).thenReturn(Optional.of(existingProduct()));
 
-        ProductStatusRequest request = new ProductStatusRequest();
+        ProductStatusRequest request = new ProductStatusRequest(null);
         assertThatThrownBy(() -> productService.changeStatus(id, request))
                 .isInstanceOfSatisfying(RequestValidationException.class,
                         e -> assertThat(e.getErrors()).containsOnlyKeys("status"));
@@ -398,9 +398,9 @@ class ProductServiceTest {
                 UserRole.INVENTORY_WORKER}) {
             ProductResponse response = productService.getProduct(id, role);
 
-            assertThat(response.getTitle()).isEqualTo("Old");
-            assertThat(response.getStatus()).isEqualTo(ProductStatus.ACTIVE);
-            assertThat(response.getStockStatus()).isEqualTo(StockStatus.IN_STOCK);
+            assertThat(response.title()).isEqualTo("Old");
+            assertThat(response.status()).isEqualTo(ProductStatus.ACTIVE);
+            assertThat(response.stockStatus()).isEqualTo(StockStatus.IN_STOCK);
         }
     }
 
@@ -410,7 +410,7 @@ class ProductServiceTest {
         when(productRepository.findById(id)).thenReturn(Optional.of(existingProduct()));
 
         for (UserRole role : new UserRole[]{UserRole.CATALOG_MANAGER, UserRole.INVENTORY_WORKER}) {
-            assertThat(productService.getProduct(id, role).getStatus()).isEqualTo(ProductStatus.NOT_ACTIVE);
+            assertThat(productService.getProduct(id, role).status()).isEqualTo(ProductStatus.NOT_ACTIVE);
         }
     }
 
@@ -484,9 +484,8 @@ class ProductServiceTest {
 
     @Test
     void browseProducts_minPriceAboveMaxPrice_throwsWithoutQuerying() {
-        ProductSearchQuery query = new ProductSearchQuery();
-        query.setMinPrice(new BigDecimal("100"));
-        query.setMaxPrice(new BigDecimal("50"));
+        ProductSearchQuery query = new ProductSearchQuery(null, null, null, new BigDecimal("100"),
+                new BigDecimal("50"), null, null, null, null);
 
         assertThatThrownBy(() -> productService.browseProducts(query, null))
                 .isInstanceOfSatisfying(RequestValidationException.class,
@@ -506,8 +505,8 @@ class ProductServiceTest {
         List<BatchProductResponse> result = productService.batchGetProducts(
                 List.of(first.getId(), unknown, second.getId(), first.getId()));
 
-        assertThat(result).extracting(BatchProductResponse::getProductId).containsExactly(first.getId(), second.getId());
-        assertThat(result).extracting(BatchProductResponse::getStatus)
+        assertThat(result).extracting(BatchProductResponse::productId).containsExactly(first.getId(), second.getId());
+        assertThat(result).extracting(BatchProductResponse::status)
                 .containsExactly(ProductStatus.NOT_ACTIVE, ProductStatus.ACTIVE);
     }
 
@@ -567,9 +566,7 @@ class ProductServiceTest {
     }
 
     private static ProductStatusRequest statusRequest(ProductStatus status) {
-        ProductStatusRequest request = new ProductStatusRequest();
-        request.setStatus(status);
-        return request;
+        return new ProductStatusRequest(status);
     }
 
     private static Product existingProduct() {
@@ -581,11 +578,6 @@ class ProductServiceTest {
     }
 
     private static ProductRequest request(String title, String description, UUID categoryId, String basePrice) {
-        ProductRequest request = new ProductRequest();
-        request.setTitle(title);
-        request.setDescription(description);
-        request.setCategoryId(categoryId);
-        request.setBasePrice(new BigDecimal(basePrice));
-        return request;
+        return new ProductRequest(title, description, categoryId, new BigDecimal(basePrice), null);
     }
 }

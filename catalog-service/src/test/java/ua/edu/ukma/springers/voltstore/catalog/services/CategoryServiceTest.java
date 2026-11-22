@@ -69,7 +69,7 @@ class CategoryServiceTest {
         ArgumentCaptor<Category> saved = ArgumentCaptor.forClass(Category.class);
         verify(categoryRepository).saveAndFlush(saved.capture());
         assertThat(saved.getValue().getName()).isEqualTo("Laptops");
-        assertThat(response.getName()).isEqualTo("Laptops");
+        assertThat(response.name()).isEqualTo("Laptops");
     }
 
     @Test
@@ -114,7 +114,7 @@ class CategoryServiceTest {
 
         verify(categoryRepository).existsByNameIgnoreCaseAndIdNot("Laptops", id);
         assertThat(category.getName()).isEqualTo("Laptops");
-        assertThat(response.getName()).isEqualTo("Laptops");
+        assertThat(response.name()).isEqualTo("Laptops");
     }
 
     @Test
@@ -218,17 +218,17 @@ class CategoryServiceTest {
         when(categoryRepository.findAll(any(Pageable.class)))
                 .thenAnswer(invocation -> new PageImpl<>(List.of(laptops), invocation.getArgument(0), 41));
 
-        PageResponse<CategoryResponse> response = categoryService.listCategories(new CategorySearchQuery());
+        PageResponse<CategoryResponse> response = categoryService.listCategories(new CategorySearchQuery(null, null, null));
 
         ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
         verify(categoryRepository).findAll(pageable.capture());
         assertThat(pageable.getValue().getPageNumber()).isZero();
         assertThat(pageable.getValue().getPageSize()).isEqualTo(Paging.DEFAULT_SIZE);
         assertThat(pageable.getValue().getSort()).isEqualTo(Sort.by("name", "id"));
-        assertThat(response.getContent()).extracting(CategoryResponse::getName).containsExactly("Laptops");
-        assertThat(response.getPage()).isZero();
-        assertThat(response.getSize()).isEqualTo(Paging.DEFAULT_SIZE);
-        assertThat(response.getTotalElements()).isEqualTo(41);
+        assertThat(response.content()).extracting(CategoryResponse::name).containsExactly("Laptops");
+        assertThat(response.page()).isZero();
+        assertThat(response.size()).isEqualTo(Paging.DEFAULT_SIZE);
+        assertThat(response.totalElements()).isEqualTo(41);
     }
 
     @Test
@@ -253,17 +253,11 @@ class CategoryServiceTest {
     }
 
     private static CategorySearchQuery query(String search, Integer page, Integer size) {
-        CategorySearchQuery query = new CategorySearchQuery();
-        query.setSearch(search);
-        query.setPage(page);
-        query.setSize(size);
-        return query;
+        return new CategorySearchQuery(search, page, size);
     }
 
     private static CategoryRequest request(String name) {
-        CategoryRequest request = new CategoryRequest();
-        request.setName(name);
-        return request;
+        return new CategoryRequest(name);
     }
 
     static DataIntegrityViolationException constraintViolation(String constraintName) {

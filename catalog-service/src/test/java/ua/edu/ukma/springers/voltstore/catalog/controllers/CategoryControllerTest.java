@@ -67,9 +67,9 @@ class CategoryControllerTest {
 
         ArgumentCaptor<CategorySearchQuery> query = ArgumentCaptor.forClass(CategorySearchQuery.class);
         verify(categoryService).listCategories(query.capture());
-        assertThat(query.getValue().getSearch()).isEqualTo("lap");
-        assertThat(query.getValue().getPage()).isEqualTo(1);
-        assertThat(query.getValue().getSize()).isEqualTo(20);
+        assertThat(query.getValue().search()).isEqualTo("lap");
+        assertThat(query.getValue().page()).isEqualTo(1);
+        assertThat(query.getValue().size()).isEqualTo(20);
     }
 
     @Test

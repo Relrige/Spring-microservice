@@ -226,7 +226,7 @@ class ProductControllerTest {
 
         ArgumentCaptor<ProductStatusRequest> request = ArgumentCaptor.forClass(ProductStatusRequest.class);
         verify(productService).changeStatus(eq(id), request.capture());
-        assertThat(request.getValue().getStatus()).isEqualTo(ProductStatus.ACTIVE);
+        assertThat(request.getValue().status()).isEqualTo(ProductStatus.ACTIVE);
     }
 
     @Test
@@ -396,14 +396,14 @@ class ProductControllerTest {
         ArgumentCaptor<ProductSearchQuery> query = ArgumentCaptor.forClass(ProductSearchQuery.class);
         verify(productService).browseProducts(query.capture(), eq(UserRole.CATALOG_MANAGER));
         ProductSearchQuery bound = query.getValue();
-        assertThat(bound.getSearch()).isEqualTo("phone");
-        assertThat(bound.getCategoryId()).isEqualTo(CATEGORY_ID);
-        assertThat(bound.getMinPrice()).isEqualByComparingTo("10");
-        assertThat(bound.getMaxPrice()).isEqualByComparingTo("99.5");
-        assertThat(bound.getSortBy()).isEqualTo("basePrice,desc");
-        assertThat(bound.getStatus()).isEqualTo(ProductStatus.NOT_ACTIVE);
-        assertThat(bound.getPage()).isEqualTo(2);
-        assertThat(bound.getSize()).isEqualTo(5);
+        assertThat(bound.search()).isEqualTo("phone");
+        assertThat(bound.categoryId()).isEqualTo(CATEGORY_ID);
+        assertThat(bound.minPrice()).isEqualByComparingTo("10");
+        assertThat(bound.maxPrice()).isEqualByComparingTo("99.5");
+        assertThat(bound.sortBy()).isEqualTo("basePrice,desc");
+        assertThat(bound.status()).isEqualTo(ProductStatus.NOT_ACTIVE);
+        assertThat(bound.page()).isEqualTo(2);
+        assertThat(bound.size()).isEqualTo(5);
     }
 
     @Test
