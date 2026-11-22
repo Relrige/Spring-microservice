@@ -47,7 +47,6 @@ import java.util.stream.Stream;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
-import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.serviceUnavailable;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
@@ -206,11 +205,11 @@ class CheckoutIntegrationTest {
             UUID orderId = UUID.fromString(JSON.readTree(response).get("orderId").asString());
 
             Map<String, Object> order = jdbc.queryForMap("SELECT * FROM orders WHERE id = ?", orderId);
-            assertThat(order.get("customer_id")).isEqualTo(CUSTOMER);
-            assertThat(order.get("customer_email")).isEqualTo(TrustedHeaders.EMAIL);
-            assertThat(order.get("status")).isEqualTo("PENDING_PAYMENT");
+            assertThat(order).containsEntry("customer_id", CUSTOMER)
+                    .containsEntry("customer_email", TrustedHeaders.EMAIL)
+                    .containsEntry("status", "PENDING_PAYMENT");
             assertThat((BigDecimal) order.get("total_amount")).isEqualByComparingTo("40498.00");
-            assertThat(order.get("delivery_phone")).isEqualTo("+380501234567");
+            assertThat(order).containsEntry("delivery_phone", "+380501234567");
             List<Map<String, Object>> items = jdbc.queryForList("SELECT product_title, unit_price_at_order, quantity "
                     + "FROM order_items WHERE order_id = ? ORDER BY product_title", orderId);
             assertThat(items).extracting(row -> row.get("product_title")).containsExactly("Case", "Phone");
@@ -227,11 +226,11 @@ class CheckoutIntegrationTest {
             List<ConsumerRecord<String, String>> records = await().atMost(Duration.ofSeconds(20))
                     .until(probe::poll, received -> received.stream()
                             .anyMatch(r -> orderId.toString().equals(r.key())));
-            ConsumerRecord<String, String> record = records.stream()
+            ConsumerRecord<String, String> consumerRecord = records.stream()
                     .filter(r -> orderId.toString().equals(r.key())).findFirst().orElseThrow();
-            assertThat(new String(record.headers().lastHeader("eventType").value(), StandardCharsets.UTF_8))
+            assertThat(new String(consumerRecord.headers().lastHeader("eventType").value(), StandardCharsets.UTF_8))
                     .isEqualTo("OrderPlaced");
-            JsonNode event = JSON.readTree(record.value());
+            JsonNode event = JSON.readTree(consumerRecord.value());
             assertThat(event.get("customerEmail").asString()).isEqualTo(TrustedHeaders.EMAIL);
             assertThat(event.get("totalAmount").decimalValue()).isEqualByComparingTo("40498.00");
             // The reservation now belongs to a stored order; the attempt was deleted with it
@@ -330,7 +329,7 @@ class CheckoutIntegrationTest {
     }
 
     @Test
-    void twoConcurrentRequestsWithTheSameKey_placeOneOrder() throws Exception {
+    void twoConcurrentRequestsWithTheSameKey_placeOneOrder() {
         catalogAnswers(product(PHONE, "Phone", "19999.50", "ACTIVE", "IN_STOCK"));
         // Slow enough that the second request arrives while the first one is still reserving
         inventory.delayReserve(Duration.ofMillis(1500));

@@ -12,8 +12,10 @@ import { normalizePhone, phoneError, profileKey, useProfile } from './profile';
 
 const FIELDS = ['firstName', 'lastName', 'phone', 'defaultAddress'] as const;
 
-const nameError = (label: string) => (value: string) =>
-  !value.trim() ? `Enter your ${label}` : value.length > 100 ? 'Use at most 100 characters' : null;
+const nameError = (label: string) => (value: string) => {
+  if (!value.trim()) return `Enter your ${label}`;
+  return value.length > 100 ? 'Use at most 100 characters' : null;
+};
 
 /** `/account/profile` (spec customer-profile). */
 export function ProfilePage() {
@@ -72,11 +74,11 @@ export function ProfilePage() {
           <Title order={1}>Profile</Title>
           <Text c="dimmed">Your details fill in the delivery form at checkout.</Text>
         </Stack>
-        {profile.isPending ? (
-          <Loading lines={4} label="Loading your profile…" />
-        ) : profile.isError ? (
+        {profile.isPending && <Loading lines={4} label="Loading your profile…" />}
+        {profile.isError && (
           <ErrorState error={profile.error} onRetry={() => void profile.refetch()} />
-        ) : (
+        )}
+        {profile.isSuccess && (
           <form onSubmit={submit} noValidate>
             <Stack gap="md">
               <FormError message={general} />

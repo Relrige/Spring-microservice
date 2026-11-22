@@ -72,12 +72,12 @@ class InterruptedCancellationsJobTest {
 
     @Test
     void dueOrdersAreClaimed_andRun_othersAreSkipped() {
-        InterruptedCancellationsJob job = jobWithMocks();
+        InterruptedCancellationsJob mockedJob = jobWithMocks();
         OrderEntity due = cancelling(NOW.minus(Duration.ofMinutes(2)), 0);
         OrderEntity notDue = cancelling(NOW.minusSeconds(10), 0);
         candidates(due, notDue);
 
-        job.retryDueCancellations();
+        mockedJob.retryDueCancellations();
 
         verify(saga).run(due.getId());
         verify(saga, never()).run(notDue.getId());
@@ -87,26 +87,26 @@ class InterruptedCancellationsJobTest {
 
     @Test
     void anOrderClaimedByAnotherReplica_isSkipped() {
-        InterruptedCancellationsJob job = jobWithMocks();
+        InterruptedCancellationsJob mockedJob = jobWithMocks();
         OrderEntity due = cancelling(NOW.minus(Duration.ofMinutes(2)), 0);
         candidates(due);
         when(orders.saveAndFlush(due))
                 .thenThrow(new ObjectOptimisticLockingFailureException(OrderEntity.class, due.getId()));
 
-        job.retryDueCancellations();
+        mockedJob.retryDueCancellations();
 
         verify(saga, never()).run(any());
     }
 
     @Test
     void oneFailingOrder_doesNotStopTheRun() {
-        InterruptedCancellationsJob job = jobWithMocks();
+        InterruptedCancellationsJob mockedJob = jobWithMocks();
         OrderEntity broken = cancelling(NOW.minus(Duration.ofMinutes(3)), 0);
         OrderEntity next = cancelling(NOW.minus(Duration.ofMinutes(2)), 0);
         candidates(broken, next);
         when(saga.run(broken.getId())).thenThrow(new IllegalStateException("bug"));
 
-        job.retryDueCancellations();
+        mockedJob.retryDueCancellations();
 
         verify(saga).run(next.getId());
     }

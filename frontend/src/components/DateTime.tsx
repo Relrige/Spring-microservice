@@ -23,7 +23,7 @@ export function formatTime(value: string | Date): string {
 }
 
 /** `#7f3a91c2`: the first 8 characters in the mono style, the full id on hover. */
-export function ShortId({ id }: { id: string }) {
+export function ShortId({ id }: Readonly<{ id: string }>) {
   return (
     <span className="vs-mono" title={id}>
       #{id.slice(0, 8)}

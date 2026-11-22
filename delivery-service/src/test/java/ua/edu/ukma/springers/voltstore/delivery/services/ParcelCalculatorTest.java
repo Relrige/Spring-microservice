@@ -53,11 +53,13 @@ class ParcelCalculatorTest {
 
     @Test
     void overflow_isReportedInsteadOfAWrongNumber() {
-        assertThatThrownBy(() -> ParcelCalculator.calculate(List.of(item(Integer.MAX_VALUE, 2, 1, 1, 1))))
+        List<ItemPackaging> heavy = List.of(item(Integer.MAX_VALUE, 2, 1, 1, 1));
+        List<ItemPackaging> huge = List.of(cube(Integer.MAX_VALUE), cube(Integer.MAX_VALUE));
+
+        assertThatThrownBy(() -> ParcelCalculator.calculate(heavy))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasCauseInstanceOf(ArithmeticException.class);
-        assertThatThrownBy(() -> ParcelCalculator.calculate(List.of(
-                cube(Integer.MAX_VALUE), cube(Integer.MAX_VALUE))))
+        assertThatThrownBy(() -> ParcelCalculator.calculate(huge))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

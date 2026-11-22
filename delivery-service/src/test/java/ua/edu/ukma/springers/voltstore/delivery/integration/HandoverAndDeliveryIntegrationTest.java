@@ -109,15 +109,15 @@ class HandoverAndDeliveryIntegrationTest {
             assertThat(reload(shipment).getHandedOverAt()).isAfterOrEqualTo(before.minusSeconds(1));
             await().atMost(WAIT).until(() -> reload(shipment).getStatus() == ShipmentStatus.DELIVERED);
 
-            ConsumerRecord<String, String> record = await().atMost(WAIT).until(() -> probe.poll().stream()
+            ConsumerRecord<String, String> consumerRecord = await().atMost(WAIT).until(() -> probe.poll().stream()
                     .filter(r -> r.key().equals(shipment.getOrderId().toString())).toList(),
                     records -> !records.isEmpty()).getFirst();
-            assertThat(header(record, KafkaTopics.EVENT_TYPE_HEADER)).isEqualTo("OrderDelivered");
-            JsonNode value = JSON.readTree(record.value());
+            assertThat(header(consumerRecord, KafkaTopics.EVENT_TYPE_HEADER)).isEqualTo("OrderDelivered");
+            JsonNode value = JSON.readTree(consumerRecord.value());
             assertThat(value.propertyNames()).containsExactlyInAnyOrder("eventId", "orderId", "ttn", "timestamp");
             assertThat(value.get("orderId").asString()).isEqualTo(shipment.getOrderId().toString());
             assertThat(value.get("ttn").asString()).isEqualTo(shipment.getTtn());
-            assertThat(header(record, KafkaTopics.EVENT_ID_HEADER)).isEqualTo(value.get("eventId").asString());
+            assertThat(header(consumerRecord, KafkaTopics.EVENT_ID_HEADER)).isEqualTo(value.get("eventId").asString());
             assertThat(orderDeliveredRows(shipment)).isEqualTo(1);
         }
     }
@@ -243,7 +243,7 @@ class HandoverAndDeliveryIntegrationTest {
         return Long.toString(ThreadLocalRandom.current().nextLong(10_000_000_000_000L, 100_000_000_000_000L));
     }
 
-    private static String header(ConsumerRecord<String, String> record, String name) {
-        return new String(record.headers().lastHeader(name).value(), StandardCharsets.UTF_8);
+    private static String header(ConsumerRecord<String, String> consumerRecord, String name) {
+        return new String(consumerRecord.headers().lastHeader(name).value(), StandardCharsets.UTF_8);
     }
 }

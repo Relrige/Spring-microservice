@@ -80,7 +80,7 @@ describe('mock catalog', () => {
       expect(titles).not.toContain(inactive.title);
     }
     const outOfStock = page.content.filter((p) => p.stockStatus === 'OUT_OF_STOCK');
-    expect(outOfStock.length).toBe(active.filter((p) => p.targetStock === 0).length);
+    expect(outOfStock).toHaveLength(active.filter((p) => p.targetStock === 0).length);
     expect(outOfStock.length).toBeGreaterThan(0);
   });
 

@@ -131,7 +131,8 @@ class ProductServiceTest {
     void createProduct_missingCategory_throwsAndDoesNotSave() {
         when(categoryRepository.existsById(CATEGORY_ID)).thenReturn(false);
 
-        assertThatThrownBy(() -> productService.createProduct(validRequest()))
+        ProductRequest request = validRequest();
+        assertThatThrownBy(() -> productService.createProduct(request))
                 .isInstanceOf(CategoryNotFoundForProductException.class);
         verify(productRepository, never()).saveAndFlush(any());
         verifyNoInteractions(outbox);
@@ -142,7 +143,8 @@ class ProductServiceTest {
         when(categoryRepository.existsById(CATEGORY_ID)).thenReturn(true);
         when(productRepository.saveAndFlush(any())).thenThrow(constraintViolation("fk_products_category"));
 
-        assertThatThrownBy(() -> productService.createProduct(validRequest()))
+        ProductRequest request = validRequest();
+        assertThatThrownBy(() -> productService.createProduct(request))
                 .isInstanceOf(CategoryNotFoundForProductException.class);
         verifyNoInteractions(outbox);
     }
@@ -171,7 +173,8 @@ class ProductServiceTest {
         when(productRepository.saveAndFlush(any()))
                 .thenThrow(new ObjectOptimisticLockingFailureException(Product.class, id));
 
-        assertThatThrownBy(() -> productService.updateProduct(id, validRequest()))
+        ProductRequest request = validRequest();
+        assertThatThrownBy(() -> productService.updateProduct(id, request))
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class);
         verifyNoInteractions(outbox);
     }
@@ -224,7 +227,8 @@ class ProductServiceTest {
         UUID id = UUID.randomUUID();
         when(productRepository.findById(id)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> productService.updateProduct(id, new ProductRequest()))
+        ProductRequest request = new ProductRequest();
+        assertThatThrownBy(() -> productService.updateProduct(id, request))
                 .isInstanceOf(ProductNotFoundException.class);
         verifyNoInteractions(categoryRepository);
     }
@@ -234,7 +238,8 @@ class ProductServiceTest {
         UUID id = UUID.randomUUID();
         when(productRepository.findById(id)).thenReturn(Optional.of(existingProduct()));
 
-        assertThatThrownBy(() -> productService.updateProduct(id, request("", "", null, "0")))
+        ProductRequest request = request("", "", null, "0");
+        assertThatThrownBy(() -> productService.updateProduct(id, request))
                 .isInstanceOfSatisfying(RequestValidationException.class,
                         e -> assertThat(e.getErrors()).containsKeys("title", "description", "categoryId", "basePrice"));
         verifyNoInteractions(categoryRepository);
@@ -247,7 +252,8 @@ class ProductServiceTest {
         when(productRepository.findById(id)).thenReturn(Optional.of(product));
         when(categoryRepository.existsById(CATEGORY_ID)).thenReturn(false);
 
-        assertThatThrownBy(() -> productService.updateProduct(id, request("New", "New", CATEGORY_ID, "5")))
+        ProductRequest request = request("New", "New", CATEGORY_ID, "5");
+        assertThatThrownBy(() -> productService.updateProduct(id, request))
                 .isInstanceOf(CategoryNotFoundForProductException.class);
         assertThat(product.getTitle()).isEqualTo("Old");
         verify(productRepository, never()).saveAndFlush(any());
@@ -308,7 +314,8 @@ class ProductServiceTest {
         when(productRepository.findById(id)).thenReturn(Optional.of(product));
         when(stockReadinessChecker.check(id)).thenReturn(StockReadiness.notReady("packaging_data_missing"));
 
-        assertThatThrownBy(() -> productService.changeStatus(id, statusRequest(ProductStatus.ACTIVE)))
+        ProductStatusRequest request = statusRequest(ProductStatus.ACTIVE);
+        assertThatThrownBy(() -> productService.changeStatus(id, request))
                 .isInstanceOfSatisfying(ProductActivationRejectedException.class,
                         e -> assertThat(e.getReason()).isEqualTo("packaging_data_missing"));
         assertThat(product.getStatus()).isEqualTo(ProductStatus.NOT_ACTIVE);
@@ -322,7 +329,8 @@ class ProductServiceTest {
         when(productRepository.findById(id)).thenReturn(Optional.of(product));
         when(stockReadinessChecker.check(id)).thenThrow(new InventoryUnavailableException("down", null));
 
-        assertThatThrownBy(() -> productService.changeStatus(id, statusRequest(ProductStatus.ACTIVE)))
+        ProductStatusRequest request = statusRequest(ProductStatus.ACTIVE);
+        assertThatThrownBy(() -> productService.changeStatus(id, request))
                 .isInstanceOf(InventoryUnavailableException.class);
         assertThat(product.getStatus()).isEqualTo(ProductStatus.NOT_ACTIVE);
         verifyNoInteractions(outbox);
@@ -338,7 +346,8 @@ class ProductServiceTest {
                 .thenReturn(StockReadiness.notReady("stock_item_not_found"));
 
         productService.changeStatus(id, statusRequest(ProductStatus.ACTIVE));
-        assertThatThrownBy(() -> productService.changeStatus(id, statusRequest(ProductStatus.ACTIVE)))
+        ProductStatusRequest request = statusRequest(ProductStatus.ACTIVE);
+        assertThatThrownBy(() -> productService.changeStatus(id, request))
                 .isInstanceOf(ProductActivationRejectedException.class);
 
         verify(stockReadinessChecker, times(2)).check(id);
@@ -351,7 +360,8 @@ class ProductServiceTest {
         UUID id = UUID.randomUUID();
         when(productRepository.findById(id)).thenReturn(Optional.of(existingProduct()));
 
-        assertThatThrownBy(() -> productService.changeStatus(id, new ProductStatusRequest()))
+        ProductStatusRequest request = new ProductStatusRequest();
+        assertThatThrownBy(() -> productService.changeStatus(id, request))
                 .isInstanceOf(RequestValidationException.class);
         verifyNoInteractions(stockReadinessChecker);
     }
@@ -361,7 +371,8 @@ class ProductServiceTest {
         UUID id = UUID.randomUUID();
         when(productRepository.findById(id)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> productService.changeStatus(id, new ProductStatusRequest()))
+        ProductStatusRequest request = new ProductStatusRequest();
+        assertThatThrownBy(() -> productService.changeStatus(id, request))
                 .isInstanceOf(ProductNotFoundException.class);
     }
 
@@ -370,7 +381,8 @@ class ProductServiceTest {
         UUID id = UUID.randomUUID();
         when(productRepository.findById(id)).thenReturn(Optional.of(existingProduct()));
 
-        assertThatThrownBy(() -> productService.changeStatus(id, new ProductStatusRequest()))
+        ProductStatusRequest request = new ProductStatusRequest();
+        assertThatThrownBy(() -> productService.changeStatus(id, request))
                 .isInstanceOfSatisfying(RequestValidationException.class,
                         e -> assertThat(e.getErrors()).containsOnlyKeys("status"));
     }

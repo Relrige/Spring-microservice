@@ -14,24 +14,24 @@ class EventTypeFilterTest {
 
     @Test
     void keepsTheListenersEventType() {
-        assertThat(orderShippedOnly.filter(record("OrderShipped"))).isFalse();
+        assertThat(orderShippedOnly.filter(consumerRecord("OrderShipped"))).isFalse();
     }
 
     @Test
     void discardsOtherEventTypesAndRecordsWithoutType() {
-        assertThat(orderShippedOnly.filter(record("OrderCancelled"))).isTrue();
-        assertThat(orderShippedOnly.filter(record("orderShipped"))).isTrue();
-        assertThat(orderShippedOnly.filter(record(null))).isTrue();
+        assertThat(orderShippedOnly.filter(consumerRecord("OrderCancelled"))).isTrue();
+        assertThat(orderShippedOnly.filter(consumerRecord("orderShipped"))).isTrue();
+        assertThat(orderShippedOnly.filter(consumerRecord(null))).isTrue();
     }
 
     @Test
     void productEvents_bothTypesShareOneFilter() {
         RecordFilterStrategy<String, String> productEventsOnly = new KafkaConfig().productEventsOnly();
 
-        assertThat(productEventsOnly.filter(record("ProductCreated"))).isFalse();
-        assertThat(productEventsOnly.filter(record("ProductUpdated"))).isFalse();
-        assertThat(productEventsOnly.filter(record("ProductDeleted"))).isTrue();
-        assertThat(productEventsOnly.filter(record(null))).isTrue();
+        assertThat(productEventsOnly.filter(consumerRecord("ProductCreated"))).isFalse();
+        assertThat(productEventsOnly.filter(consumerRecord("ProductUpdated"))).isFalse();
+        assertThat(productEventsOnly.filter(consumerRecord("ProductDeleted"))).isTrue();
+        assertThat(productEventsOnly.filter(consumerRecord(null))).isTrue();
     }
 
     @Test
@@ -40,11 +40,11 @@ class EventTypeFilterTest {
                 .isEqualTo("inventory.catalog.product-events.dlt");
     }
 
-    private static ConsumerRecord<String, String> record(String eventType) {
-        ConsumerRecord<String, String> record = new ConsumerRecord<>("order.order-events", 0, 0L, "key", "{}");
+    private static ConsumerRecord<String, String> consumerRecord(String eventType) {
+        ConsumerRecord<String, String> consumerRecord = new ConsumerRecord<>("order.order-events", 0, 0L, "key", "{}");
         if (eventType != null) {
-            record.headers().add(KafkaTopics.EVENT_TYPE_HEADER, eventType.getBytes(StandardCharsets.UTF_8));
+            consumerRecord.headers().add(KafkaTopics.EVENT_TYPE_HEADER, eventType.getBytes(StandardCharsets.UTF_8));
         }
-        return record;
+        return consumerRecord;
     }
 }

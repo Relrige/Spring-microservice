@@ -25,6 +25,10 @@ public class SecurityConfig {
     private static final String WORKER = UserRole.INVENTORY_WORKER.name();
 
     @Bean
+    // CSRF needs a credential the browser sends by itself (a session cookie). There is none: no session (STATELESS),
+    // no form login or Basic; the caller comes from gateway headers or the internal token, which a forged
+    // cross-site request cannot set
+    @SuppressWarnings("java:S4502")
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    @Value("${spring.application.name}") String serviceName) {
         SecurityErrorHandlers errorHandlers = new SecurityErrorHandlers(serviceName);
@@ -46,8 +50,8 @@ public class SecurityConfig {
                         // Probes, and the metrics Prometheus scrapes without credentials (k8s/monitoring/), as in
                         // Payment; no other actuator endpoint is exposed
                         .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
-                        // OpenAPI documents and Swagger UI. They exist only when springdoc is turned on (Compose);
-                        // otherwise no handler is mapped and the paths answer 404. The gateway never routes them.
+                        // OpenAPI documents and Swagger UI. They exist only when springdoc is turned on (Compose).
+                        // Otherwise no handler is mapped and the paths answer 404. The gateway never routes them.
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
                         // Worker routes. The queue must come before GET /orders/{orderId}, which would otherwise
                         // also match "/orders/fulfillment-queue" (the first matching rule wins)

@@ -43,7 +43,8 @@ class MockPaymentGatewayTest {
 
     @Test
     void card5000_chargesButLosesTheAnswer_andARepeatWithTheKeyGetsTheApproval() {
-        assertThatThrownBy(() -> gateway.charge(charge("k1", LOST_ANSWER)))
+        ChargeCommand lostAnswer = charge("k1", LOST_ANSWER);
+        assertThatThrownBy(() -> gateway.charge(lostAnswer))
                 .isInstanceOf(PaymentGatewayTimeoutException.class);
         assertThat(gateway.approvedChargeCount()).as("the money was taken despite the timeout").isEqualTo(1);
 
@@ -56,9 +57,10 @@ class MockPaymentGatewayTest {
     @Test
     void card5000_waitsForTheConfiguredDelayBeforeReportingTheTimeout() {
         MockPaymentGateway slowGateway = new MockPaymentGateway(withTimeout(Duration.ofMillis(200)));
+        ChargeCommand lostAnswer = charge("k1", LOST_ANSWER);
         long start = System.nanoTime();
 
-        assertThatThrownBy(() -> slowGateway.charge(charge("k1", LOST_ANSWER)))
+        assertThatThrownBy(() -> slowGateway.charge(lostAnswer))
                 .isInstanceOf(PaymentGatewayTimeoutException.class);
 
         assertThat(Duration.ofNanos(System.nanoTime() - start)).isGreaterThanOrEqualTo(Duration.ofMillis(200));
@@ -98,8 +100,8 @@ class MockPaymentGatewayTest {
     void concurrentChargesWithOneKey_chargeOnce_andAllGetTheSameResult() throws Exception {
         List<Object> results = Concurrently.run(16, () -> gateway.charge(charge("k1", APPROVED)));
 
-        assertThat(results).allSatisfy(result -> assertThat(result).isInstanceOf(GatewayResult.Approved.class));
-        assertThat(results).containsOnly(results.getFirst());
+        assertThat(results).allSatisfy(result -> assertThat(result).isInstanceOf(GatewayResult.Approved.class))
+                .containsOnly(results.getFirst());
         assertThat(gateway.approvedChargeCount()).isEqualTo(1);
     }
 

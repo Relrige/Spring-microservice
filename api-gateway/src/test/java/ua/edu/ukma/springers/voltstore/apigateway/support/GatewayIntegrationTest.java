@@ -12,13 +12,13 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import ua.edu.ukma.springers.voltstore.apigateway.security.UserRole;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
 
@@ -72,7 +72,7 @@ public abstract class GatewayIntegrationTest {
 
     /** Sends a request to the gateway; {@code headers} are name/value pairs. */
     protected HttpResponse<String> send(String method, String path, String body, String token, String... headers)
-            throws Exception {
+            throws IOException, InterruptedException {
         HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
                 .method(method, body == null || body.isEmpty()
                         ? HttpRequest.BodyPublishers.noBody()
@@ -94,19 +94,19 @@ public abstract class GatewayIntegrationTest {
     public static String token(UUID userId, UserRole role) {
         return sign(SECRET, new JWTClaimsSet.Builder()
                 .subject(userId.toString()).claim("role", role.name())
-                .issueTime(new Date()).expirationTime(Date.from(Instant.now().plusSeconds(3600))).build());
+                .issueTime(jwtTime(Instant.now())).expirationTime(jwtTime(Instant.now().plusSeconds(3600))).build());
     }
 
     public static String token(UUID userId, UserRole role, String email) {
         return sign(SECRET, new JWTClaimsSet.Builder()
                 .subject(userId.toString()).claim("role", role.name()).claim("email", email)
-                .issueTime(new Date()).expirationTime(Date.from(Instant.now().plusSeconds(3600))).build());
+                .issueTime(jwtTime(Instant.now())).expirationTime(jwtTime(Instant.now().plusSeconds(3600))).build());
     }
 
     public static String expiredToken() {
         return sign(SECRET, new JWTClaimsSet.Builder()
                 .subject(UUID.randomUUID().toString()).claim("role", UserRole.ADMIN.name())
-                .expirationTime(Date.from(Instant.now().minusSeconds(3600))).build());
+                .expirationTime(jwtTime(Instant.now().minusSeconds(3600))).build());
     }
 
     public static String adminToken() {
@@ -122,4 +122,10 @@ public abstract class GatewayIntegrationTest {
             throw new IllegalStateException(e);
         }
     }
+    // Nimbus JOSE takes JWT time claims only as java.util.Date; everything else uses java.time
+    @SuppressWarnings("java:S2143")
+    public static java.util.Date jwtTime(Instant instant) {
+        return java.util.Date.from(instant);
+    }
+
 }

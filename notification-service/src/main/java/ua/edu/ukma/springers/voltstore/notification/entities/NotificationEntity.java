@@ -74,6 +74,8 @@ public class NotificationEntity {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    // Persisted column (sent_at, required for SENT rows by a check constraint), read through Lombok's getter
+    @SuppressWarnings("java:S1450")
     private Instant sentAt;
 
     /** A new notification, due at once. {@code recipient} is null when it must be resolved at send time. */

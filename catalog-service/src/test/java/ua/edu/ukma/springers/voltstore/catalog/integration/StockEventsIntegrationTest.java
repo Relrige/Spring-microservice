@@ -1,5 +1,6 @@
 package ua.edu.ukma.springers.voltstore.catalog.integration;
 
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -87,11 +88,12 @@ class StockEventsIntegrationTest {
         await().atMost(WAIT).until(() -> stockStatus(id).equals("OUT_OF_STOCK"));
 
         Map<String, Object> row = jdbc.queryForMap("SELECT status, title, version FROM products WHERE id = ?", id);
-        assertThat(row.get("status")).isEqualTo("NOT_ACTIVE");
-        assertThat(row.get("title")).isEqualTo("Laptop");
-        // The read-model update is not a product change: no new version, so no product event and no 409 for a
-        // manager who loaded the product before it
-        assertThat(row.get("version")).isEqualTo(0L);
+        assertThat(row)
+                .containsEntry("status", "NOT_ACTIVE")
+                .containsEntry("title", "Laptop")
+                // The read-model update is not a product change: no new version, so no product event and no 409 for a
+                // manager who loaded the product before it
+                .containsEntry("version", 0L);
     }
 
     @Test
@@ -135,8 +137,8 @@ class StockEventsIntegrationTest {
 
             await().atMost(WAIT).until(() -> stockStatus(id).equals("IN_STOCK"));
             await().atMost(WAIT).untilAsserted(() -> assertThat(dlt.poll())
-                    .filteredOn(record -> key.equals(record.key()))
-                    .extracting(record -> record.value())
+                    .filteredOn(consumerRecord -> key.equals(consumerRecord.key()))
+                    .extracting(ConsumerRecord::value)
                     .containsExactly("this is not JSON", "{\"timestamp\":\"2026-10-11T10:00:00Z\"}"));
         }
     }
@@ -168,9 +170,9 @@ class StockEventsIntegrationTest {
     }
 
     private void send(String key, String eventType, String json) throws Exception {
-        ProducerRecord<String, String> record = new ProducerRecord<>(KafkaTopics.STOCK_EVENTS, key, json);
-        record.headers().add(KafkaTopics.EVENT_TYPE_HEADER, eventType.getBytes(StandardCharsets.UTF_8));
-        inventory.send(record).get();
+        ProducerRecord<String, String> producerRecord = new ProducerRecord<>(KafkaTopics.STOCK_EVENTS, key, json);
+        producerRecord.headers().add(KafkaTopics.EVENT_TYPE_HEADER, eventType.getBytes(StandardCharsets.UTF_8));
+        inventory.send(producerRecord).get();
     }
 
     private static String payload(UUID productId) {

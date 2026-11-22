@@ -42,15 +42,15 @@ public class OrderEventsListener {
 
     // The raw record (not a converted parameter): the JSON is read here, by the type named in the eventType header
     @KafkaListener(topics = "${delivery.kafka.topics.order-events}")
-    public void onOrderEvent(ConsumerRecord<String, String> record) {
-        Header header = record.headers().lastHeader(KafkaTopics.EVENT_TYPE_HEADER);
+    public void onOrderEvent(ConsumerRecord<String, String> consumerRecord) {
+        Header header = consumerRecord.headers().lastHeader(KafkaTopics.EVENT_TYPE_HEADER);
         String eventType = header == null ? null : new String(header.value(), StandardCharsets.UTF_8);
         if (OrderPaidEvent.TYPE.equals(eventType)) {
-            shipmentService.createFromOrderPaid(read(record.value(), OrderPaidEvent.class));
+            shipmentService.createFromOrderPaid(read(consumerRecord.value(), OrderPaidEvent.class));
         } else if (OrderShippedEvent.TYPE.equals(eventType)) {
-            shipmentService.handOver(read(record.value(), OrderShippedEvent.class));
+            shipmentService.handOver(read(consumerRecord.value(), OrderShippedEvent.class));
         } else {
-            log.debug("Skipping order event key={} of type {}", record.key(), eventType);
+            log.debug("Skipping order event key={} of type {}", consumerRecord.key(), eventType);
         }
     }
 

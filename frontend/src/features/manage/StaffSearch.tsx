@@ -9,7 +9,7 @@ interface StaffSearchProps {
 }
 
 /** Search submitted with Enter or the button, as on the storefront (design D5). */
-export function StaffSearch({ initial, label, placeholder, onSearch }: StaffSearchProps) {
+export function StaffSearch({ initial, label, placeholder, onSearch }: Readonly<StaffSearchProps>) {
   const [value, setValue] = useState(initial);
   return (
     <form

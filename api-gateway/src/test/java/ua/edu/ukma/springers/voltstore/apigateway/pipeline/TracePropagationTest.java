@@ -31,8 +31,8 @@ class TracePropagationTest extends GatewayIntegrationTest {
         send("GET", "/catalog/categories", null, null, "traceparent", "00-" + traceId + "-" + callerSpan + "-01");
 
         String forwarded = CATALOG.single().header("traceparent").getFirst();
-        assertThat(forwarded).matches(TRACEPARENT).startsWith("00-" + traceId + "-");
-        assertThat(forwarded).as("the parent is the gateway's span, not the caller's")
+        assertThat(forwarded).matches(TRACEPARENT).startsWith("00-" + traceId + "-")
+                .as("the parent is the gateway's span, not the caller's")
                 .doesNotContain(callerSpan);
     }
 }

@@ -98,7 +98,8 @@ class InventoryStockReadinessCheckerTest {
     void serverError_isRetriedOnceThenUnavailable() {
         inventory.stubFor(get(path).willReturn(aResponse().withStatus(500)));
 
-        assertThatThrownBy(() -> checker(inventory.baseUrl()).check(productId))
+        InventoryStockReadinessChecker checker = checker(inventory.baseUrl());
+        assertThatThrownBy(() -> checker.check(productId))
                 .isInstanceOf(InventoryUnavailableException.class);
         inventory.verify(2, getRequestedFor(urlEqualTo(path)));
     }
@@ -109,7 +110,8 @@ class InventoryStockReadinessCheckerTest {
                 .withFixedDelay((int) SHORT_READ_TIMEOUT.toMillis() * 3)));
 
         long start = System.nanoTime();
-        assertThatThrownBy(() -> checker(inventory.baseUrl(), SHORT_READ_TIMEOUT).check(productId))
+        InventoryStockReadinessChecker checker = checker(inventory.baseUrl(), SHORT_READ_TIMEOUT);
+        assertThatThrownBy(() -> checker.check(productId))
                 .isInstanceOf(InventoryUnavailableException.class);
         // Two attempts bounded by the read timeout, not by the slow response
         assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(SHORT_READ_TIMEOUT.multipliedBy(5));
@@ -123,7 +125,8 @@ class InventoryStockReadinessCheckerTest {
             closedPort = socket.getLocalPort();
         }
 
-        assertThatThrownBy(() -> checker("http://localhost:" + closedPort).check(productId))
+        InventoryStockReadinessChecker checker = checker("http://localhost:" + closedPort);
+        assertThatThrownBy(() -> checker.check(productId))
                 .isInstanceOf(InventoryUnavailableException.class);
     }
 
@@ -142,7 +145,8 @@ class InventoryStockReadinessCheckerTest {
     void forbidden_isAConfigurationProblem_unavailableWithoutRetry() {
         inventory.stubFor(get(path).willReturn(aResponse().withStatus(403)));
 
-        assertThatThrownBy(() -> checker(inventory.baseUrl()).check(productId))
+        InventoryStockReadinessChecker checker = checker(inventory.baseUrl());
+        assertThatThrownBy(() -> checker.check(productId))
                 .isInstanceOf(InventoryUnavailableException.class);
         inventory.verify(1, getRequestedFor(urlEqualTo(path)));
     }

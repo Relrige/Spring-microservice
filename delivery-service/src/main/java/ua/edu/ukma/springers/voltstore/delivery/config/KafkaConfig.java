@@ -97,16 +97,16 @@ public class KafkaConfig {
             @Qualifier(DEAD_LETTER_TEMPLATE) KafkaTemplate<String, Object> textTemplate) {
         // Negative partition: let the producer choose, since a DLT has fewer partitions than its source
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(textTemplate,
-                (record, ex) -> new TopicPartition(KafkaTopics.deadLetterTopicOf(record.topic()), -1));
+                (consumerRecord, ex) -> new TopicPartition(KafkaTopics.deadLetterTopicOf(consumerRecord.topic()), -1));
 
         ExponentialBackOffWithMaxRetries backOff = new ExponentialBackOffWithMaxRetries(4);
         backOff.setInitialInterval(1000);
         backOff.setMultiplier(2);
         backOff.setMaxInterval(10_000);
-        DefaultErrorHandler errorHandler = new DefaultErrorHandler((record, ex) -> {
-            log.error("Sending {} key={} partition={} offset={} to {}", record.topic(), record.key(),
-                    record.partition(), record.offset(), KafkaTopics.deadLetterTopicOf(record.topic()), ex);
-            recoverer.accept(record, ex);
+        DefaultErrorHandler errorHandler = new DefaultErrorHandler((consumerRecord, ex) -> {
+            log.error("Sending {} key={} partition={} offset={} to {}", consumerRecord.topic(), consumerRecord.key(),
+                    consumerRecord.partition(), consumerRecord.offset(), KafkaTopics.deadLetterTopicOf(consumerRecord.topic()), ex);
+            recoverer.accept(consumerRecord, ex);
         }, backOff);
         errorHandler.addNotRetryableExceptions(PoisonMessageException.class);
         return errorHandler;

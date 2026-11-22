@@ -11,7 +11,7 @@ const TONES: Record<Tone, { background: string; color: string }> = {
 };
 
 /** A status chip: `-soft` ground, strong text, `label` style, always with a word. */
-export function StatusChip({ tone, children }: { tone: Tone; children: string }) {
+export function StatusChip({ tone, children }: Readonly<{ tone: Tone; children: string }>) {
   return (
     <span
       style={{

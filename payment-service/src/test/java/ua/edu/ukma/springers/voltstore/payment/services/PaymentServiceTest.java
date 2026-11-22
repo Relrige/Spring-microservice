@@ -43,7 +43,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -94,7 +93,7 @@ class PaymentServiceTest {
         void alreadyCharged_is409_andTheGatewayIsNotCalled() {
             when(repository.existsByOrderIdAndTypeAndStatus(ORDER_ID, CHARGE, SUCCESS)).thenReturn(true);
 
-            assertThatThrownBy(() -> charge()).isInstanceOf(OrderAlreadyChargedException.class);
+            assertThatThrownBy(this::charge).isInstanceOf(OrderAlreadyChargedException.class);
             verifyNoInteractions(gateway);
             verify(repository, never()).saveAndFlush(any());
         }
@@ -127,7 +126,7 @@ class PaymentServiceTest {
         void declined_recordsTheReason_andIs402() {
             when(gateway.charge(any())).thenReturn(new GatewayResult.Declined(DeclineReason.INSUFFICIENT_FUNDS));
 
-            assertThatThrownBy(() -> charge()).isInstanceOfSatisfying(PaymentDeclinedException.class,
+            assertThatThrownBy(this::charge).isInstanceOfSatisfying(PaymentDeclinedException.class,
                     e -> assertThat(e.getReason()).isEqualTo(FailureReason.INSUFFICIENT_FUNDS));
             assertFailureSaved(FailureReason.INSUFFICIENT_FUNDS, "charge:" + ORDER_ID + ":1");
         }
@@ -161,7 +160,7 @@ class PaymentServiceTest {
         void timeoutOnEveryAttempt_isRecordedOnceAsUncertain_andPassedOn() {
             when(gateway.charge(any())).thenThrow(new PaymentGatewayTimeoutException("no answer"));
 
-            assertThatThrownBy(() -> charge()).isInstanceOf(PaymentGatewayTimeoutException.class);
+            assertThatThrownBy(this::charge).isInstanceOf(PaymentGatewayTimeoutException.class);
             verify(gateway, times(2)).charge(any());
             assertFailureSaved(FailureReason.GATEWAY_TIMEOUT, "charge:" + ORDER_ID + ":1");
         }
@@ -171,7 +170,7 @@ class PaymentServiceTest {
             when(gateway.charge(any()))
                     .thenThrow(new PaymentGatewayUnavailableException("refused", new ConnectException()));
 
-            assertThatThrownBy(() -> charge()).isInstanceOf(PaymentGatewayUnavailableException.class);
+            assertThatThrownBy(this::charge).isInstanceOf(PaymentGatewayUnavailableException.class);
             assertFailureSaved(FailureReason.GATEWAY_UNAVAILABLE, "charge:" + ORDER_ID + ":1");
         }
 
@@ -179,7 +178,7 @@ class PaymentServiceTest {
         void definitiveDecline_isNotRepeated() {
             when(gateway.charge(any())).thenReturn(new GatewayResult.Declined(DeclineReason.CARD_DECLINED));
 
-            assertThatThrownBy(() -> charge()).isInstanceOf(PaymentDeclinedException.class);
+            assertThatThrownBy(this::charge).isInstanceOf(PaymentDeclinedException.class);
             verify(gateway, times(1)).charge(any());
         }
 
@@ -187,7 +186,7 @@ class PaymentServiceTest {
         void keyMismatch_is409_andNothingIsRecorded() {
             when(gateway.charge(any())).thenReturn(new GatewayResult.IdempotencyKeyMismatch());
 
-            assertThatThrownBy(() -> charge()).isInstanceOf(PaymentAttemptInProgressException.class);
+            assertThatThrownBy(this::charge).isInstanceOf(PaymentAttemptInProgressException.class);
             verify(repository, never()).saveAndFlush(any());
         }
 
@@ -196,7 +195,7 @@ class PaymentServiceTest {
             when(gateway.charge(any())).thenReturn(new GatewayResult.Approved("gw-1"));
             doThrow(violationOf(PaymentService.SUCCESSFUL_CHARGE_INDEX)).when(repository).saveAndFlush(any());
 
-            assertThatThrownBy(() -> charge()).isInstanceOf(OrderAlreadyChargedException.class);
+            assertThatThrownBy(this::charge).isInstanceOf(OrderAlreadyChargedException.class);
         }
 
         @Test
@@ -204,7 +203,7 @@ class PaymentServiceTest {
             when(gateway.charge(any())).thenReturn(new GatewayResult.Approved("gw-1"));
             doThrow(violationOf("chk_payment_transactions_currency")).when(repository).saveAndFlush(any());
 
-            assertThatThrownBy(() -> charge()).isInstanceOf(DataIntegrityViolationException.class);
+            assertThatThrownBy(this::charge).isInstanceOf(DataIntegrityViolationException.class);
         }
 
         private UUID charge() {
@@ -251,8 +250,9 @@ class PaymentServiceTest {
         @Test
         void partialAmount_is422() {
             givenCharge();
+            BigDecimal partialAmount = new BigDecimal("1000.00");
 
-            assertThatThrownBy(() -> refund(new BigDecimal("1000.00")))
+            assertThatThrownBy(() -> refund(partialAmount))
                     .isInstanceOf(RefundAmountMismatchException.class);
             verifyNoInteractions(gateway);
         }
@@ -273,8 +273,8 @@ class PaymentServiceTest {
             // 1499.9 equals 1499.90
             assertThat(refund(new BigDecimal("1499.9"))).isEqualTo(SAVED_ID);
 
-            verify(gateway).refund(eq(new RefundCommand("refund:" + ORDER_ID, "gw-charge", new BigDecimal("1499.9"),
-                    "UAH")));
+            verify(gateway).refund(new RefundCommand("refund:" + ORDER_ID, "gw-charge", new BigDecimal("1499.9"),
+                    "UAH"));
             PaymentTransactionEntity saved = savedEntity();
             assertThat(saved.getType()).isEqualTo(REFUND);
             assertThat(saved.getStatus()).isEqualTo(SUCCESS);
@@ -298,7 +298,7 @@ class PaymentServiceTest {
                     .thenReturn(new GatewayResult.Approved("gw-refund"));
 
             assertThat(refund(AMOUNT)).isEqualTo(SAVED_ID);
-            verify(gateway, times(2)).refund(eq(new RefundCommand("refund:" + ORDER_ID, "gw-charge", AMOUNT, "UAH")));
+            verify(gateway, times(2)).refund(new RefundCommand("refund:" + ORDER_ID, "gw-charge", AMOUNT, "UAH"));
         }
 
         @Test

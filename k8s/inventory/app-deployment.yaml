@@ -31,7 +31,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: inventory-service
-          image: voltstore/inventory-service:latest
+          image: voltstore/inventory-service:1.0.0
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -58,9 +58,11 @@ spec:
             requests:
               cpu: 100m
               memory: 384Mi
+              ephemeral-storage: 128Mi
             limits:
               cpu: "2"
               memory: 768Mi
+              ephemeral-storage: 1Gi
           startupProbe:
             httpGet:
               path: /actuator/health/liveness

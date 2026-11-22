@@ -53,7 +53,7 @@ final class ClientFailures {
     static Optional<ProblemDetail> problem(RestClientResponseException e) {
         try {
             return Optional.ofNullable(e.getResponseBodyAs(ProblemDetail.class));
-        } catch (RuntimeException unreadable) {
+        } catch (RuntimeException _) {
             return Optional.empty();
         }
     }

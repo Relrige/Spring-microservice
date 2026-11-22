@@ -77,7 +77,10 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 function describeError(error: unknown): string {
   if (error instanceof ApiError) {
     const detail = error.problem?.detail ? `: ${error.problem.detail.replace(/\.$/, '')}` : '';
-    const reason = error.problem?.reason ? ` (reason ${String(error.problem.reason)})` : '';
+    // `reason` is an untyped extension; every service sends a string, anything else is shown as JSON.
+    const raw = error.problem?.reason;
+    const reasonText = typeof raw === 'string' ? raw : JSON.stringify(raw);
+    const reason = raw ? ` (reason ${reasonText})` : '';
     return `${error.status ?? 'no answer'} ${error.kind}${detail}${reason}`;
   }
   return error instanceof Error ? error.message : String(error);
@@ -113,12 +116,13 @@ async function loginAs(account: Credentials, label: string): Promise<Token> {
     return await withRetry(`log in as ${label}`, () => login(account));
   } catch (error) {
     const status = error instanceof SeedError ? error.apiError?.status : undefined;
-    const hint =
-      status === undefined || status >= 500
-        ? `Is the stack running and the gateway reachable at ${API_URL}?`
-        : label === 'admin'
-          ? 'Check SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD (the stack’s ADMIN_EMAIL / ADMIN_PASSWORD).'
-          : `The account ${account.email} exists with another password; reset it or remove it.`;
+    let hint = `The account ${account.email} exists with another password; reset it or remove it.`;
+    if (status === undefined || status >= 500) {
+      hint = `Is the stack running and the gateway reachable at ${API_URL}?`;
+    } else if (label === 'admin') {
+      hint =
+        'Check SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD (the stack’s ADMIN_EMAIL / ADMIN_PASSWORD).';
+    }
     throw new SeedError(`${(error as Error).message}. ${hint}`);
   }
 }
@@ -421,7 +425,9 @@ async function main() {
   }
 }
 
-main().catch((error: unknown) => {
+try {
+  await main();
+} catch (error: unknown) {
   console.error(`Seed failed: ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;
-});
+}

@@ -192,6 +192,7 @@ class CancelShipmentIntegrationTest {
         Shipment shipment = Shipments.pending(UUID.randomUUID());
         switch (status) {
             case TTN_PENDING -> {
+                // nothing to do: a new shipment is already TTN_PENDING
             }
             case TTN_FAILED -> shipment.markFailed("carrier_error: down");
             case TTN_GENERATED -> shipment.markGenerated(TTN, new Parcel(100, 10, 10, 10));

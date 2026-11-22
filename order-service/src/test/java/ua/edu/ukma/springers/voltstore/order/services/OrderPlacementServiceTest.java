@@ -172,7 +172,8 @@ class OrderPlacementServiceTest {
         catalogKnows(active(PHONE, "Phone", "100.00"),
                 new CatalogProduct(CASE, "Case", new BigDecimal("1.00"), CatalogProduct.Status.NOT_ACTIVE, null));
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1), item(CASE, 1), item(unknown, 1))))
+        PlaceOrderRequest request = request(item(PHONE, 1), item(CASE, 1), item(unknown, 1));
+        assertThatThrownBy(() -> service.place(CUSTOMER, request))
                 .isInstanceOfSatisfying(IneligibleItemsException.class, e -> assertThat(e.getIneligibleItems())
                         .containsExactly(new IneligibleItem(CASE, IneligibleItem.Reason.NOT_ACTIVE),
                                 new IneligibleItem(unknown, IneligibleItem.Reason.NOT_ACTIVE)));
@@ -196,7 +197,8 @@ class OrderPlacementServiceTest {
         List<InsufficientItem> shortItems = List.of(new InsufficientItem(PHONE, 5, 2));
         when(stock.reserve(any(), anyList())).thenReturn(new StockReservations.Insufficient(shortItems));
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 5))))
+        PlaceOrderRequest request = request(item(PHONE, 5));
+        assertThatThrownBy(() -> service.place(CUSTOMER, request))
                 .isInstanceOfSatisfying(InsufficientStockException.class,
                         e -> assertThat(e.getInsufficientItems()).isEqualTo(shortItems));
         verifyNoInteractions(orders, outbox);
@@ -208,7 +210,8 @@ class OrderPlacementServiceTest {
     void catalogUnavailable_createsNothing() {
         when(catalog.findProducts(anyList())).thenThrow(new DependencyUnavailableException("Catalog", "down", null));
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1))))
+        PlaceOrderRequest request = request(item(PHONE, 1));
+        assertThatThrownBy(() -> service.place(CUSTOMER, request))
                 .isInstanceOf(DependencyUnavailableException.class);
         verifyNoInteractions(stock, orders, outbox);
     }
@@ -218,7 +221,8 @@ class OrderPlacementServiceTest {
         catalogKnows(active(PHONE, "Phone", "100.00"));
         when(stock.reserve(any(), anyList())).thenThrow(new DependencyUnavailableException("Inventory", "timeout", null));
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1))))
+        PlaceOrderRequest request = request(item(PHONE, 1));
+        assertThatThrownBy(() -> service.place(CUSTOMER, request))
                 .isInstanceOf(DependencyUnavailableException.class);
 
         ArgumentCaptor<UUID> reservedFor = ArgumentCaptor.forClass(UUID.class);
@@ -234,7 +238,8 @@ class OrderPlacementServiceTest {
         DataAccessResourceFailureException failure = new DataAccessResourceFailureException("database down");
         doThrow(failure).when(orders).save(any());
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1)))).isSameAs(failure);
+        PlaceOrderRequest request = request(item(PHONE, 1));
+        assertThatThrownBy(() -> service.place(CUSTOMER, request)).isSameAs(failure);
 
         ArgumentCaptor<UUID> reservedFor = ArgumentCaptor.forClass(UUID.class);
         verify(stock).reserve(reservedFor.capture(), anyList());
@@ -250,7 +255,8 @@ class OrderPlacementServiceTest {
         doThrow(failure).when(orders).save(any());
         doThrow(new DependencyUnavailableException("Inventory", "down", null)).when(stock).release(any());
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1)))).isSameAs(failure);
+        PlaceOrderRequest request = request(item(PHONE, 1));
+        assertThatThrownBy(() -> service.place(CUSTOMER, request)).isSameAs(failure);
     }
 
     // ---- the reservation attempt (orphan reservations, decision 2026-10-18) ----
@@ -278,7 +284,8 @@ class OrderPlacementServiceTest {
         when(stock.reserve(any(), anyList()))
                 .thenReturn(new StockReservations.Insufficient(List.of(new InsufficientItem(PHONE, 5, 1))));
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 5))))
+        PlaceOrderRequest request = request(item(PHONE, 5));
+        assertThatThrownBy(() -> service.place(CUSTOMER, request))
                 .isInstanceOf(InsufficientStockException.class);
         verify(attempts).deleteById(any());
     }
@@ -288,7 +295,8 @@ class OrderPlacementServiceTest {
         catalogKnows(active(PHONE, "Phone", "100.00"));
         when(stock.reserve(any(), anyList())).thenThrow(new DependencyUnavailableException("Inventory", "timeout", null));
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1))))
+        PlaceOrderRequest request = request(item(PHONE, 1));
+        assertThatThrownBy(() -> service.place(CUSTOMER, request))
                 .isInstanceOf(DependencyUnavailableException.class);
         // Released now, and kept: a late reservation is released again by the job
         verify(attempts).save(any());
@@ -300,8 +308,9 @@ class OrderPlacementServiceTest {
         catalogKnows(active(PHONE, "Phone", "100.00"));
         when(stock.reserve(any(), anyList())).thenReturn(new StockReservations.Reserved());
         doThrow(new DataAccessResourceFailureException("database down")).when(orders).save(any());
+        PlaceOrderRequest request = request(item(PHONE, 1));
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1))))
+        assertThatThrownBy(() -> service.place(CUSTOMER, request))
                 .isInstanceOf(DataAccessResourceFailureException.class);
         verify(attempts, never()).deleteById(any());
     }
@@ -313,7 +322,8 @@ class OrderPlacementServiceTest {
         // 10 × 1,000,000,000.00 = 10,000,000,000.00, one cent more than Payment and the column allow
         catalogKnows(active(PHONE, "Phone", "1000000000.00"));
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 10))))
+        PlaceOrderRequest request = request(item(PHONE, 10));
+        assertThatThrownBy(() -> service.place(CUSTOMER, request))
                 .isInstanceOfSatisfying(OrderTotalTooLargeException.class,
                         e -> assertThat(e.getMaxTotal()).isEqualByComparingTo("9999999999.99"));
         verifyNoInteractions(stock, attempts, orders, outbox);
@@ -333,7 +343,8 @@ class OrderPlacementServiceTest {
     void noEmailFromTheGateway_isRefused_beforeAnyCall() {
         AuthenticatedUser withoutEmail = new AuthenticatedUser(UUID.randomUUID(), UserRole.CUSTOMER, null);
 
-        assertThatThrownBy(() -> service.place(withoutEmail, request(item(PHONE, 1))))
+        PlaceOrderRequest request = request(item(PHONE, 1));
+        assertThatThrownBy(() -> service.place(withoutEmail, request))
                 .isInstanceOf(MissingCustomerEmailException.class);
         verifyNoInteractions(catalog, stock, orders, outbox);
     }
@@ -406,7 +417,8 @@ class OrderPlacementServiceTest {
         UUID key = UUID.randomUUID();
         givenExistingKey(key, request(item(PHONE, 1)), IdempotencyKey.Status.COMPLETED, UUID.randomUUID());
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 2)), key))
+        PlaceOrderRequest request = request(item(PHONE, 2));
+        assertThatThrownBy(() -> service.place(CUSTOMER, request, key))
                 .isInstanceOf(IdempotencyKeyMismatchException.class);
         verifyNoInteractions(catalog, stock, orders, attempts, outbox);
     }
@@ -428,7 +440,8 @@ class OrderPlacementServiceTest {
         UUID key = givenClaimedKey();
         catalogKnows(new CatalogProduct(PHONE, "Phone", BigDecimal.ONE, CatalogProduct.Status.NOT_ACTIVE, null));
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1)), key))
+        PlaceOrderRequest request = request(item(PHONE, 1));
+        assertThatThrownBy(() -> service.place(CUSTOMER, request, key))
                 .isInstanceOf(IneligibleItemsException.class);
         verify(keys).release(CUSTOMER.id(), key);
     }
@@ -438,7 +451,8 @@ class OrderPlacementServiceTest {
         UUID key = givenClaimedKey();
         catalogKnows(active(PHONE, "Phone", "1000000000.00"));
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 10)), key))
+        PlaceOrderRequest request = request(item(PHONE, 10));
+        assertThatThrownBy(() -> service.place(CUSTOMER, request, key))
                 .isInstanceOf(OrderTotalTooLargeException.class);
         verify(keys).release(CUSTOMER.id(), key);
     }
@@ -450,7 +464,8 @@ class OrderPlacementServiceTest {
         when(stock.reserve(any(), anyList()))
                 .thenReturn(new StockReservations.Insufficient(List.of(new InsufficientItem(PHONE, 5, 1))));
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 5)), key))
+        PlaceOrderRequest request = request(item(PHONE, 5));
+        assertThatThrownBy(() -> service.place(CUSTOMER, request, key))
                 .isInstanceOf(InsufficientStockException.class);
         verify(keys).release(CUSTOMER.id(), key);
     }
@@ -461,7 +476,8 @@ class OrderPlacementServiceTest {
         catalogKnows(active(PHONE, "Phone", "100.00"));
         when(stock.reserve(any(), anyList())).thenThrow(new DependencyUnavailableException("Inventory", "down", null));
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1)), key))
+        PlaceOrderRequest request = request(item(PHONE, 1));
+        assertThatThrownBy(() -> service.place(CUSTOMER, request, key))
                 .isInstanceOf(DependencyUnavailableException.class);
         verify(keys).release(CUSTOMER.id(), key);
         verify(attempts, never()).deleteById(any());
@@ -475,7 +491,8 @@ class OrderPlacementServiceTest {
         DataAccessResourceFailureException failure = new DataAccessResourceFailureException("database down");
         doThrow(failure).when(orders).save(any());
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1)), key)).isSameAs(failure);
+        PlaceOrderRequest request = request(item(PHONE, 1));
+        assertThatThrownBy(() -> service.place(CUSTOMER, request, key)).isSameAs(failure);
         verify(keys).release(CUSTOMER.id(), key);
         verify(stock).release(any());
     }
@@ -487,7 +504,8 @@ class OrderPlacementServiceTest {
         when(catalog.findProducts(anyList())).thenThrow(failure);
         when(keys.release(any(), any())).thenThrow(new DataAccessResourceFailureException("database down"));
 
-        assertThatThrownBy(() -> service.place(CUSTOMER, request(item(PHONE, 1)), key)).isSameAs(failure);
+        PlaceOrderRequest request = request(item(PHONE, 1));
+        assertThatThrownBy(() -> service.place(CUSTOMER, request, key)).isSameAs(failure);
     }
 
     private UUID givenClaimedKey() {

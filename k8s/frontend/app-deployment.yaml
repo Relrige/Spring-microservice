@@ -27,7 +27,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: frontend
-          image: voltstore/frontend:latest
+          image: voltstore/frontend:1.0.0
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -47,9 +47,11 @@ spec:
             requests:
               cpu: 50m
               memory: 32Mi
+              ephemeral-storage: 128Mi
             limits:
               cpu: 200m
               memory: 64Mi
+              ephemeral-storage: 1Gi
           livenessProbe:
             httpGet:
               path: /healthz

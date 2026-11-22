@@ -77,7 +77,8 @@ class UserServiceTest {
     void registerUser_existingEmail_throwsAndDoesNotSave() {
         when(userRepo.existsByEmail("alice@example.com")).thenReturn(true);
 
-        assertThatThrownBy(() -> userService.registerUser(request("Alice@example.com", "secret")))
+        RegisterUserRequest request = request("Alice@example.com", "secret");
+        assertThatThrownBy(() -> userService.registerUser(request))
                 .isInstanceOf(EmailNotUniqueException.class)
                 .hasMessage("Email already in use");
 
@@ -89,7 +90,8 @@ class UserServiceTest {
         when(passwordEncoder.encode(any())).thenReturn("hash");
         when(userRepo.saveAndFlush(any())).thenThrow(constraintViolation("users_email_key"));
 
-        assertThatThrownBy(() -> userService.registerUser(request("alice@example.com", "secret")))
+        RegisterUserRequest request = request("alice@example.com", "secret");
+        assertThatThrownBy(() -> userService.registerUser(request))
                 .isInstanceOf(EmailNotUniqueException.class);
     }
 
@@ -99,7 +101,8 @@ class UserServiceTest {
         when(passwordEncoder.encode(any())).thenReturn("hash");
         when(userRepo.saveAndFlush(any())).thenThrow(other);
 
-        assertThatThrownBy(() -> userService.registerUser(request("alice@example.com", "secret")))
+        RegisterUserRequest request = request("alice@example.com", "secret");
+        assertThatThrownBy(() -> userService.registerUser(request))
                 .isSameAs(other);
     }
 
@@ -117,7 +120,8 @@ class UserServiceTest {
 
     @Test
     void createNonCustomerUser_customerRole_isRejectedAndNothingSaved() {
-        assertThatThrownBy(() -> userService.createNonCustomerUser(nonCustomerRequest("c@example.com", UserRole.CUSTOMER)))
+        CreateNonCustomerUserRequest request = nonCustomerRequest("c@example.com", UserRole.CUSTOMER);
+        assertThatThrownBy(() -> userService.createNonCustomerUser(request))
                 .isInstanceOf(InvalidUserRoleException.class);
 
         verify(userRepo, never()).saveAndFlush(any());
@@ -127,7 +131,8 @@ class UserServiceTest {
     void createNonCustomerUser_existingEmail_throwsEmailNotUnique() {
         when(userRepo.existsByEmail("manager@example.com")).thenReturn(true);
 
-        assertThatThrownBy(() -> userService.createNonCustomerUser(nonCustomerRequest("manager@example.com", UserRole.ADMIN)))
+        CreateNonCustomerUserRequest request = nonCustomerRequest("manager@example.com", UserRole.ADMIN);
+        assertThatThrownBy(() -> userService.createNonCustomerUser(request))
                 .isInstanceOf(EmailNotUniqueException.class);
     }
 

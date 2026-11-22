@@ -30,7 +30,6 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -70,10 +69,10 @@ class FailAfterCommitExperimentTest {
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
                 ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
                 ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class))) {
-            ProducerRecord<String, String> record = new ProducerRecord<>("catalog.product-events", productId.toString(),
+            ProducerRecord<String, String> producerRecord = new ProducerRecord<>("catalog.product-events", productId.toString(),
                     "{\"eventId\":\"" + eventId + "\",\"productId\":\"" + productId + "\",\"timestamp\":\"2026-10-12T10:00:00Z\"}");
-            record.headers().add(KafkaTopics.EVENT_TYPE_HEADER, "ProductCreated".getBytes(StandardCharsets.UTF_8));
-            catalog.send(record).get();
+            producerRecord.headers().add(KafkaTopics.EVENT_TYPE_HEADER, "ProductCreated".getBytes(StandardCharsets.UTF_8));
+            catalog.send(producerRecord).get();
         }
 
         // 1st delivery: committed, then the simulated failure; 2nd delivery (retry topic): duplicate, skipped
@@ -81,7 +80,7 @@ class FailAfterCommitExperimentTest {
                 output.getAll().contains("Duplicate ProductCreated eventId=" + eventId));
 
         assertThat(output.getAll()).contains("EXPERIMENT: simulated consumer failure after commit, eventId=" + eventId);
-        verify(stockItemRepository, times(1)).insertIfAbsent(eq(productId));
+        verify(stockItemRepository, times(1)).insertIfAbsent(productId);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM stock_items WHERE product_id = ?", Integer.class, productId))
                 .isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM processed_events WHERE event_id = ?", Integer.class, eventId))

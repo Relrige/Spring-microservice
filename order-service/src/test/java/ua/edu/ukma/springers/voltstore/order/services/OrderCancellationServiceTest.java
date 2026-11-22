@@ -157,6 +157,7 @@ class OrderCancellationServiceTest {
                 "UAH", NOW.minusSeconds(600), Duration.ofMinutes(15));
         switch (status) {
             case PENDING_PAYMENT -> {
+                // already the status of a new order
             }
             case PAID -> order.markPaid(NOW);
             case PENDING_SHIPPING -> {

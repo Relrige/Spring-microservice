@@ -66,7 +66,7 @@ public class CancellationSaga {
         String failure = runSteps(order);
         try {
             return transactions.execute(tx -> failure == null ? finish(orderId) : recordFailure(orderId, failure));
-        } catch (OptimisticLockingFailureException e) {
+        } catch (OptimisticLockingFailureException _) {
             // Another saga run changed the order meanwhile; its outcome stands
             log.warn("Order {} changed while its cancellation was being recorded; keeping the other change", orderId);
             return orders.findById(orderId).map(OrderEntity::getStatus).orElseThrow();
@@ -95,8 +95,8 @@ public class CancellationSaga {
             } catch (RuntimeException e) {
                 return "refund: " + e.getMessage();
             }
-            if (refund instanceof Payments.RefundFailed failed) {
-                return "refund: " + failed.cause();
+            if (refund instanceof Payments.RefundFailed(String cause)) {
+                return "refund: " + cause;
             }
             // Refunded, or AlreadyRefunded by an earlier attempt whose answer was lost
         }

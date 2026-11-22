@@ -51,11 +51,15 @@ spec:
           ports:
             - containerPort: 5432
           envFrom:
-            - configMapRef:
-                name: auth-config
             - secretRef:
                 name: auth-db-credentials
           env:
+            # Only the database name; the rest of the ConfigMap is the application's settings
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: auth-config
+                  key: POSTGRES_DB
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           volumeMounts:
@@ -69,9 +73,11 @@ spec:
             requests:
               memory: "128Mi"
               cpu: "50m"
+              ephemeral-storage: 128Mi
             limits:
               memory: "256Mi"
               cpu: "250m"
+              ephemeral-storage: 1Gi
           readinessProbe:
             exec:
               command: [ "sh", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB" ]

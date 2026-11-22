@@ -18,7 +18,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.Date;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -45,7 +44,7 @@ class HmacJwtVerifierTest {
     @Test
     void emailClaim_isReturnedWithIdentity() throws Exception {
         String token = sign(SECRET, new JWTClaimsSet.Builder().subject(userId.toString()).claim("role", "CUSTOMER")
-                .claim("email", "alice@example.com").expirationTime(Date.from(NOW.plusSeconds(3600))).build());
+                .claim("email", "alice@example.com").expirationTime(jwtTime(NOW.plusSeconds(3600))).build());
 
         assertThat(verifier.verify(token))
                 .contains(new VerifiedIdentity(userId, UserRole.CUSTOMER, Optional.of("alice@example.com")));
@@ -54,11 +53,11 @@ class HmacJwtVerifierTest {
     /** Tokens issued before Auth added the claim stay valid; a malformed claim is ignored, not trusted. */
     @Test
     void missingBlankOrNonStringEmail_isAcceptedWithoutEmail() throws Exception {
-        Date exp = Date.from(NOW.plusSeconds(3600));
+        Instant exp = NOW.plusSeconds(3600);
         JWTClaimsSet blank = new JWTClaimsSet.Builder().subject(userId.toString()).claim("role", "CUSTOMER")
-                .claim("email", " ").expirationTime(exp).build();
+                .claim("email", " ").expirationTime(jwtTime(exp)).build();
         JWTClaimsSet numeric = new JWTClaimsSet.Builder().subject(userId.toString()).claim("role", "CUSTOMER")
-                .claim("email", 5).expirationTime(exp).build();
+                .claim("email", 5).expirationTime(jwtTime(exp)).build();
 
         assertThat(verifier.verify(token(SECRET, userId.toString(), "CUSTOMER", NOW.plusSeconds(3600))))
                 .hasValueSatisfying(id -> assertThat(id.email()).isEmpty());
@@ -100,7 +99,7 @@ class HmacJwtVerifierTest {
         String[] parts = token(SECRET, userId.toString(), "CUSTOMER", NOW.plusSeconds(3600)).split("[.]");
         String forgedPayload = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
                 new JWTClaimsSet.Builder().subject(userId.toString()).claim("role", "ADMIN")
-                        .expirationTime(Date.from(NOW.plusSeconds(3600))).build()
+                        .expirationTime(jwtTime(NOW.plusSeconds(3600))).build()
                         .toString().getBytes(StandardCharsets.UTF_8));
 
         assertThat(verifier.verify(parts[0] + "." + forgedPayload + "." + parts[2])).isEmpty();
@@ -110,7 +109,7 @@ class HmacJwtVerifierTest {
     void algorithmNone_isRejected() {
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .subject(userId.toString()).claim("role", "ADMIN")
-                .expirationTime(Date.from(NOW.plusSeconds(3600))).build();
+                .expirationTime(jwtTime(NOW.plusSeconds(3600))).build();
         String token = new PlainJWT(new PlainHeader(), claims).serialize();
 
         assertThat(verifier.verify(token)).isEmpty();
@@ -120,7 +119,7 @@ class HmacJwtVerifierTest {
     void otherHmacAlgorithm_isRejected() throws Exception {
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .subject(userId.toString()).claim("role", "CUSTOMER")
-                .expirationTime(Date.from(NOW.plusSeconds(3600))).build();
+                .expirationTime(jwtTime(NOW.plusSeconds(3600))).build();
         SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS512), claims);
         jwt.sign(new MACSigner((SECRET + SECRET).getBytes(StandardCharsets.UTF_8)));
 
@@ -143,7 +142,7 @@ class HmacJwtVerifierTest {
     @Test
     void missingSubject_isRejected() throws Exception {
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
-                .claim("role", "CUSTOMER").expirationTime(Date.from(NOW.plusSeconds(3600))).build();
+                .claim("role", "CUSTOMER").expirationTime(jwtTime(NOW.plusSeconds(3600))).build();
 
         assertThat(verifier.verify(sign(SECRET, claims))).isEmpty();
     }
@@ -156,10 +155,10 @@ class HmacJwtVerifierTest {
 
     @Test
     void missingOrNonStringRole_isRejected() throws Exception {
-        Date exp = Date.from(NOW.plusSeconds(3600));
-        JWTClaimsSet noRole = new JWTClaimsSet.Builder().subject(userId.toString()).expirationTime(exp).build();
+        Instant exp = NOW.plusSeconds(3600);
+        JWTClaimsSet noRole = new JWTClaimsSet.Builder().subject(userId.toString()).expirationTime(jwtTime(exp)).build();
         JWTClaimsSet numericRole = new JWTClaimsSet.Builder().subject(userId.toString()).claim("role", 5)
-                .expirationTime(exp).build();
+                .expirationTime(jwtTime(exp)).build();
 
         assertThat(verifier.verify(sign(SECRET, noRole))).isEmpty();
         assertThat(verifier.verify(sign(SECRET, numericRole))).isEmpty();
@@ -168,7 +167,7 @@ class HmacJwtVerifierTest {
     private static String token(String secret, String subject, String role, Instant expiration) throws Exception {
         return sign(secret, new JWTClaimsSet.Builder()
                 .subject(subject).claim("role", role)
-                .issueTime(Date.from(NOW)).expirationTime(Date.from(expiration)).build());
+                .issueTime(jwtTime(NOW)).expirationTime(jwtTime(expiration)).build());
     }
 
     private static String sign(String secret, JWTClaimsSet claims) throws Exception {
@@ -176,4 +175,10 @@ class HmacJwtVerifierTest {
         jwt.sign(new MACSigner(secret.getBytes(StandardCharsets.UTF_8)));
         return jwt.serialize();
     }
+    // Nimbus JOSE takes JWT time claims only as java.util.Date; everything else uses java.time
+    @SuppressWarnings("java:S2143")
+    private static java.util.Date jwtTime(Instant instant) {
+        return java.util.Date.from(instant);
+    }
+
 }

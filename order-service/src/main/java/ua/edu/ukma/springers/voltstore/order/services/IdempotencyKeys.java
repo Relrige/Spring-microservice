@@ -41,10 +41,11 @@ public class IdempotencyKeys {
      * @throws IdempotencyKeyMismatchException the key was used for another request (checked before the status)
      * @throws RequestInProgressException      the first request with this key is still running
      */
+    @SuppressWarnings("java:S2583") // existing can be null: see the race comment below
     public Optional<UUID> claim(UUID customerId, UUID key, PlaceOrderRequest request) {
         String hash = hash(request);
-        Integer claimed = transactions.execute(tx -> keys.claim(customerId, key, hash, clock.instant()));
-        if (claimed != null && claimed == 1) {
+        int claimed = transactions.execute(tx -> keys.claim(customerId, key, hash, clock.instant()));
+        if (claimed == 1) {
             return Optional.empty();
         }
         IdempotencyKey existing = transactions.execute(tx ->

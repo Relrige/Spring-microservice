@@ -170,6 +170,7 @@ class ManualTtnRetryIntegrationTest {
             }
             case CANCELLED -> shipment.cancel();
             default -> {
+                // nothing to do: the new shipment stays TTN_PENDING
             }
         }
         repository.save(shipment);

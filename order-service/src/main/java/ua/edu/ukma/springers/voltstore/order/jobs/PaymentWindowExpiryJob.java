@@ -107,7 +107,7 @@ public class PaymentWindowExpiryJob {
                 outbox.append(OrderCancelledEvent.of(order, OrderCancelledEvent.Reason.EXPIRED, now));
                 log.info("Order {} expired: not paid by {}", orderId, order.getReservationExpiresAt());
             });
-        } catch (OptimisticLockingFailureException e) {
+        } catch (OptimisticLockingFailureException _) {
             log.info("Order {} changed while expiring it; leaving the other change", orderId);
         }
     }

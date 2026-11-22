@@ -20,7 +20,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -74,7 +73,8 @@ class AuthServiceTest {
         when(userRepo.findByEmail("alice@example.com")).thenReturn(Optional.of(user()));
         when(passwordEncoder.matches("wrong", "stored-hash")).thenReturn(false);
 
-        assertThatThrownBy(() -> authService.login(request("alice@example.com", "wrong")))
+        LoginRequest request = request("alice@example.com", "wrong");
+        assertThatThrownBy(() -> authService.login(request))
                 .isInstanceOf(InvalidCredentialsException.class);
 
         verify(tokenService, never()).issueToken(any());
@@ -85,12 +85,13 @@ class AuthServiceTest {
         when(userRepo.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
         when(passwordEncoder.matches("secret1", "dummy-hash")).thenReturn(false);
 
-        assertThatThrownBy(() -> authService.login(request("nobody@example.com", "secret1")))
+        LoginRequest request = request("nobody@example.com", "secret1");
+        assertThatThrownBy(() -> authService.login(request))
                 .isInstanceOf(InvalidCredentialsException.class)
                 .hasMessage("Invalid credentials");
 
         // The hash comparison must run even for unknown users to equalize response timing
-        verify(passwordEncoder).matches(eq("secret1"), eq("dummy-hash"));
+        verify(passwordEncoder).matches("secret1", "dummy-hash");
         verify(tokenService, never()).issueToken(any());
     }
 

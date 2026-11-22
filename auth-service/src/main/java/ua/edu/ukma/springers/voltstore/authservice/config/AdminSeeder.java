@@ -27,7 +27,7 @@ public class AdminSeeder implements ApplicationRunner {
         try {
             userService.createUser(adminProperties.email(), adminProperties.password(), UserRole.ADMIN);
             log.info("Seeded initial admin user");
-        } catch (EmailNotUniqueException e) {
+        } catch (EmailNotUniqueException _) {
             log.info("Initial admin user already exists, skipping seeding");
         }
     }

@@ -94,12 +94,12 @@ class OutboxIntegrationTest {
             relay.publishDueEvents();
 
             assertThat(rowsFor(orderId).getFirst().get("published_at")).isNotNull();
-            ConsumerRecord<String, String> record = awaitRecords(probe, orderId, 1).getFirst();
-            assertThat(record.key()).isEqualTo(orderId.toString());
-            assertThat(header(record, KafkaTopics.EVENT_TYPE_HEADER)).isEqualTo("TTNGenerated");
-            assertThat(header(record, KafkaTopics.EVENT_ID_HEADER)).isEqualTo(event.eventId().toString());
+            ConsumerRecord<String, String> consumerRecord = awaitRecords(probe, orderId, 1).getFirst();
+            assertThat(consumerRecord.key()).isEqualTo(orderId.toString());
+            assertThat(header(consumerRecord, KafkaTopics.EVENT_TYPE_HEADER)).isEqualTo("TTNGenerated");
+            assertThat(header(consumerRecord, KafkaTopics.EVENT_ID_HEADER)).isEqualTo(event.eventId().toString());
             // A JSON object with exactly the contract fields, not a JSON string holding the JSON text
-            JsonNode value = JSON.readTree(record.value());
+            JsonNode value = JSON.readTree(consumerRecord.value());
             assertThat(value.isObject()).isTrue();
             assertThat(value.propertyNames()).containsExactlyInAnyOrder("eventId", "orderId", "ttn", "timestamp");
             assertThat(value.get("eventId").asString()).isEqualTo(event.eventId().toString());
@@ -120,7 +120,7 @@ class OutboxIntegrationTest {
 
             Map<String, Object> row = rowsFor(orderId).getFirst();
             assertThat(row.get("published_at")).isNull();
-            assertThat(row.get("attempts")).isEqualTo(1);
+            assertThat(row).containsEntry("attempts", 1);
             assertThat((String) row.get("last_error")).contains("broker down");
             assertThat(relay.oldestUnpublishedAgeSeconds()).isPositive();
 
@@ -164,9 +164,9 @@ class OutboxIntegrationTest {
             assertThat(awaitRecords(probe, healthy, 1)).isNotEmpty();
             List<Map<String, Object>> failingRows = rowsFor(failing);
             assertThat(failingRows).allSatisfy(row -> assertThat(row.get("published_at")).isNull());
-            assertThat(failingRows.get(0).get("attempts")).isEqualTo(1);
+            assertThat(failingRows.get(0)).containsEntry("attempts", 1);
             // OrderDelivered was never even tried: it must not overtake TTNGenerated
-            assertThat(failingRows.get(1).get("attempts")).isEqualTo(0);
+            assertThat(failingRows.get(1)).containsEntry("attempts", 0);
 
             doCallRealMethod().when(kafkaTemplate).send(any(ProducerRecord.class));
             makeAllDue();
@@ -178,7 +178,9 @@ class OutboxIntegrationTest {
 
     @Test
     void publish_outsideATransaction_isRejected() {
-        assertThatThrownBy(() -> publisher.publish(TtnGeneratedEvent.of(UUID.randomUUID(), "1", Instant.now())))
+        TtnGeneratedEvent event = TtnGeneratedEvent.of(UUID.randomUUID(), "1", Instant.now());
+
+        assertThatThrownBy(() -> publisher.publish(event))
                 .isInstanceOf(IllegalTransactionStateException.class);
     }
 
@@ -206,8 +208,8 @@ class OutboxIntegrationTest {
     // null = every send fails (broker down); otherwise only the sends of that order
     private void failSendsFor(UUID orderId) {
         doAnswer(invocation -> {
-            ProducerRecord<String, Object> record = invocation.getArgument(0);
-            return orderId == null || orderId.toString().equals(record.key())
+            ProducerRecord<String, Object> producerRecord = invocation.getArgument(0);
+            return orderId == null || orderId.toString().equals(producerRecord.key())
                     ? CompletableFuture.failedFuture(new KafkaException("broker down"))
                     : invocation.callRealMethod();
         }).when(kafkaTemplate).send(any(ProducerRecord.class));
@@ -233,7 +235,7 @@ class OutboxIntegrationTest {
                 records -> records.size() >= count);
     }
 
-    private static String header(ConsumerRecord<String, String> record, String name) {
-        return new String(record.headers().lastHeader(name).value(), StandardCharsets.UTF_8);
+    private static String header(ConsumerRecord<String, String> consumerRecord, String name) {
+        return new String(consumerRecord.headers().lastHeader(name).value(), StandardCharsets.UTF_8);
     }
 }

@@ -20,7 +20,7 @@ final class GrpcErrors {
     static UUID uuid(String field, String value) {
         try {
             return UUID.fromString(value);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException _) {
             throw invalid(field + " must be a UUID");
         }
     }

@@ -164,7 +164,8 @@ class OrderRepositoryTest {
     void aNegativePrice_isRejectedByTheDatabase() {
         UUID orderId = repository.saveAndFlush(order(CUSTOMER, NOW)).getId();
 
-        assertThatThrownBy(() -> insertItem(orderId, new BigDecimal("-1"), 1))
+        BigDecimal negative = new BigDecimal("-1");
+        assertThatThrownBy(() -> insertItem(orderId, negative, 1))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -186,9 +187,11 @@ class OrderRepositoryTest {
         OrderEntity saved = repository.saveAndFlush(order(CUSTOMER, NOW));
         UUID productId = saved.getItems().getFirst().getProductId();
 
+        UUID itemId = UUID.randomUUID();
+        UUID orderId = saved.getId();
         assertThatThrownBy(() -> jdbcTemplate.update("INSERT INTO order_items (id, order_id, product_id, "
                         + "product_title, unit_price_at_order, quantity) VALUES (?, ?, ?, 'X', 1, 1)",
-                UUID.randomUUID(), saved.getId(), productId))
+                itemId, orderId, productId))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("uq_order_items_order_product");
     }

@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class CatalogClientAdapterTest extends ClientsTestBase {
     private static final String PATH = "/catalog/products/batch-get";
     private static final UUID PHONE = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final List<UUID> PHONE_ONLY = List.of(PHONE);
     private static final UUID CASE = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
     @Autowired
@@ -63,7 +64,7 @@ class CatalogClientAdapterTest extends ClientsTestBase {
                 .willReturn(serviceUnavailable()).willSetStateTo("up"));
         stubFor(get(urlPathEqualTo(PATH)).inScenario("flaky").whenScenarioStateIs("up").willReturn(okJson("[]")));
 
-        assertThat(catalog.findProducts(List.of(PHONE))).isEmpty();
+        assertThat(catalog.findProducts(PHONE_ONLY)).isEmpty();
         verify(2, getRequestedFor(urlPathEqualTo(PATH)));
     }
 
@@ -71,7 +72,7 @@ class CatalogClientAdapterTest extends ClientsTestBase {
     void aPersistent5xx_endsAsDependencyUnavailable_afterThreeAttempts() {
         stubFor(get(urlPathEqualTo(PATH)).willReturn(serverError()));
 
-        assertThatThrownBy(() -> catalog.findProducts(List.of(PHONE)))
+        assertThatThrownBy(() -> catalog.findProducts(PHONE_ONLY))
                 .isInstanceOfSatisfying(DependencyUnavailableException.class,
                         e -> assertThat(e.getService()).isEqualTo("Catalog"));
         verify(3, getRequestedFor(urlPathEqualTo(PATH)));
@@ -81,7 +82,7 @@ class CatalogClientAdapterTest extends ClientsTestBase {
     void aSlowCatalog_hitsTheReadTimeout() {
         stubFor(get(urlPathEqualTo(PATH)).willReturn(okJson("[]").withFixedDelay(1500)));
 
-        assertThatThrownBy(() -> catalog.findProducts(List.of(PHONE)))
+        assertThatThrownBy(() -> catalog.findProducts(PHONE_ONLY))
                 .isInstanceOf(DependencyUnavailableException.class);
     }
 
@@ -89,7 +90,7 @@ class CatalogClientAdapterTest extends ClientsTestBase {
     void a4xx_isNotRetried() {
         stubFor(get(urlPathEqualTo(PATH)).willReturn(unauthorized()));
 
-        assertThatThrownBy(() -> catalog.findProducts(List.of(PHONE)))
+        assertThatThrownBy(() -> catalog.findProducts(PHONE_ONLY))
                 .isInstanceOf(DependencyUnavailableException.class);
         verify(1, getRequestedFor(urlPathEqualTo(PATH)));
     }
@@ -99,12 +100,12 @@ class CatalogClientAdapterTest extends ClientsTestBase {
         stubFor(get(urlPathEqualTo(PATH)).willReturn(serverError()));
         // 2 calls x 3 attempts = 6 recorded failures, more than the 4 the breaker needs to open
         for (int i = 0; i < 2; i++) {
-            assertThatThrownBy(() -> catalog.findProducts(List.of(PHONE)))
+            assertThatThrownBy(() -> catalog.findProducts(PHONE_ONLY))
                     .isInstanceOf(DependencyUnavailableException.class);
         }
         int callsSoFar = wireMock.getAllServeEvents().size();
 
-        assertThatThrownBy(() -> catalog.findProducts(List.of(PHONE)))
+        assertThatThrownBy(() -> catalog.findProducts(PHONE_ONLY))
                 .isInstanceOf(DependencyUnavailableException.class);
 
         assertThat(wireMock.getAllServeEvents()).hasSize(callsSoFar);
@@ -118,7 +119,7 @@ class CatalogClientAdapterTest extends ClientsTestBase {
             bulkhead.acquirePermission();
         }
         try {
-            assertThatThrownBy(() -> catalog.findProducts(List.of(PHONE)))
+            assertThatThrownBy(() -> catalog.findProducts(PHONE_ONLY))
                     .isInstanceOf(DependencyUnavailableException.class);
             verify(0, getRequestedFor(urlPathEqualTo(PATH)));
         } finally {

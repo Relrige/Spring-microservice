@@ -122,7 +122,7 @@ class SetPackagingIntegrationTest {
                     return null;
                 });
 
-        assertThat(outcomes).allMatch(o -> o == null);
+        assertThat(outcomes).isNotEmpty().allMatch(o -> o == null);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM stock_items WHERE product_id = ?", Integer.class, productId)).isEqualTo(1);
         // Whichever request ran last wins as a whole: the four values always come from the same request
@@ -144,7 +144,7 @@ class SetPackagingIntegrationTest {
                 },
                 () -> stockService.adjustStock(productId, 6));
 
-        assertThat(outcomes).noneMatch(o -> o instanceof Exception);
+        assertThat(outcomes).noneMatch(Exception.class::isInstance);
         StockItemEntity item = repository.findById(productId).orElseThrow();
         assertThat(item.getAvailableQuantity()).isEqualTo(6);
         assertThat(item.isPackagingConfigured()).isTrue();

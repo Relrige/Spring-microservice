@@ -76,7 +76,9 @@ class PaymentTransactionRepositoryTest {
         UUID orderId = UUID.randomUUID();
         repository.saveAndFlush(success(CHARGE, orderId, "k1"));
 
-        assertThatThrownBy(() -> repository.saveAndFlush(success(CHARGE, orderId, "k2")))
+        PaymentTransactionEntity second = success(CHARGE, orderId, "k2");
+
+        assertThatThrownBy(() -> repository.saveAndFlush(second))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("uq_payment_transactions_successful_charge");
     }
@@ -87,7 +89,9 @@ class PaymentTransactionRepositoryTest {
         repository.saveAndFlush(success(CHARGE, orderId, "c"));
         repository.saveAndFlush(success(REFUND, orderId, "r"));
 
-        assertThatThrownBy(() -> repository.saveAndFlush(success(REFUND, orderId, "r")))
+        PaymentTransactionEntity second = success(REFUND, orderId, "r");
+
+        assertThatThrownBy(() -> repository.saveAndFlush(second))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("uq_payment_transactions_successful_refund");
     }
@@ -122,10 +126,11 @@ class PaymentTransactionRepositoryTest {
     @Test
     void successWithoutGatewayId_isRejectedByTheDatabaseToo() {
         UUID id = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
 
         assertThatThrownBy(() -> jdbcTemplate.update("INSERT INTO payment_transactions "
                 + "(id, order_id, type, status, amount, currency, idempotency_key) "
-                + "VALUES (?, ?, 'CHARGE', 'SUCCESS', 10, 'UAH', 'k')", id, UUID.randomUUID()))
+                + "VALUES (?, ?, 'CHARGE', 'SUCCESS', 10, 'UAH', 'k')", id, orderId))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("chk_payment_transactions_success_has_gateway_id");
     }

@@ -67,13 +67,15 @@ class StockEventsTest {
 
     @Test
     void events_requireAllFields() {
-        assertThatThrownBy(() -> new ProductStockReplenishedEvent(null, PRODUCT_ID, Instant.now()))
+        UUID eventId = UUID.randomUUID();
+        Instant now = Instant.now();
+        assertThatThrownBy(() -> new ProductStockReplenishedEvent(null, PRODUCT_ID, now))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new ProductStockReplenishedEvent(UUID.randomUUID(), null, Instant.now()))
+        assertThatThrownBy(() -> new ProductStockReplenishedEvent(eventId, null, now))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new ProductStockDepletedEvent(UUID.randomUUID(), PRODUCT_ID, null))
+        assertThatThrownBy(() -> new ProductStockDepletedEvent(eventId, PRODUCT_ID, null))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new ProductStockDepletedEvent(null, PRODUCT_ID, Instant.now()))
+        assertThatThrownBy(() -> new ProductStockDepletedEvent(null, PRODUCT_ID, now))
                 .isInstanceOf(NullPointerException.class);
     }
 }

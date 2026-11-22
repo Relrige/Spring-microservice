@@ -46,8 +46,8 @@ class StockEventsIntegrationTest {
         }
 
         @KafkaListener(topics = KafkaTopics.STOCK_EVENTS, groupId = "stock-events-test")
-        void collect(ConsumerRecord<String, String> record) {
-            records.add(record);
+        void collect(ConsumerRecord<String, String> consumerRecord) {
+            records.add(consumerRecord);
         }
     }
 
@@ -65,12 +65,12 @@ class StockEventsIntegrationTest {
 
         await().atMost(Duration.ofSeconds(15)).untilAsserted(() ->
                 assertThat(typesFor(productId)).containsExactly("ProductStockReplenished"));
-        ConsumerRecord<String, String> record = recordsFor(productId).getFirst();
-        assertThat(record.key()).isEqualTo(productId.toString());
-        assertThat(record.partition()).isBetween(0, 2);
-        assertThat(record.offset()).isNotNegative();
-        assertThat(record.value()).contains("\"productId\":\"" + productId + "\"").contains("\"eventId\"");
-        assertThat(Instant.parse(jsonString(record.value(), "timestamp"))).isNotNull();
+        ConsumerRecord<String, String> consumerRecord = recordsFor(productId).getFirst();
+        assertThat(consumerRecord.key()).isEqualTo(productId.toString());
+        assertThat(consumerRecord.partition()).isBetween(0, 2);
+        assertThat(consumerRecord.offset()).isNotNegative();
+        assertThat(consumerRecord.value()).contains("\"productId\":\"" + productId + "\"").contains("\"eventId\"");
+        assertThat(Instant.parse(jsonString(consumerRecord.value(), "timestamp"))).isNotNull();
     }
 
     @Test

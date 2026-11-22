@@ -14,7 +14,11 @@ interface ProductTileProps {
   compact?: boolean;
 }
 
-export function ProductTile({ product, categoryName, compact = false }: ProductTileProps) {
+export function ProductTile({
+  product,
+  categoryName,
+  compact = false,
+}: Readonly<ProductTileProps>) {
   return (
     <UnstyledButton
       component={Link}

@@ -1,5 +1,6 @@
 package ua.edu.ukma.springers.voltstore.catalog.integration;
 
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -86,11 +87,12 @@ class ProductIntegrationTest {
 
         Map<String, Object> row = jdbc.queryForMap("SELECT * FROM products");
         assertThat(body).contains(row.get("id").toString());
-        assertThat(row.get("title")).isEqualTo("Laptop");
-        assertThat(row.get("category_id")).isEqualTo(categoryId);
-        assertThat(row.get("base_price")).isEqualTo(new BigDecimal("999.90"));
-        assertThat(row.get("status")).isEqualTo("NOT_ACTIVE");
-        assertThat(row.get("stock_status")).isEqualTo("OUT_OF_STOCK");
+        assertThat(row)
+                .containsEntry("title", "Laptop")
+                .containsEntry("category_id", categoryId)
+                .containsEntry("base_price", new BigDecimal("999.90"))
+                .containsEntry("status", "NOT_ACTIVE")
+                .containsEntry("stock_status", "OUT_OF_STOCK");
     }
 
     @Test
@@ -155,9 +157,10 @@ class ProductIntegrationTest {
                 .andExpect(jsonPath("$.stockStatus").value("OUT_OF_STOCK"));
 
         Map<String, Object> row = jdbc.queryForMap("SELECT * FROM products WHERE id = ?", id);
-        assertThat(row.get("title")).isEqualTo("New title");
-        assertThat(row.get("category_id")).isEqualTo(otherCategoryId);
-        assertThat(row.get("base_price")).isEqualTo(new BigDecimal("1500.50"));
+        assertThat(row)
+                .containsEntry("title", "New title")
+                .containsEntry("category_id", otherCategoryId)
+                .containsEntry("base_price", new BigDecimal("1500.50"));
     }
 
     @Test
@@ -173,8 +176,9 @@ class ProductIntegrationTest {
                 .andExpect(jsonPath("$.stockStatus").value("IN_STOCK"));
 
         Map<String, Object> row = jdbc.queryForMap("SELECT * FROM products WHERE id = ?", id);
-        assertThat(row.get("status")).isEqualTo("ACTIVE");
-        assertThat(row.get("stock_status")).isEqualTo("IN_STOCK");
+        assertThat(row)
+                .containsEntry("status", "ACTIVE")
+                .containsEntry("stock_status", "IN_STOCK");
     }
 
     @Test
@@ -239,10 +243,11 @@ class ProductIntegrationTest {
         });
 
         Map<String, Object> row = jdbc.queryForMap("SELECT * FROM products WHERE id = ?", id);
-        assertThat(row.get("title")).isEqualTo("New title");
-        assertThat(row.get("stock_status")).isEqualTo("IN_STOCK");
-        // The stock update does not count as a change of the product: the edit is not rejected, version 0 → 1
-        assertThat(row.get("version")).isEqualTo(1L);
+        assertThat(row)
+                .containsEntry("title", "New title")
+                .containsEntry("stock_status", "IN_STOCK")
+                // The stock update does not count as a change of the product: the edit is not rejected, version 0 → 1
+                .containsEntry("version", 1L);
     }
 
     @Test
@@ -265,8 +270,9 @@ class ProductIntegrationTest {
         })).isInstanceOf(ObjectOptimisticLockingFailureException.class);
 
         Map<String, Object> row = jdbc.queryForMap("SELECT * FROM products WHERE id = ?", id);
-        assertThat(row.get("title")).isEqualTo("Theirs");
-        assertThat(row.get("version")).isEqualTo(1L);
+        assertThat(row)
+                .containsEntry("title", "Theirs")
+                .containsEntry("version", 1L);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM outbox_events", Integer.class)).isZero();
     }
 
@@ -291,7 +297,7 @@ class ProductIntegrationTest {
                         .content(json("Laptop", "A laptop", categoryId, "10", imageUrl)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        String id = body.replaceAll(".*\"productId\":\"([^\"]+)\".*", "$1");
+        String id = JsonPath.read(body, "$.productId");
 
         assertThat(jdbc.queryForObject("SELECT image_url FROM products", String.class)).isEqualTo(imageUrl);
         mockMvc.perform(get(URL + "/" + id).headers(asManager()))

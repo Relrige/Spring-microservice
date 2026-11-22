@@ -35,7 +35,8 @@ class OrderEntityTest {
     @Test
     void place_rejectsAnEmptyOrderAndADuplicateProduct() {
         assertThatThrownBy(() -> place(List.of())).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> place(List.of(item(PHONE, "1.00", 1), item(PHONE, "1.00", 2))))
+        List<OrderItemEntity> duplicate = List.of(item(PHONE, "1.00", 1), item(PHONE, "1.00", 2));
+        assertThatThrownBy(() -> place(duplicate))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("appears twice");
     }
@@ -154,7 +155,8 @@ class OrderEntityTest {
     static OrderEntity orderIn(OrderStatus status) {
         OrderEntity order = newOrder();
         switch (status) {
-            case PENDING_PAYMENT -> { }
+            case PENDING_PAYMENT -> { // already the status of a new order
+            }
             case PAID -> order.markPaid(NOW);
             case PENDING_SHIPPING -> { order.markPaid(NOW); order.markPendingShipping(); }
             case SHIPPED -> { order.markPaid(NOW); order.markShipped(); }

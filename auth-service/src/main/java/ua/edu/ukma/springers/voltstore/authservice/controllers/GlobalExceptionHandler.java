@@ -26,14 +26,17 @@ import java.util.TreeMap;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+    private static final String TIMESTAMP_PROPERTY = "timestamp";
+    private static final String SERVICE_PROPERTY = "service";
+    private static final String SERVICE_NAME = "auth-service";
 
     @ExceptionHandler(EmailNotUniqueException.class)
     public ProblemDetail handleEmailNotUnique(EmailNotUniqueException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setType(URI.create("https://voltstore.com/errors/conflict"));
         problem.setTitle("Email is not unique");
-        problem.setProperty("timestamp", Instant.now().toString());
-        problem.setProperty("service", "auth-service");
+        problem.setProperty(TIMESTAMP_PROPERTY, Instant.now().toString());
+        problem.setProperty(SERVICE_PROPERTY, SERVICE_NAME);
         return problem;
     }
 
@@ -43,8 +46,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
         problem.setType(URI.create("https://voltstore.com/errors/unauthorized"));
         problem.setTitle("Unauthorized");
-        problem.setProperty("timestamp", Instant.now().toString());
-        problem.setProperty("service", "auth-service");
+        problem.setProperty(TIMESTAMP_PROPERTY, Instant.now().toString());
+        problem.setProperty(SERVICE_PROPERTY, SERVICE_NAME);
         return problem;
     }
 
@@ -54,8 +57,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create("https://voltstore.com/errors/validation"));
         problem.setTitle("Validation failed");
         problem.setProperty("errors", Map.of("role", List.of(ex.getMessage())));
-        problem.setProperty("timestamp", Instant.now().toString());
-        problem.setProperty("service", "auth-service");
+        problem.setProperty(TIMESTAMP_PROPERTY, Instant.now().toString());
+        problem.setProperty(SERVICE_PROPERTY, SERVICE_NAME);
         return problem;
     }
 
@@ -74,8 +77,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle("Validation failed");
         problem.setDetail("One or more fields are invalid.");
         problem.setProperty("errors", fieldErrors);
-        problem.setProperty("timestamp", Instant.now().toString());
-        problem.setProperty("service", "auth-service");
+        problem.setProperty(TIMESTAMP_PROPERTY, Instant.now().toString());
+        problem.setProperty(SERVICE_PROPERTY, SERVICE_NAME);
         return handleExceptionInternal(ex, problem, headers, status, request);
     }
 
@@ -86,8 +89,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred.");
         problem.setType(URI.create("https://voltstore.com/errors/internal-error"));
         problem.setTitle("Internal Server Error");
-        problem.setProperty("timestamp", Instant.now().toString());
-        problem.setProperty("service", "auth-service");
+        problem.setProperty(TIMESTAMP_PROPERTY, Instant.now().toString());
+        problem.setProperty(SERVICE_PROPERTY, SERVICE_NAME);
         return problem;
     }
 }

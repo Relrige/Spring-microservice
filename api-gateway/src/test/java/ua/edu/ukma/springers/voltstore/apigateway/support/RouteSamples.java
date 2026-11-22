@@ -51,7 +51,7 @@ public final class RouteSamples {
     }
 
     private static String concrete(String pattern) {
-        // "{id:<regex>}" never contains '/', so a greedy match inside one segment covers nested braces like {8}
+        // A path variable with a regex never contains a slash, so a greedy match inside one segment also covers regex quantifier braces
         return pattern.replaceAll("\\{[^/]+}", SAMPLE_ID);
     }
 }

@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
@@ -31,6 +32,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @WebMvcTest
 @Import(SecurityConfig.class)
 class RouteSecurityRulesTest {
+
+    private static final Pattern PATH_VARIABLE = Pattern.compile("\\{[^/}]+}");
 
     @Autowired
     private MockMvc mockMvc;
@@ -53,7 +56,7 @@ class RouteSecurityRulesTest {
             }
             for (String pattern : entry.getKey().getPathPatternsCondition().getPatternValues()) {
                 // Fill path variables with a concrete value so the pattern can be requested
-                String path = pattern.replaceAll("\\{[^/}]+}", UUID.randomUUID().toString());
+                String path = PATH_VARIABLE.matcher(pattern).replaceAll(UUID.randomUUID().toString());
                 for (var method : entry.getKey().getMethodsCondition().getMethods()) {
                     routes.add(method + " " + pattern);
                     int status = mockMvc.perform(request(HttpMethod.valueOf(method.name()), path)

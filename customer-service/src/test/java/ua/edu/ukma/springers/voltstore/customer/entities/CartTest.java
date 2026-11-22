@@ -287,6 +287,7 @@ class CartTest {
     @Test
     void changes_moveUpdatedAtForward() throws InterruptedException {
         var before = cart.getUpdatedAt();
+        // Two milliseconds so the clock moves on and updatedAt can differ from before
         Thread.sleep(2);
 
         cart.add(A, 1);

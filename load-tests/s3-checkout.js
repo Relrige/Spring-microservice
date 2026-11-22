@@ -47,9 +47,9 @@ export function setup() {
     return { tokens: loginCustomers(), productIds: seededProducts().map((p) => p.productId) };
 }
 
-export default function (data) {
+export default function iteration(data) {
     const token = pick(data.tokens);
-    const items = pickDistinct(data.productIds, 1 + Math.floor(Math.random() * 3))
+    const items = pickDistinct(data.productIds, 1 + Math.floor(Math.random() * 3)) // NOSONAR(S2245): picks test data and traffic mix, not security-relevant
         .map((productId) => ({ productId, quantity: 1 }));
 
     const validate = http.post(`${BASE_URL}/orders/validate`, JSON.stringify({ items }), params(VALIDATE, token));

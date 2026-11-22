@@ -50,7 +50,16 @@ export function ProductDetailsPage() {
   const data = product.data;
   // The category name comes from the categories list; omitted when it cannot be found.
   const categoryName = categoryNames?.get(data.categoryId);
-  const paragraphs = data.description.split(/\n\s*\n/).filter((p) => p.trim());
+  // Keyed by text and occurrence, so a repeated paragraph still gets a unique key.
+  const seen = new Map<string, number>();
+  const paragraphs = data.description
+    .split(/\n\s*\n/)
+    .filter((p) => p.trim())
+    .map((text) => {
+      const occurrence = (seen.get(text) ?? 0) + 1;
+      seen.set(text, occurrence);
+      return { text, key: `${occurrence}:${text}` };
+    });
 
   return (
     <PageContainer pt={{ base: 'md', sm: 'lg' }}>
@@ -98,8 +107,8 @@ export function ProductDetailsPage() {
             <AddToCart productId={data.productId} stockStatus={data.stockStatus} />
             <Stack gap="sm" pt={20} maw="68ch" style={{ borderTop: '1px solid var(--vs-line)' }}>
               <Title order={2}>Description</Title>
-              {paragraphs.map((paragraph, index) => (
-                <Text key={index}>{paragraph}</Text>
+              {paragraphs.map((paragraph) => (
+                <Text key={paragraph.key}>{paragraph.text}</Text>
               ))}
             </Stack>
           </Stack>

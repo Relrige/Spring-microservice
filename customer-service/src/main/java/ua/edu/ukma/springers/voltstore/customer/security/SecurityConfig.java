@@ -24,8 +24,13 @@ import org.springframework.security.web.authentication.AnonymousAuthenticationFi
 @EnableWebSecurity
 public class SecurityConfig {
     private static final String CUSTOMER = UserRole.CUSTOMER.name();
+    private static final String CART_PATH = "/customers/cart";
 
     @Bean
+    // CSRF needs a credential the browser sends by itself (a session cookie). There is none: no session (STATELESS),
+    // no form login or Basic; the caller comes from gateway headers or the internal token, which a forged
+    // cross-site request cannot set
+    @SuppressWarnings("java:S4502")
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    @Value("${spring.application.name}") String serviceName) {
         SecurityErrorHandlers errorHandlers = new SecurityErrorHandlers(serviceName);
@@ -45,8 +50,8 @@ public class SecurityConfig {
                         .accessDeniedHandler(errorHandlers))
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
-                        // OpenAPI documents and Swagger UI. They exist only when springdoc is turned on (Compose);
-                        // otherwise no handler is mapped and the paths answer 404. The gateway never routes them.
+                        // OpenAPI documents and Swagger UI. They exist only when springdoc is turned on (Compose).
+                        // Otherwise no handler is mapped and the paths answer 404. The gateway never routes them.
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
                         // Role rules per route: callers without the role are rejected here, before the controller
                         // is reached and before the request body is parsed or validated
@@ -54,9 +59,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/customers/me/profile").hasRole(CUSTOMER)
                         .requestMatchers(HttpMethod.PUT, "/customers/me/profile").hasRole(CUSTOMER)
                         // Whole cart: get, replace, clear (EP-CUST-03, EP-CUST-07, EP-CUST-09) and merge (EP-CUST-08)
-                        .requestMatchers(HttpMethod.GET, "/customers/cart").hasRole(CUSTOMER)
-                        .requestMatchers(HttpMethod.PUT, "/customers/cart").hasRole(CUSTOMER)
-                        .requestMatchers(HttpMethod.DELETE, "/customers/cart").hasRole(CUSTOMER)
+                        .requestMatchers(HttpMethod.GET, CART_PATH).hasRole(CUSTOMER)
+                        .requestMatchers(HttpMethod.PUT, CART_PATH).hasRole(CUSTOMER)
+                        .requestMatchers(HttpMethod.DELETE, CART_PATH).hasRole(CUSTOMER)
                         .requestMatchers(HttpMethod.POST, "/customers/cart/merge").hasRole(CUSTOMER)
                         // Single items (EP-CUST-04 to EP-CUST-06)
                         .requestMatchers(HttpMethod.POST, "/customers/cart/items").hasRole(CUSTOMER)

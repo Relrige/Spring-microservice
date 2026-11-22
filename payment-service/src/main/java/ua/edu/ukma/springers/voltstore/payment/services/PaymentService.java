@@ -90,18 +90,18 @@ public class PaymentService {
                 () -> gateway.charge(new ChargeCommand(key, amount, currency, card)));
 
         return switch (result) {
-            case GatewayResult.Approved approved -> {
-                UUID id = saveSuccess(CHARGE, orderId, amount, currency, approved.gatewayTransactionId(), key,
+            case GatewayResult.Approved(var gatewayTransactionId) -> {
+                UUID id = saveSuccess(CHARGE, orderId, amount, currency, gatewayTransactionId, key,
                         SUCCESSFUL_CHARGE_INDEX, () -> new OrderAlreadyChargedException(orderId));
                 metrics.recordApprovedAmount(CHARGE, amount, currency);
                 yield id;
             }
-            case GatewayResult.Declined declined -> {
-                FailureReason reason = toFailureReason(declined.reason());
+            case GatewayResult.Declined(var declineReason) -> {
+                FailureReason reason = toFailureReason(declineReason);
                 repository.saveAndFlush(PaymentTransactionEntity.failed(CHARGE, orderId, amount, currency, reason, key));
                 throw new PaymentDeclinedException(reason);
             }
-            case GatewayResult.IdempotencyKeyMismatch ignored -> throw new PaymentAttemptInProgressException(orderId);
+            case GatewayResult.IdempotencyKeyMismatch _ -> throw new PaymentAttemptInProgressException(orderId);
         };
     }
 
@@ -129,18 +129,18 @@ public class PaymentService {
                 () -> gateway.refund(new RefundCommand(key, charge.getGatewayTransactionId(), amount, currency)));
 
         return switch (result) {
-            case GatewayResult.Approved approved -> {
-                UUID id = saveSuccess(REFUND, orderId, amount, currency, approved.gatewayTransactionId(), key,
+            case GatewayResult.Approved(var gatewayTransactionId) -> {
+                UUID id = saveSuccess(REFUND, orderId, amount, currency, gatewayTransactionId, key,
                         SUCCESSFUL_REFUND_INDEX, () -> new OrderAlreadyRefundedException(orderId));
                 metrics.recordApprovedAmount(REFUND, amount, currency);
                 yield id;
             }
-            case GatewayResult.Declined declined -> {
+            case GatewayResult.Declined(var declineReason) -> {
                 repository.saveAndFlush(PaymentTransactionEntity.failed(REFUND, orderId, amount, currency,
-                        toFailureReason(declined.reason()), key));
+                        toFailureReason(declineReason), key));
                 throw new RefundRejectedException(orderId);
             }
-            case GatewayResult.IdempotencyKeyMismatch ignored -> throw new PaymentAttemptInProgressException(orderId);
+            case GatewayResult.IdempotencyKeyMismatch _ -> throw new PaymentAttemptInProgressException(orderId);
         };
     }
 

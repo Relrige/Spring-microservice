@@ -41,7 +41,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -112,7 +111,7 @@ class TtnGenerationJobIntegrationTest {
         assertThat(generated.getFailureReason()).isNull();
         List<Map<String, Object>> events = outboxRows(shipment);
         assertThat(events).singleElement().satisfies(row -> {
-            assertThat(row.get("event_type")).isEqualTo("TTNGenerated");
+            assertThat(row).containsEntry("event_type", "TTNGenerated");
             assertThat(row.get("payload").toString()).contains(generated.getTtn());
         });
 
@@ -230,7 +229,7 @@ class TtnGenerationJobIntegrationTest {
         List<Object> claimed = Concurrently.run(2, job::runOnce);
 
         assertThat(claimed).noneMatch(Exception.class::isInstance);
-        assertThat(claimed.stream().mapToInt(count -> (Integer) count).sum()).isEqualTo(8);
+        assertThat(claimed.stream().mapToInt(Integer.class::cast).sum()).isEqualTo(8);
         verify(carrier, times(8)).register(any());
         assertThat(shipments).allSatisfy(shipment ->
                 assertThat(reload(shipment).getStatus()).isEqualTo(ShipmentStatus.TTN_GENERATED));

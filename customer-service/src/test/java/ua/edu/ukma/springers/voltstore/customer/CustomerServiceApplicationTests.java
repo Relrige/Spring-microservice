@@ -10,6 +10,7 @@ class CustomerServiceApplicationTests {
 
     @Test
     void contextLoads() {
+        // no-op: the test passes if the application context starts
     }
 
 }

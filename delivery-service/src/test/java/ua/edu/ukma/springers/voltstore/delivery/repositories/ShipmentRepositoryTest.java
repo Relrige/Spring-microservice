@@ -63,7 +63,9 @@ class ShipmentRepositoryTest {
         UUID orderId = UUID.randomUUID();
         repository.save(Shipments.pending(orderId));
 
-        assertThatThrownBy(() -> repository.save(Shipment.cancelledTombstone(orderId)))
+        Shipment duplicate = Shipment.cancelledTombstone(orderId);
+
+        assertThatThrownBy(() -> repository.save(duplicate))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -118,13 +120,14 @@ class ShipmentRepositoryTest {
 
     @Test
     void quantityAndParcelValues_areCheckedByTheDatabaseToo() {
-        Shipment saved = repository.save(Shipments.pending(UUID.randomUUID()));
+        UUID id = repository.save(Shipments.pending(UUID.randomUUID())).getId();
+        UUID productId = UUID.randomUUID();
 
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO shipment_items VALUES (?, ?, 0)", saved.getId(),
-                UUID.randomUUID())).isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update("UPDATE shipments SET height_cm = 0 WHERE id = ?", saved.getId()))
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO shipment_items VALUES (?, ?, 0)", id, productId))
                 .isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update("UPDATE shipments SET status = 'SHIPPED' WHERE id = ?", saved.getId()))
+        assertThatThrownBy(() -> jdbc.update("UPDATE shipments SET height_cm = 0 WHERE id = ?", id))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("UPDATE shipments SET status = 'SHIPPED' WHERE id = ?", id))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 }

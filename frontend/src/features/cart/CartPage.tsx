@@ -47,11 +47,11 @@ function Stepper({
   quantity,
   disabled,
   onChange,
-}: {
+}: Readonly<{
   quantity: number;
   disabled: boolean;
   onChange: (quantity: number) => void;
-}) {
+}>) {
   return (
     <Group
       gap={0}
@@ -90,7 +90,15 @@ function Stepper({
   );
 }
 
-function CartLine({ line, view, categoryName, busy, last, onQuantity, onRemove }: LineProps) {
+function CartLine({
+  line,
+  view,
+  categoryName,
+  busy,
+  last,
+  onQuantity,
+  onRemove,
+}: Readonly<LineProps>) {
   const product = view.kind === 'available' || view.kind === 'sold-out' ? view.product : undefined;
   const unavailable = view.kind === 'gone' || view.kind === 'sold-out';
   const removeButton = (

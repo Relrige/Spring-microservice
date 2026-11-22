@@ -10,6 +10,7 @@ class CatalogServiceApplicationTests {
 
 	@Test
 	void contextLoads() {
+		// empty: the test passes when the application context starts
 	}
 
 }

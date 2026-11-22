@@ -10,11 +10,12 @@ export interface MockClaims {
 }
 
 function base64UrlEncode(text: string): string {
-  return btoa(text).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  // btoa pads only at the end, so dropping every '=' strips the padding.
+  return btoa(text).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 }
 
 function base64UrlDecode(part: string): string {
-  const base64 = part.replace(/-/g, '+').replace(/_/g, '/');
+  const base64 = part.replaceAll('-', '+').replaceAll('_', '/');
   return atob(base64 + '='.repeat((4 - (base64.length % 4)) % 4));
 }
 

@@ -20,6 +20,12 @@ import {
   type CatalogState,
 } from './url-state';
 
+/** The count under the title; a no-break space keeps the line while loading. */
+function countText(total: number | undefined): string {
+  if (total === undefined) return ' ';
+  return `${total} ${total === 1 ? 'product' : 'products'}`;
+}
+
 /** `/`: the storefront product list (spec catalog-browsing; mockups Main and StorefrontPhone). */
 export function ProductListPage() {
   const [params, setParams] = useSearchParams();
@@ -41,9 +47,8 @@ export function ProductListPage() {
   };
 
   const categoryName = state.category ? categoryNames?.get(state.category) : undefined;
-  const title = state.search
-    ? `Results for “${state.search}”`
-    : (categoryName ?? (state.category ? 'Category' : 'All products'));
+  let title = categoryName ?? (state.category ? 'Category' : 'All products');
+  if (state.search) title = `Results for “${state.search}”`;
   const total = products.data?.totalElements;
   // The page size comes from the answer (paging envelope); there is no totalPages.
   const totalPages = products.data
@@ -79,7 +84,7 @@ export function ProductListPage() {
           <Stack gap={4}>
             <Title order={1}>{title}</Title>
             <Text size="sm" c="dimmed" aria-live="polite">
-              {total === undefined ? ' ' : `${total} product${total === 1 ? '' : 's'}`}
+              {countText(total)}
             </Text>
           </Stack>
           <Group gap="sm" align="center">

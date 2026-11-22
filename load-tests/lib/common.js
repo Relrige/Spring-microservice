@@ -26,7 +26,7 @@ export function customerEmail(n) {
 
 /** Request params: JSON body, optional bearer token, a `name` tag so the summary reports each step. */
 export function params(name, token, extraHeaders) {
-    const headers = Object.assign({ 'Content-Type': 'application/json' }, extraHeaders || {});
+    const headers = { 'Content-Type': 'application/json', ...extraHeaders };
     if (token) {
         headers.Authorization = `Bearer ${token}`;
     }
@@ -71,7 +71,7 @@ export function seededProducts() {
 }
 
 export function pick(array) {
-    return array[Math.floor(Math.random() * array.length)];
+    return array[Math.floor(Math.random() * array.length)]; // NOSONAR(S2245): picks test data and traffic mix, not security-relevant
 }
 
 /** Distinct random elements. */
@@ -79,7 +79,7 @@ export function pickDistinct(array, count) {
     const copy = array.slice();
     const result = [];
     while (result.length < count && copy.length > 0) {
-        result.push(copy.splice(Math.floor(Math.random() * copy.length), 1)[0]);
+        result.push(copy.splice(Math.floor(Math.random() * copy.length), 1)[0]); // NOSONAR(S2245): picks test data and traffic mix, not security-relevant
     }
     return result;
 }
@@ -87,7 +87,7 @@ export function pickDistinct(array, count) {
 export function uuid() {
     // RFC 4122 version 4 from Math.random: enough for idempotency keys in a load test
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-        const r = Math.floor(Math.random() * 16);
+        const r = Math.floor(Math.random() * 16); // NOSONAR(S2245): picks test data and traffic mix, not security-relevant
         return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
     });
 }

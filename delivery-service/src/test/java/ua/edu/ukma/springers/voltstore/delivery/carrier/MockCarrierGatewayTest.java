@@ -20,6 +20,7 @@ import java.util.UUID;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -56,18 +57,19 @@ class MockCarrierGatewayTest {
 
         List<String> ttns = IntStream.range(0, 100).mapToObj(i -> gateway.register(REQUEST)).toList();
 
-        assertThat(ttns).allMatch(ttn -> ttn.matches("[1-9]\\d{13}"));
-        assertThat(ttns).doesNotHaveDuplicates();
+        assertThat(ttns).allMatch(ttn -> ttn.matches("[1-9]\\d{13}")).doesNotHaveDuplicates();
     }
 
     @Test
     void failureRateZero_neverFails() {
         MockCarrierGateway gateway = gateway(0.0);
 
-        for (int i = 0; i < 1000; i++) {
-            gateway.register(REQUEST);
-            gateway.cancel("20450000000001");
-        }
+        assertThatCode(() -> {
+            for (int i = 0; i < 1000; i++) {
+                gateway.register(REQUEST);
+                gateway.cancel("20450000000001");
+            }
+        }).doesNotThrowAnyException();
     }
 
     @Test

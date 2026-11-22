@@ -54,7 +54,7 @@ export function ProductForm({
   submitLabel,
   onSubmit,
   onConflict,
-}: ProductFormProps) {
+}: Readonly<ProductFormProps>) {
   const queryClient = useQueryClient();
   const categories = useCategories();
   const [general, setGeneral] = useState<string | null>(null);

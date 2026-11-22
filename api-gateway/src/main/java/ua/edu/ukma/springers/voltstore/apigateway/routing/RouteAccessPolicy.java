@@ -62,7 +62,7 @@ public class RouteAccessPolicy {
         AuthMode mode;
         try {
             mode = AuthMode.valueOf(rawMode.toString().trim());
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException _) {
             throw new IllegalStateException("Route '" + routeId + "' has unknown authMode '" + rawMode + "'");
         }
 
@@ -72,7 +72,7 @@ public class RouteAccessPolicy {
             for (String name : rawRoles.toString().split(",")) {
                 try {
                     roles.add(UserRole.valueOf(name.trim()));
-                } catch (IllegalArgumentException e) {
+                } catch (IllegalArgumentException _) {
                     throw new IllegalStateException("Route '" + routeId + "' has unknown role '" + name.trim() + "'");
                 }
             }

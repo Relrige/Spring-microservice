@@ -150,7 +150,8 @@ class CheckoutCheckServiceTest {
         when(catalog.findProducts(List.of(PHONE)))
                 .thenThrow(new DependencyUnavailableException("Catalog", "down", null));
 
-        assertThatThrownBy(() -> service.check(items(PHONE))).isInstanceOf(DependencyUnavailableException.class);
+        List<OrderItemRequest> items = items(PHONE);
+        assertThatThrownBy(() -> service.check(items)).isInstanceOf(DependencyUnavailableException.class);
     }
 
     private List<IneligibleItem> ineligible(List<OrderItemRequest> items) {

@@ -59,7 +59,8 @@ class CategoryRepositoryTest {
     void save_nameDifferingOnlyByCase_violatesUniqueIndex() {
         categoryRepository.saveAndFlush(new Category("Laptops"));
 
-        assertThatThrownBy(() -> categoryRepository.saveAndFlush(new Category("laptops")))
+        Category duplicate = new Category("laptops");
+        assertThatThrownBy(() -> categoryRepository.saveAndFlush(duplicate))
                 .isInstanceOfSatisfying(DataIntegrityViolationException.class, e ->
                         assertThat(ConstraintViolations.isViolationOf(e, ConstraintViolations.CATEGORY_NAME_UNIQUE)).isTrue());
     }

@@ -117,8 +117,8 @@ export function createDb(): MockDb {
 }
 
 /** The live database of the mock; tests reset it with `resetDb()`. */
-export let db: MockDb = createDb();
+export const db: MockDb = createDb();
 
 export function resetDb(): void {
-  db = createDb();
+  Object.assign(db, createDb());
 }

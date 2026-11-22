@@ -75,11 +75,11 @@ class KafkaSetupIntegrationTest {
         kafkaTemplate.send(KafkaTopics.PRODUCT_EVENTS, key, event).get(10, TimeUnit.SECONDS);
 
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
-                assertThat(testListener.received).anySatisfy(record -> {
-                    assertThat(record.key()).isEqualTo(key);
-                    assertThat(record.value()).contains(event.eventId().toString());
+                assertThat(testListener.received).anySatisfy(consumerRecord -> {
+                    assertThat(consumerRecord.key()).isEqualTo(key);
+                    assertThat(consumerRecord.value()).contains(event.eventId().toString());
                     // No Java type headers: consumers must not depend on the producer's class names
-                    assertThat(record.headers().lastHeader("__TypeId__")).isNull();
+                    assertThat(consumerRecord.headers().lastHeader("__TypeId__")).isNull();
                 }));
     }
 
@@ -90,8 +90,8 @@ class KafkaSetupIntegrationTest {
         // Reads raw JSON strings, independent of the application's value deserializer
         @KafkaListener(topics = KafkaTopics.PRODUCT_EVENTS, groupId = "kafka-setup-test",
                 properties = "value.deserializer=org.apache.kafka.common.serialization.StringDeserializer")
-        void listen(ConsumerRecord<String, String> record) {
-            received.add(record);
+        void listen(ConsumerRecord<String, String> consumerRecord) {
+            received.add(consumerRecord);
         }
     }
 }

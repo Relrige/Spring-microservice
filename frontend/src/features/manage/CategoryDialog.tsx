@@ -18,7 +18,12 @@ interface CategoryDialogProps {
 }
 
 /** Mount it only while open, so each opening starts from the current name. */
-export function CategoryDialog({ category, onClose, onSaved, onGone }: CategoryDialogProps) {
+export function CategoryDialog({
+  category,
+  onClose,
+  onSaved,
+  onGone,
+}: Readonly<CategoryDialogProps>) {
   const [general, setGeneral] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const form = useForm({

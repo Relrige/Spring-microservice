@@ -15,6 +15,7 @@ import ua.edu.ukma.springers.voltstore.order.clients.HttpClients.RefundRequest;
 import ua.edu.ukma.springers.voltstore.order.ports.Payments;
 
 import java.math.BigDecimal;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -47,7 +48,7 @@ public class PaymentClientAdapter implements Payments {
             return new Paid(response == null ? null : response.transactionId());
         } catch (HttpClientErrorException e) {
             if (ClientFailures.is(e, HttpStatus.PAYMENT_REQUIRED)) {
-                return new Declined(ClientFailures.problem(e).map(p -> property(p, "reason")).orElse("declined"));
+                return new Declined(ClientFailures.problem(e).map(p -> property(p)).orElse("declined"));
             }
             if (ClientFailures.is(e, HttpStatus.CONFLICT)) {
                 String title = ClientFailures.problem(e).map(ProblemDetail::getTitle).orElse("");
@@ -79,7 +80,7 @@ public class PaymentClientAdapter implements Payments {
             return new RefundFailed(ClientFailures.describe(e));
         } catch (HttpServerErrorException e) {
             // The provider rejected the refund: a business answer that must not open the circuit for everyone
-            if (ClientFailures.problem(e).map(p -> property(p, "reason")).filter(REFUND_REJECTED_REASON::equals)
+            if (ClientFailures.problem(e).map(PaymentClientAdapter::property).filter(REFUND_REJECTED_REASON::equals)
                     .isPresent()) {
                 return new RefundFailed(REFUND_REJECTED_REASON);
             }
@@ -87,18 +88,21 @@ public class PaymentClientAdapter implements Payments {
         }
     }
 
-    private ChargeResult chargeUnavailable(UUID orderId, BigDecimal amount, String currency, PaymentCard card,
+    @SuppressWarnings("java:S1172") // Resilience4j finds the fallback by the protected method's parameters
+    private ChargeResult chargeUnavailable(UUID orderId, BigDecimal ignoredAmount, String currency, PaymentCard card,
                                            Throwable failure) {
         log.warn("Charge of order {} has no answer: {}", orderId, ClientFailures.describe(failure));
         return new ChargeUnavailable(ClientFailures.describe(failure));
     }
 
-    private RefundResult refundUnavailable(UUID orderId, BigDecimal amount, String currency, Throwable failure) {
+    @SuppressWarnings("java:S1172") // Resilience4j finds the fallback by the protected method's parameters
+    private RefundResult refundUnavailable(UUID orderId, BigDecimal ignoredAmount, String currency, Throwable failure) {
         log.warn("Refund of order {} has no answer: {}", orderId, ClientFailures.describe(failure));
         return new RefundFailed(ClientFailures.describe(failure));
     }
 
-    private static String property(ProblemDetail problem, String name) {
-        return problem.getProperties() == null ? null : Objects.toString(problem.getProperties().get(name), null);
+    private static String property(ProblemDetail problem) {
+        Map<String, Object> properties = problem.getProperties();
+        return properties == null ? null : Objects.toString(properties.get("reason"), null);
     }
 }

@@ -108,7 +108,7 @@ public class MockCarrierGateway implements CarrierGateway {
         if (!properties.latency().isZero()) {
             try {
                 Thread.sleep(properties.latency());
-            } catch (InterruptedException e) {
+            } catch (InterruptedException _) {
                 Thread.currentThread().interrupt();
                 throw new CarrierException("interrupted");
             }

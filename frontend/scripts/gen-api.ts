@@ -35,7 +35,7 @@ async function generate(service: string): Promise<string> {
     '',
     '',
   ].join('\n');
-  return (header + astToString(ast)).replace(/\r\n/g, '\n');
+  return (header + astToString(ast)).replaceAll('\r\n', '\n');
 }
 
 async function main(): Promise<void> {
@@ -47,7 +47,9 @@ async function main(): Promise<void> {
     const content = await generate(service);
     const target = outPath(service);
     if (check) {
-      const current = existsSync(target) ? readFileSync(target, 'utf8').replace(/\r\n/g, '\n') : '';
+      const current = existsSync(target)
+        ? readFileSync(target, 'utf8').replaceAll('\r\n', '\n')
+        : '';
       if (current !== content) stale.push(relative(frontendDir, target).replaceAll('\\', '/'));
     } else {
       writeFileSync(target, content);

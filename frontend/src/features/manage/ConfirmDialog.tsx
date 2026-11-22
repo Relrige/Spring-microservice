@@ -20,7 +20,7 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   onConfirm,
   onCancel,
-}: ConfirmDialogProps) {
+}: Readonly<ConfirmDialogProps>) {
   return (
     <Modal opened={opened} onClose={onCancel} title={title}>
       <Stack gap="md">

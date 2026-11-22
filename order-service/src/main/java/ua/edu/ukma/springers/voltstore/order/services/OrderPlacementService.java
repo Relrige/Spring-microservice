@@ -165,12 +165,13 @@ public class OrderPlacementService {
         }
         switch (result) {
             // Also an earlier call for this order whose answer was lost (409)
-            case StockReservations.Reserved reserved -> {
+            case StockReservations.Reserved _ -> {
+                // nothing to do: the reservation is kept for payment
             }
-            case StockReservations.Insufficient insufficient -> {
+            case StockReservations.Insufficient(var insufficientItems) -> {
                 // Inventory reserved nothing, so there is nothing to clean up
                 attempts.deleteById(orderId);
-                throw new InsufficientStockException(insufficient.insufficientItems());
+                throw new InsufficientStockException(insufficientItems);
             }
         }
     }

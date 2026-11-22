@@ -1,6 +1,5 @@
 package ua.edu.ukma.springers.voltstore.catalog.outbox;
 
-import io.micrometer.tracing.CurrentTraceContext;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -17,7 +16,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Publishes outbox events to Kafka (polling relay; change data capture, e.g. Debezium reading the PostgreSQL
@@ -77,20 +78,24 @@ public class OutboxRelay {
             try {
                 send(event);
                 event.markPublished(Instant.now());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return recordFailure(event, e);
             } catch (Exception e) {
-                if (e instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();
-                }
-                Instant now = Instant.now();
-                Duration retryAfter = retryDelay(event.getAttempts());
-                event.markFailed(now, retryAfter, e.toString());
-                log.error("Outbox event {} ({} of {} {}) failed to publish: attempt {}, unpublished for {}, next try in {}",
-                        event.getId(), event.getEventType(), event.getAggregateType(), event.getAggregateId(),
-                        event.getAttempts(), Duration.between(event.getCreatedAt(), now), retryAfter, e);
-                return false;
+                return recordFailure(event, e);
             }
         }
         return events.size() == properties.batchSize();
+    }
+
+    private boolean recordFailure(OutboxEvent event, Exception e) {
+        Instant now = Instant.now();
+        Duration retryAfter = retryDelay(event.getAttempts());
+        event.markFailed(now, retryAfter, e.toString());
+        log.error("Outbox event {} ({} of {} {}) failed to publish: attempt {}, unpublished for {}, next try in {}",
+                event.getId(), event.getEventType(), event.getAggregateType(), event.getAggregateId(),
+                event.getAttempts(), Duration.between(event.getCreatedAt(), now), retryAfter, e);
+        return false;
     }
 
     // Published events are only needed for troubleshooting; keep them for the retention period.
@@ -107,15 +112,15 @@ public class OutboxRelay {
         return deleted;
     }
 
-    private void send(OutboxEvent event) throws Exception {
+    private void send(OutboxEvent event) throws InterruptedException, ExecutionException, TimeoutException {
         // Sent as a JSON tree, so the stored payload goes out byte-for-byte as JSON (not as a quoted string)
-        ProducerRecord<String, Object> record = new ProducerRecord<>(event.getTopic(), event.getMessageKey(),
+        ProducerRecord<String, Object> producerRecord = new ProducerRecord<>(event.getTopic(), event.getMessageKey(),
                 jsonMapper.readTree(event.getPayload()));
-        record.headers().add(KafkaTopics.EVENT_TYPE_HEADER, event.getEventType().getBytes(StandardCharsets.UTF_8));
-        record.headers().add(KafkaTopics.EVENT_ID_HEADER, event.getId().toString().getBytes(StandardCharsets.UTF_8));
+        producerRecord.headers().add(KafkaTopics.EVENT_TYPE_HEADER, event.getEventType().getBytes(StandardCharsets.UTF_8));
+        producerRecord.headers().add(KafkaTopics.EVENT_ID_HEADER, event.getId().toString().getBytes(StandardCharsets.UTF_8));
         // The producer span becomes a child of the request that wrote the event and sends its traceparent header
-        try (CurrentTraceContext.Scope ignored = traceContext.restore(event.getTraceparent())) {
-            kafkaTemplate.send(record).get(properties.publishTimeout().toMillis(), TimeUnit.MILLISECONDS);
+        try (var _ = traceContext.restore(event.getTraceparent())) {
+            kafkaTemplate.send(producerRecord).get(properties.publishTimeout().toMillis(), TimeUnit.MILLISECONDS);
         }
     }
 

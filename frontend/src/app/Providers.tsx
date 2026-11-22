@@ -15,7 +15,7 @@ interface ProvidersProps {
   env?: 'default' | 'test';
 }
 
-export function Providers({ children, queryClient, env = 'default' }: ProvidersProps) {
+export function Providers({ children, queryClient, env = 'default' }: Readonly<ProvidersProps>) {
   const [client] = useState(() => queryClient ?? createQueryClient());
   return (
     <QueryClientProvider client={client}>

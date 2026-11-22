@@ -76,8 +76,8 @@ class InventoryGrpcConnectionTest {
                     "gRPC Inventory ReleaseReservation: attempt 2 (retry 1 of the call)",
                     "gRPC Inventory ReleaseReservation: attempt 3 (retry 2 of the call)",
                     "gRPC Inventory ReleaseReservation: attempt 4 (retry 3 of the call)",
-                    "gRPC Inventory ReleaseReservation: attempt 4 failed with UNAVAILABLE");
-            assertThat(output).doesNotContain("attempt 5");
+                    "gRPC Inventory ReleaseReservation: attempt 4 failed with UNAVAILABLE")
+                    .doesNotContain("attempt 5");
         }
     }
 
@@ -109,8 +109,9 @@ class InventoryGrpcConnectionTest {
             FakeInventory inventory = new FakeInventory();
             CompletableFuture<Void> started = CompletableFuture.runAsync(() -> {
                 try {
+                    // Starts Inventory only after the client has begun waiting for it
                     TimeUnit.MILLISECONDS.sleep(300);
-                } catch (InterruptedException e) {
+                } catch (InterruptedException _) {
                     Thread.currentThread().interrupt();
                 }
                 inventory.startOnPort(PORT);

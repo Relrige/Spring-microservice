@@ -178,6 +178,7 @@ public class FakeInventory extends StockServiceGrpc.StockServiceImplBase {
 
             @Override
             public void onError(Throwable t) {
+                // no-op: the fake ignores client errors
             }
 
             @Override
@@ -212,14 +213,17 @@ public class FakeInventory extends StockServiceGrpc.StockServiceImplBase {
             return new StreamObserver<>() {
                 @Override
                 public void onNext(ReleaseReservationRequest value) {
+                    // no-op: the scripted failure was already sent
                 }
 
                 @Override
                 public void onError(Throwable t) {
+                    // no-op: the fake ignores client errors
                 }
 
                 @Override
                 public void onCompleted() {
+                    // no-op: the scripted failure was already sent
                 }
             };
         }
@@ -239,6 +243,7 @@ public class FakeInventory extends StockServiceGrpc.StockServiceImplBase {
 
             @Override
             public void onError(Throwable t) {
+                // no-op: the fake ignores client errors
             }
 
             @Override
@@ -268,8 +273,9 @@ public class FakeInventory extends StockServiceGrpc.StockServiceImplBase {
             return;
         }
         try {
+            // The scripted delay simulates a slow Inventory answer, which the client timeout tests rely on
             Thread.sleep(delay);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         }
     }

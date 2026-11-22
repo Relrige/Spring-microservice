@@ -147,7 +147,8 @@ class FulfillmentServiceTest {
         OrderEntity order = stored(order(OrderStatus.PAID));
         delivery(order, deliveryStatus, null);
 
-        assertThatThrownBy(() -> service.ship(order.getId())).isInstanceOf(TtnNotGeneratedException.class);
+        UUID orderId = order.getId();
+        assertThatThrownBy(() -> service.ship(orderId)).isInstanceOf(TtnNotGeneratedException.class);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
         verifyNoInteractions(outbox);
     }
@@ -157,7 +158,8 @@ class FulfillmentServiceTest {
         OrderEntity order = stored(order(OrderStatus.PAID));
         delivery(order, null, null);
 
-        assertThatThrownBy(() -> service.ship(order.getId())).isInstanceOf(TtnNotGeneratedException.class);
+        UUID orderId = order.getId();
+        assertThatThrownBy(() -> service.ship(orderId)).isInstanceOf(TtnNotGeneratedException.class);
     }
 
     @ParameterizedTest
@@ -166,7 +168,8 @@ class FulfillmentServiceTest {
     void ship_inAnotherStatus_is409_withoutAskingDelivery(OrderStatus status) {
         OrderEntity order = stored(order(status));
 
-        assertThatThrownBy(() -> service.ship(order.getId()))
+        UUID orderId = order.getId();
+        assertThatThrownBy(() -> service.ship(orderId))
                 .isInstanceOfSatisfying(InvalidOrderStateException.class,
                         e -> assertThat(e.getStatus()).isEqualTo(status));
         verifyNoInteractions(shipments);
@@ -185,7 +188,8 @@ class FulfillmentServiceTest {
         OrderEntity order = stored(order(OrderStatus.PAID));
         when(shipments.find(any())).thenThrow(new DependencyUnavailableException("Delivery", "down", null));
 
-        assertThatThrownBy(() -> service.ship(order.getId())).isInstanceOf(DependencyUnavailableException.class);
+        UUID orderId = order.getId();
+        assertThatThrownBy(() -> service.ship(orderId)).isInstanceOf(DependencyUnavailableException.class);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
     }
 
@@ -211,7 +215,8 @@ class FulfillmentServiceTest {
 
         service.ship(order.getId());
 
-        assertThatThrownBy(() -> service.ship(order.getId())).isInstanceOf(InvalidOrderStateException.class);
+        UUID orderId = order.getId();
+        assertThatThrownBy(() -> service.ship(orderId)).isInstanceOf(InvalidOrderStateException.class);
         verify(outbox, times(1)).append(any());
     }
 
@@ -236,6 +241,7 @@ class FulfillmentServiceTest {
                 "UAH", NOW.minus(Duration.ofHours(1)), Duration.ofMinutes(15));
         switch (status) {
             case PENDING_PAYMENT -> {
+                // already the status of a new order
             }
             case PAID -> order.markPaid(NOW);
             case PENDING_SHIPPING -> {

@@ -252,19 +252,7 @@ class TrustBoundaryFilterTest extends GatewayIntegrationTest {
                 continue;
             }
             for (UserRole role : UserRole.values()) {
-                boolean allowed = access.roles().contains(role);
-                tests.add(DynamicTest.dynamicTest(sample.routeId() + " as " + role + " -> " + (allowed ? 200 : 403),
-                        () -> {
-                            resetStubs();
-                            HttpResponse<String> response = send(sample.method(), sample.path(), "{}", token(role));
-                            assertThat(response.statusCode()).isEqualTo(allowed ? 200 : 403);
-                            if (allowed) {
-                                assertThat(stub(sample.upstream()).single().header("X-User-Role"))
-                                        .containsExactly(role.name());
-                            } else {
-                                assertNoUpstreamCalled();
-                            }
-                        }));
+                tests.add(roleTest(sample, role, access.roles().contains(role)));
             }
             tests.add(DynamicTest.dynamicTest(sample.routeId() + " anonymous -> 401", () -> {
                 resetStubs();
@@ -274,6 +262,19 @@ class TrustBoundaryFilterTest extends GatewayIntegrationTest {
         }
         assertThat(tests).isNotEmpty();
         return tests;
+    }
+
+    private DynamicTest roleTest(Sample sample, UserRole role, boolean allowed) {
+        return DynamicTest.dynamicTest(sample.routeId() + " as " + role + " -> " + (allowed ? 200 : 403), () -> {
+            resetStubs();
+            HttpResponse<String> response = send(sample.method(), sample.path(), "{}", token(role));
+            assertThat(response.statusCode()).isEqualTo(allowed ? 200 : 403);
+            if (allowed) {
+                assertThat(stub(sample.upstream()).single().header("X-User-Role")).containsExactly(role.name());
+            } else {
+                assertNoUpstreamCalled();
+            }
+        });
     }
 
     private static void assertAnonymous(Received received) {

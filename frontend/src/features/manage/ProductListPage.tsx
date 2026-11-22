@@ -38,6 +38,12 @@ import {
 
 const ALL = 'all';
 
+/** The count under the title; a space keeps the line while loading. */
+function countText(total: number | undefined): string {
+  if (total === undefined) return ' ';
+  return `${total} ${total === 1 ? 'product' : 'products'}`;
+}
+
 export function ProductListPage() {
   const [params, setParams] = useSearchParams();
   const state = parseProductsState(params);
@@ -63,6 +69,17 @@ export function ProductListPage() {
     ? Math.max(1, Math.ceil(products.data.totalElements / products.data.size))
     : 1;
 
+  const noRows = filtered ? (
+    <>
+      <Title order={3}>No products match your filters</Title>
+      <Button variant="outline" onClick={clearFilters}>
+        Clear filters
+      </Button>
+    </>
+  ) : (
+    <Title order={3}>There are no products yet</Title>
+  );
+
   return (
     <PageContainer>
       <Stack gap="lg">
@@ -70,7 +87,7 @@ export function ProductListPage() {
           <Stack gap={4}>
             <Title order={1}>Products</Title>
             <Text size="sm" c="dimmed" aria-live="polite">
-              {total === undefined ? ' ' : `${total} product${total === 1 ? '' : 's'}`}
+              {countText(total)}
             </Text>
           </Stack>
           <Button
@@ -156,15 +173,8 @@ export function ProductListPage() {
                   Go to the first page
                 </Button>
               </>
-            ) : filtered ? (
-              <>
-                <Title order={3}>No products match your filters</Title>
-                <Button variant="outline" onClick={clearFilters}>
-                  Clear filters
-                </Button>
-              </>
             ) : (
-              <Title order={3}>There are no products yet</Title>
+              noRows
             )}
           </Stack>
         )}

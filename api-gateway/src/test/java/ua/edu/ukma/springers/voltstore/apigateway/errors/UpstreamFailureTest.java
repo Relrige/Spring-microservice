@@ -74,7 +74,8 @@ class UpstreamFailureTest {
                 "The upstream service did not respond in time.");
     }
 
-    private HttpResponse<String> send(String method, String path, String token) throws Exception {
+    private HttpResponse<String> send(String method, String path, String token)
+            throws IOException, InterruptedException {
         HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
                 .method(method, HttpRequest.BodyPublishers.ofString("{}"))
                 .header("Content-Type", "application/json");

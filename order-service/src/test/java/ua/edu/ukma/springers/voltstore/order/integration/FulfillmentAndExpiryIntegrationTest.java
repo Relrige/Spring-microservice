@@ -42,11 +42,8 @@ import java.util.UUID;
 import java.util.stream.IntStream;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
-import static com.github.tomakehurst.wiremock.client.WireMock.noContent;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
-import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.serviceUnavailable;
-import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -176,12 +173,12 @@ class FulfillmentAndExpiryIntegrationTest {
                     .andExpect(jsonPath("$.ttn").value(TTN));
 
             assertThat(statusOf(orderId)).isEqualTo("SHIPPED");
-            ConsumerRecord<String, String> record = await().atMost(Duration.ofSeconds(20))
+            ConsumerRecord<String, String> consumerRecord = await().atMost(Duration.ofSeconds(20))
                     .until(probe::poll, received -> !received.isEmpty()).getFirst();
-            assertThat(record.key()).isEqualTo(orderId.toString());
-            assertThat(new String(record.headers().lastHeader("eventType").value(), StandardCharsets.UTF_8))
+            assertThat(consumerRecord.key()).isEqualTo(orderId.toString());
+            assertThat(new String(consumerRecord.headers().lastHeader("eventType").value(), StandardCharsets.UTF_8))
                     .isEqualTo("OrderShipped");
-            JsonNode event = JSON.readTree(record.value());
+            JsonNode event = JSON.readTree(consumerRecord.value());
             assertThat(event.get("ttn").asString()).isEqualTo(TTN);
             assertThat(event.get("customerEmail").asString()).isEqualTo("customer@example.com");
         }
@@ -219,10 +216,10 @@ class FulfillmentAndExpiryIntegrationTest {
             // Released on the job's bidirectional stream, only the expired order
             assertThat(inventory.batchReleased()).containsExactly(expired);
 
-            ConsumerRecord<String, String> record = await().atMost(Duration.ofSeconds(20))
+            ConsumerRecord<String, String> consumerRecord = await().atMost(Duration.ofSeconds(20))
                     .until(probe::poll, received -> !received.isEmpty()).getFirst();
-            assertThat(record.key()).isEqualTo(expired.toString());
-            assertThat(JSON.readTree(record.value()).get("reason").asString()).isEqualTo("EXPIRED");
+            assertThat(consumerRecord.key()).isEqualTo(expired.toString());
+            assertThat(JSON.readTree(consumerRecord.value()).get("reason").asString()).isEqualTo("EXPIRED");
         }
     }
 

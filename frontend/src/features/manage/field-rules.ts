@@ -20,12 +20,10 @@ export interface ProductFormValues {
   imageUrl: string;
 }
 
-const text = (label: string, max: number) => (value: string) =>
-  !value.trim()
-    ? `Enter ${label}`
-    : value.trim().length > max
-      ? `Use at most ${max} characters`
-      : null;
+const text = (label: string, max: number) => (value: string) => {
+  if (!value.trim()) return `Enter ${label}`;
+  return value.trim().length > max ? `Use at most ${max} characters` : null;
+};
 
 export const titleError = text('a title', TITLE_MAX);
 export const descriptionError = text('a description', DESCRIPTION_MAX);

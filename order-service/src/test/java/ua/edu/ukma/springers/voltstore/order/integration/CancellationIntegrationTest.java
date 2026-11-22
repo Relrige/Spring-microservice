@@ -144,11 +144,11 @@ class CancellationIntegrationTest {
 
             List<ConsumerRecord<String, String>> records = await().atMost(Duration.ofSeconds(20))
                     .until(probe::poll, received -> !received.isEmpty());
-            ConsumerRecord<String, String> record = records.getFirst();
-            assertThat(record.key()).isEqualTo(orderId.toString());
-            assertThat(new String(record.headers().lastHeader("eventType").value(), StandardCharsets.UTF_8))
+            ConsumerRecord<String, String> consumerRecord = records.getFirst();
+            assertThat(consumerRecord.key()).isEqualTo(orderId.toString());
+            assertThat(new String(consumerRecord.headers().lastHeader("eventType").value(), StandardCharsets.UTF_8))
                     .isEqualTo("OrderCancelled");
-            assertThat(JSON.readTree(record.value()).get("reason").asString()).isEqualTo("CUSTOMER_CANCELLED");
+            assertThat(JSON.readTree(consumerRecord.value()).get("reason").asString()).isEqualTo("CUSTOMER_CANCELLED");
         }
     }
 
@@ -178,16 +178,16 @@ class CancellationIntegrationTest {
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status").value("CANCELLATION_REQUESTED"));
         Map<String, Object> afterRequest = row(orderId);
-        assertThat(afterRequest.get("cancellation_attempts")).isEqualTo(1);
-        assertThat(afterRequest.get("cancellation_failure")).isEqualTo("refund: refund_rejected");
+        assertThat(afterRequest).containsEntry("cancellation_attempts", 1)
+                .containsEntry("cancellation_failure", "refund: refund_rejected");
 
         // Not due yet: the job leaves it alone
         job.retryDueCancellations();
-        assertThat(row(orderId).get("cancellation_attempts")).isEqualTo(1);
+        assertThat(row(orderId)).containsEntry("cancellation_attempts", 1);
 
         backoffElapsed();
         job.retryDueCancellations();
-        assertThat(row(orderId).get("cancellation_attempts")).isEqualTo(2);
+        assertThat(row(orderId)).containsEntry("cancellation_attempts", 2);
         assertThat(statusOf(orderId)).isEqualTo("CANCELLATION_REQUESTED");
 
         backoffElapsed();
@@ -212,9 +212,9 @@ class CancellationIntegrationTest {
         }
 
         Map<String, Object> row = row(orderId);
-        assertThat(row.get("cancellation_attempts")).isEqualTo(6);
-        assertThat(row.get("needs_manual_attention")).isEqualTo(true);
-        assertThat(row.get("status")).isEqualTo("CANCELLATION_REQUESTED");
+        assertThat(row).containsEntry("cancellation_attempts", 6)
+                .containsEntry("needs_manual_attention", true)
+                .containsEntry("status", "CANCELLATION_REQUESTED");
         assertThat(output.getAll().split("needs manual attention", -1)).as("one alert").hasSize(2);
     }
 

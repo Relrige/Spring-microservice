@@ -44,15 +44,15 @@ export function setup() {
     return { products, categoryIds: [...new Set(products.map((p) => p.categoryId))] };
 }
 
-export default function (data) {
-    const roll = Math.random();
+export default function iteration(data) {
+    const roll = Math.random(); // NOSONAR(S2245): picks test data and traffic mix, not security-relevant
     let query;
     if (roll < 0.5) {
         query = `categoryId=${pick(data.categoryIds)}&size=20`;
     } else if (roll < 0.8) {
-        query = `page=${Math.floor(Math.random() * 3)}&size=20&sortBy=basePrice,asc`;
+        query = `page=${Math.floor(Math.random() * 3)}&size=20&sortBy=basePrice,asc`; // NOSONAR(S2245): picks test data and traffic mix, not security-relevant
     } else {
-        query = `search=${MARKER}%20product%20${Math.floor(Math.random() * 5)}&size=20`;
+        query = `search=${MARKER}%20product%20${Math.floor(Math.random() * 5)}&size=20`; // NOSONAR(S2245): picks test data and traffic mix, not security-relevant
     }
     const list = http.get(`${BASE_URL}/catalog/products?${query}`, params(LIST));
     expectStatus(list, LIST, 200);

@@ -15,7 +15,6 @@ import java.text.ParseException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Date;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -61,11 +60,11 @@ public class HmacJwtVerifier implements JwtVerifier {
         }
 
         JWTClaimsSet claims = jwt.getJWTClaimsSet();
-        Date expiration = claims.getExpirationTime();
+        Instant expiration = expirationOf(claims);
         if (expiration == null) {
             return reject("missing exp");
         }
-        if (!expiration.toInstant().plus(leeway).isAfter(Instant.now(clock))) {
+        if (!expiration.plus(leeway).isAfter(Instant.now(clock))) {
             return reject("expired");
         }
 
@@ -90,7 +89,7 @@ public class HmacJwtVerifier implements JwtVerifier {
             UUID parsed = UUID.fromString(value);
             // UUID.fromString accepts shortened forms such as "1-1-1-1-1"; require the canonical form
             return parsed.toString().equalsIgnoreCase(value) ? parsed : null;
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException _) {
             return null;
         }
     }
@@ -103,8 +102,15 @@ public class HmacJwtVerifier implements JwtVerifier {
     private static UserRole parseRole(String value) {
         try {
             return value == null ? null : UserRole.valueOf(value);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException _) {
             return null;
         }
     }
+    // Nimbus JOSE returns JWT time claims only as java.util.Date; everything else uses java.time
+    @SuppressWarnings("java:S2143")
+    private static Instant expirationOf(JWTClaimsSet claims) {
+        java.util.Date expiration = claims.getExpirationTime();
+        return expiration == null ? null : expiration.toInstant();
+    }
+
 }

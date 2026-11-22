@@ -92,7 +92,7 @@ public class NotificationSenderJob {
                 SendOutcome outcome = attempt(notification);
                 Outcome applied = transactionTemplate.execute(status -> apply(notification, outcome));
                 if (applied != null) {
-                    metrics.record(notification.getType(), applied);
+                    metrics.recordAttempt(notification.getType(), applied);
                 }
             } catch (RuntimeException e) {
                 // E.g. the database is down while applying the result: the lease expires and the attempt is redone
@@ -135,7 +135,7 @@ public class NotificationSenderJob {
         Instant now = clock.instant();
         int attempt = notification.getAttempts() + 1;
         return switch (outcome) {
-            case SendOutcome.Sent ignored -> {
+            case SendOutcome.Sent _ -> {
                 notification.markSent(now);
                 log.info("Sent {} notification {} of order {} (attempt {})", notification.getType(),
                         notification.getId(), notification.getOrderId(), attempt);

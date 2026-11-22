@@ -30,7 +30,7 @@ const HEADER = {
  * A staff table (design-system README, staff screens; mockup WarehouseStock): full width,
  * `small` text, `label` headers on `surface-sunken`, `line` hairlines between rows.
  */
-export function StaffTable({ label, columns, minWidth, children }: StaffTableProps) {
+export function StaffTable({ label, columns, minWidth, children }: Readonly<StaffTableProps>) {
   return (
     <Table.ScrollContainer
       minWidth={minWidth}

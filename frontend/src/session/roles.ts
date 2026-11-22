@@ -44,14 +44,17 @@ export function isProtectedPath(url: string): boolean {
   return requiredRole(url) !== undefined;
 }
 
+// Never fetched: `.invalid` cannot resolve; it only lets URL parse a relative path.
+const PARSE_BASE = 'https://app.invalid';
+
 /** Accepts only same-app relative paths, so `returnTo` cannot redirect elsewhere. */
 export function safeReturnTo(value: string | null | undefined): string | null {
   if (!value || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) {
     return null;
   }
   try {
-    const url = new URL(value, 'http://app.invalid');
-    if (url.origin !== 'http://app.invalid') return null;
+    const url = new URL(value, PARSE_BASE);
+    if (url.origin !== PARSE_BASE) return null;
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
     return null;
@@ -79,5 +82,6 @@ export function loginUrl(returnTo: string, expired = false): string {
   if (expired) params.set('expired', '1');
   if (returnTo && returnTo !== '/') params.set('returnTo', returnTo);
   const query = params.toString();
-  return `/login${query ? `?${query}` : ''}`;
+  const queryString = query ? `?${query}` : '';
+  return `/login${queryString}`;
 }

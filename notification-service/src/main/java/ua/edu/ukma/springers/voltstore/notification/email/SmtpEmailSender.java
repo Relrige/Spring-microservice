@@ -62,7 +62,7 @@ public class SmtpEmailSender implements EmailSender {
             helper.setTo(new InternetAddress(message.to(), true));
             helper.setSubject(message.subject());
             helper.setText(message.body(), false);
-        } catch (MessagingException e) {
+        } catch (MessagingException _) {
             throw new EmailSendException("recipient_invalid", false, null);
         }
         try {
@@ -118,7 +118,8 @@ public class SmtpEmailSender implements EmailSender {
     }
 
     private static void collect(Throwable throwable, List<Throwable> causes) {
-        for (Throwable t = throwable; t != null && !causes.contains(t); ) {
+        Throwable t = throwable;
+        while (t != null && !causes.contains(t)) {
             causes.add(t);
             Throwable next = t instanceof MessagingException messaging ? messaging.getNextException() : null;
             if (next != null && next != t.getCause()) {

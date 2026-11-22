@@ -30,7 +30,7 @@ public class OrderEventsListener {
     // The raw record (not a converted parameter): the JSON is read by the type the eventType header names. The id
     // names the container (tests look it up); idIsGroup = false keeps the group notification-service
     @KafkaListener(id = "order-events", idIsGroup = false, topics = "${notification.kafka.topics.order-events}")
-    public void onOrderEvent(ConsumerRecord<String, String> record) {
-        dispatcher.dispatch(record);
+    public void onOrderEvent(ConsumerRecord<String, String> consumerRecord) {
+        dispatcher.dispatch(consumerRecord);
     }
 }

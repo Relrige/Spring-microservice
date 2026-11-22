@@ -118,7 +118,7 @@ class ReleaseReservationIntegrationTest {
     }
 
     @Test
-    void release_leavesConsumedRowsUntouched() throws Exception {
+    void release_leavesConsumedRowsUntouched() {
         UUID orderId = UUID.randomUUID();
         UUID productA = stocked(10);
         UUID productB = stocked(10);
@@ -139,7 +139,7 @@ class ReleaseReservationIntegrationTest {
     }
 
     @Test
-    void release_thenSameOrderCanBeReservedAgain() throws Exception {
+    void release_thenSameOrderCanBeReservedAgain() {
         UUID orderId = UUID.randomUUID();
         UUID productA = stocked(5);
         reservationService.reserve(orderId, Map.of(productA, 5));

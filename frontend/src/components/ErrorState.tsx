@@ -10,7 +10,7 @@ interface ErrorStateProps {
 }
 
 /** A failed load shown in place of the content (spec api-access). */
-export function ErrorState({ error, onRetry, title }: ErrorStateProps) {
+export function ErrorState({ error, onRetry, title }: Readonly<ErrorStateProps>) {
   return (
     <Alert
       role="alert"

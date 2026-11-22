@@ -46,6 +46,7 @@ public class InventoryGrpcAdapter implements StockReservations, StockLevels {
     static final String NAME = "inventory";
     // The channel's deadline ends every call; this only bounds the wait for an answer that never comes otherwise
     private static final long ANSWER_WAIT_SECONDS = 30;
+    private static final String DISPLAY_NAME = "Inventory";
 
     private final StockServiceGrpc.StockServiceBlockingStub blocking;
     private final StockServiceGrpc.StockServiceStub async;
@@ -165,19 +166,23 @@ public class InventoryGrpcAdapter implements StockReservations, StockLevels {
         }
     }
 
-    private ReservationResult reserveUnavailable(UUID orderId, List<ReservationItem> items, Throwable failure) {
-        throw ClientFailures.unavailable("Inventory", failure);
+    @SuppressWarnings("java:S1172") // Resilience4j finds the fallback by the protected method's parameters
+    private ReservationResult reserveUnavailable(UUID ignoredOrderId, List<ReservationItem> items, Throwable failure) {
+        throw ClientFailures.unavailable(DISPLAY_NAME, failure);
     }
 
-    private void releaseUnavailable(UUID orderId, Throwable failure) {
-        throw ClientFailures.unavailable("Inventory", failure);
+    @SuppressWarnings("java:S1172") // Resilience4j finds the fallback by the protected method's parameters
+    private void releaseUnavailable(UUID ignoredOrderId, Throwable failure) {
+        throw ClientFailures.unavailable(DISPLAY_NAME, failure);
     }
 
-    private Map<UUID, String> releaseAllUnavailable(Collection<UUID> orderIds, Throwable failure) {
-        throw ClientFailures.unavailable("Inventory", failure);
+    @SuppressWarnings("java:S1172") // Resilience4j finds the fallback by the protected method's parameters
+    private Map<UUID, String> releaseAllUnavailable(Collection<UUID> ignoredOrderIds, Throwable failure) {
+        throw ClientFailures.unavailable(DISPLAY_NAME, failure);
     }
 
-    private Map<UUID, Integer> availableQuantitiesUnavailable(Collection<UUID> productIds, Throwable failure) {
-        throw ClientFailures.unavailable("Inventory", failure);
+    @SuppressWarnings("java:S1172") // Resilience4j finds the fallback by the protected method's parameters
+    private Map<UUID, Integer> availableQuantitiesUnavailable(Collection<UUID> ignoredProductIds, Throwable failure) {
+        throw ClientFailures.unavailable(DISPLAY_NAME, failure);
     }
 }

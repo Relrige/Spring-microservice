@@ -15,6 +15,10 @@ import java.util.Locale;
  */
 public final class StockItemSpecifications {
     private static final EscapeCharacter ESCAPE = EscapeCharacter.DEFAULT;
+    private static final String GROSS_WEIGHT_GRAMS = "grossWeightGrams";
+    private static final String LENGTH_CM = "lengthCm";
+    private static final String WIDTH_CM = "widthCm";
+    private static final String HEIGHT_CM = "heightCm";
 
     private StockItemSpecifications() {
     }
@@ -40,18 +44,18 @@ public final class StockItemSpecifications {
     private static Specification<StockItemEntity> allDimensionsPositive() {
         // A NULL dimension makes "> 0" unknown, which a WHERE clause treats as false, as required
         return (root, query, cb) -> cb.and(
-                cb.greaterThan(root.<Integer>get("grossWeightGrams"), 0),
-                cb.greaterThan(root.<Integer>get("lengthCm"), 0),
-                cb.greaterThan(root.<Integer>get("widthCm"), 0),
-                cb.greaterThan(root.<Integer>get("heightCm"), 0));
+                cb.greaterThan(root.<Integer>get(GROSS_WEIGHT_GRAMS), 0),
+                cb.greaterThan(root.<Integer>get(LENGTH_CM), 0),
+                cb.greaterThan(root.<Integer>get(WIDTH_CM), 0),
+                cb.greaterThan(root.<Integer>get(HEIGHT_CM), 0));
     }
 
     private static Specification<StockItemEntity> someDimensionMissing() {
         // Spelled out instead of NOT(allDimensionsPositive): NOT(unknown) is unknown, so NULL rows would be lost
         return (root, query, cb) -> cb.or(
-                cb.isNull(root.get("grossWeightGrams")), cb.lessThanOrEqualTo(root.<Integer>get("grossWeightGrams"), 0),
-                cb.isNull(root.get("lengthCm")), cb.lessThanOrEqualTo(root.<Integer>get("lengthCm"), 0),
-                cb.isNull(root.get("widthCm")), cb.lessThanOrEqualTo(root.<Integer>get("widthCm"), 0),
-                cb.isNull(root.get("heightCm")), cb.lessThanOrEqualTo(root.<Integer>get("heightCm"), 0));
+                cb.isNull(root.get(GROSS_WEIGHT_GRAMS)), cb.lessThanOrEqualTo(root.<Integer>get(GROSS_WEIGHT_GRAMS), 0),
+                cb.isNull(root.get(LENGTH_CM)), cb.lessThanOrEqualTo(root.<Integer>get(LENGTH_CM), 0),
+                cb.isNull(root.get(WIDTH_CM)), cb.lessThanOrEqualTo(root.<Integer>get(WIDTH_CM), 0),
+                cb.isNull(root.get(HEIGHT_CM)), cb.lessThanOrEqualTo(root.<Integer>get(HEIGHT_CM), 0));
     }
 }

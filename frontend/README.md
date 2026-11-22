@@ -101,8 +101,8 @@ The seed keeps targeting the gateway directly (`SEED_API_URL` default `http://lo
 **Kubernetes (minikube).** [`../k8s/frontend/`](../k8s/frontend/) holds the Deployment and the Service `frontend:8080`. The Ingress sends `/` to the frontend, so with `minikube tunnel` running the app is at <http://localhost/> and the API at `http://localhost/api/…` (no longer at the Ingress root; BL-14 tracks the gateway docs). Build and load the image, apply the manifests and run the journeys through the Ingress (commands in [`../k8s.txt`](../k8s.txt)):
 
 ```bash
-docker build -t voltstore/frontend:latest .
-minikube image load voltstore/frontend:latest
+docker build -t voltstore/frontend:1.0.0 .
+minikube image load voltstore/frontend:1.0.0
 kubectl apply -f ../k8s/frontend/
 SEED_API_URL=http://localhost/api SEED_ADMIN_PASSWORD=<admin password> npm run seed
 E2E_BASE_URL=http://localhost E2E_ADMIN_PASSWORD=<admin password> npm run test:e2e:live

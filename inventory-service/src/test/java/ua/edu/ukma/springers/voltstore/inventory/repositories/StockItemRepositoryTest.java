@@ -244,7 +244,8 @@ class StockItemRepositoryTest {
 
     @Test
     void productStatusColumn_rejectsUnknownValues() {
-        assertThatThrownBy(() -> repository.upsertProductData(UUID.randomUUID(), "Laptop", "ARCHIVED", 0))
+        UUID productId = UUID.randomUUID();
+        assertThatThrownBy(() -> repository.upsertProductData(productId, "Laptop", "ARCHIVED", 0))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 

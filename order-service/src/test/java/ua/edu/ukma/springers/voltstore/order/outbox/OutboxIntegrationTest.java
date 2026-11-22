@@ -107,15 +107,15 @@ class OutboxIntegrationTest {
             tx.executeWithoutResult(status -> outbox.append(event));
             relay.publishDueEvents();
 
-            ConsumerRecord<String, String> record = awaitRecords(probe, 1).getFirst();
-            assertThat(record.key()).isEqualTo(order.getId().toString());
-            assertThat(header(record, "eventType")).isEqualTo("OrderPlaced");
-            assertThat(header(record, "eventId")).isEqualTo(event.eventId().toString());
-            JsonNode payload = JSON.readTree(record.value());
+            ConsumerRecord<String, String> consumerRecord = awaitRecords(probe, 1).getFirst();
+            assertThat(consumerRecord.key()).isEqualTo(order.getId().toString());
+            assertThat(header(consumerRecord, "eventType")).isEqualTo("OrderPlaced");
+            assertThat(header(consumerRecord, "eventId")).isEqualTo(event.eventId().toString());
+            JsonNode payload = JSON.readTree(consumerRecord.value());
             assertThat(payload.get("eventId").asString()).isEqualTo(event.eventId().toString());
             assertThat(payload.get("customerEmail").asString()).isEqualTo("customer@example.com");
             assertThat(payload.has("eventType")).isFalse();
-            assertThat(record.headers().lastHeader("__TypeId__")).as("no Java type headers").isNull();
+            assertThat(consumerRecord.headers().lastHeader("__TypeId__")).as("no Java type headers").isNull();
             assertThat(unpublished()).isZero();
         }
     }
@@ -125,7 +125,7 @@ class OutboxIntegrationTest {
     void anEventWrittenInATrace_isPublishedInThatTrace_underANewProducerSpan() {
         try (TopicProbe probe = probe()) {
             Span request = tracer.nextSpan().name("request").start();
-            try (Tracer.SpanInScope ignored = tracer.withSpan(request)) {
+            try (var _ = tracer.withSpan(request)) {
                 tx.executeWithoutResult(status -> outbox.append(OrderPlacedEvent.of(order(), Instant.now())));
             } finally {
                 request.end();
@@ -161,7 +161,8 @@ class OutboxIntegrationTest {
 
     @Test
     void appendingOutsideATransaction_isRefused() {
-        assertThatThrownBy(() -> outbox.append(OrderPlacedEvent.of(order(), Instant.now())))
+        OrderPlacedEvent event = OrderPlacedEvent.of(order(), Instant.now());
+        assertThatThrownBy(() -> outbox.append(event))
                 .isInstanceOf(IllegalTransactionStateException.class);
     }
 
@@ -178,7 +179,7 @@ class OutboxIntegrationTest {
 
             relay.publishDueEvents();
 
-            assertThat(awaitRecords(probe, 3)).extracting(record -> header(record, "eventType"))
+            assertThat(awaitRecords(probe, 3)).extracting(consumerRecord -> header(consumerRecord, "eventType"))
                     .containsExactly("OrderPlaced", "OrderPaid", "OrderShipped");
         }
     }
@@ -212,7 +213,7 @@ class OutboxIntegrationTest {
             jdbc.update("UPDATE outbox_events SET next_attempt_at = ? WHERE published_at IS NULL",
                     Timestamp.from(Instant.now().minusSeconds(1)));
             relay.publishDueEvents();
-            assertThat(awaitRecords(probe, 3).subList(1, 3)).extracting(record -> header(record, "eventType"))
+            assertThat(awaitRecords(probe, 3).subList(1, 3)).extracting(consumerRecord -> header(consumerRecord, "eventType"))
                     .containsExactly("OrderPlaced", "OrderCancelled");
             assertThat(unpublished()).isZero();
         }
@@ -246,8 +247,8 @@ class OutboxIntegrationTest {
         return jdbc.queryForObject("SELECT count(*) FROM outbox_events WHERE published_at IS NULL", Integer.class);
     }
 
-    private static String header(ConsumerRecord<String, String> record, String name) {
-        return new String(record.headers().lastHeader(name).value(), StandardCharsets.UTF_8);
+    private static String header(ConsumerRecord<String, String> consumerRecord, String name) {
+        return new String(consumerRecord.headers().lastHeader(name).value(), StandardCharsets.UTF_8);
     }
 
     private static OrderEntity order() {

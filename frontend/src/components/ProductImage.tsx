@@ -35,7 +35,7 @@ const KNOWN: { kind: string; match: RegExp; slot: number; icon: Icon }[] = [
 
 function stableHash(text: string): number {
   let hash = 0;
-  for (const char of text.toLowerCase()) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  for (const char of text.toLowerCase()) hash = (hash * 31 + char.codePointAt(0)!) >>> 0;
   return hash;
 }
 
@@ -72,7 +72,7 @@ export function ProductImage({
   ratio = '4 / 3',
   radius = 10,
   size,
-}: ProductImageProps) {
+}: Readonly<ProductImageProps>) {
   // The URL that failed to load; a new URL is tried again.
   const [failed, setFailed] = useState<string | null>(null);
   const { kind, slot, icon: CategoryIcon } = placeholderFor(categoryName);

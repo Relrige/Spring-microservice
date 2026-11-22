@@ -102,7 +102,7 @@ class OutboxIntegrationTest {
             relay.publishDueEvents();
             Map<String, Object> row = jdbc.queryForMap("SELECT * FROM outbox_events");
             assertThat(row.get("published_at")).isNull();
-            assertThat(row.get("attempts")).isEqualTo(1);
+            assertThat(row).containsEntry("attempts", 1);
             assertThat((String) row.get("last_error")).contains("broker down");
 
             // Broker back; skip the back-off wait instead of sleeping
@@ -113,7 +113,7 @@ class OutboxIntegrationTest {
 
             assertThat(jdbc.queryForObject("SELECT published_at IS NOT NULL FROM outbox_events", Boolean.class)).isTrue();
             await().atMost(Duration.ofSeconds(30)).until(() ->
-                    probe.poll().stream().anyMatch(record -> productId.equals(record.key())));
+                    probe.poll().stream().anyMatch(consumerRecord -> productId.equals(consumerRecord.key())));
         }
     }
 
@@ -122,8 +122,8 @@ class OutboxIntegrationTest {
         try (TopicProbe probe = new TopicProbe(kafka.getBootstrapServers(), KafkaTopics.PRODUCT_EVENTS)) {
             String poison = createProduct();
             doAnswer(invocation -> {
-                ProducerRecord<?, ?> record = invocation.getArgument(0);
-                return poison.equals(record.key())
+                ProducerRecord<?, ?> producerRecord = invocation.getArgument(0);
+                return poison.equals(producerRecord.key())
                         ? CompletableFuture.failedFuture(new KafkaException("rejected"))
                         : invocation.callRealMethod();
             }).when(kafkaTemplate).send(any(ProducerRecord.class));
@@ -135,7 +135,7 @@ class OutboxIntegrationTest {
             // event goes out
             await().atMost(Duration.ofSeconds(30)).until(() -> {
                 relay.publishDueEvents();
-                return probe.poll().stream().anyMatch(record -> newer.equals(record.key()));
+                return probe.poll().stream().anyMatch(consumerRecord -> newer.equals(consumerRecord.key()));
             });
             Map<String, Object> failed = jdbc.queryForMap(
                     "SELECT published_at, attempts FROM outbox_events WHERE aggregate_id = ?::uuid", poison);
@@ -169,8 +169,11 @@ class OutboxIntegrationTest {
 
     @Test
     void append_outsideATransaction_isRejected() {
-        assertThatThrownBy(() -> outbox.append("Product", UUID.randomUUID(), "ProductCreated",
-                KafkaTopics.PRODUCT_EVENTS, UUID.randomUUID(), Map.of()))
+        UUID aggregateId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        Map<String, Object> payload = Map.of();
+        assertThatThrownBy(() -> outbox.append("Product", aggregateId, "ProductCreated",
+                KafkaTopics.PRODUCT_EVENTS, eventId, payload))
                 .isInstanceOf(IllegalTransactionStateException.class);
     }
 
@@ -238,7 +241,7 @@ class OutboxIntegrationTest {
     private static void awaitQuietly(CountDownLatch latch) {
         try {
             latch.await(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         }
     }

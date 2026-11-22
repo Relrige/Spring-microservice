@@ -42,14 +42,14 @@ public class OrderEventsListener {
 
     // The raw record (not a converted parameter): the type to read is chosen by the eventType header
     @KafkaListener(topics = "${customer.kafka.topics.order-events}")
-    public void onOrderEvent(ConsumerRecord<String, String> record) {
-        Header header = record.headers().lastHeader(KafkaTopics.EVENT_TYPE_HEADER);
+    public void onOrderEvent(ConsumerRecord<String, String> consumerRecord) {
+        Header header = consumerRecord.headers().lastHeader(KafkaTopics.EVENT_TYPE_HEADER);
         String eventType = header == null ? null : new String(header.value(), StandardCharsets.UTF_8);
         if (!OrderPaidEvent.TYPE.equals(eventType)) {
-            log.debug("Skipping order event key={} of type {}", record.key(), eventType);
+            log.debug("Skipping order event key={} of type {}", consumerRecord.key(), eventType);
             return;
         }
-        OrderPaidEvent event = read(record.value());
+        OrderPaidEvent event = read(consumerRecord.value());
         if (event.customerId() == null) {
             // A guest order: the guest cart lives only in the browser, there is nothing to clear here
             log.debug("Skipping OrderPaid of guest order {}", event.orderId());

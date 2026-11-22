@@ -88,8 +88,8 @@ class ProductEventsIntegrationTest {
             await().during(Duration.ofSeconds(2)).atMost(Duration.ofSeconds(5))
                     .until(() -> recordsFor(probe.poll(), productId).size() == 1);
 
-            ConsumerRecord<String, String> record = recordsFor(probe.poll(), productId).getFirst();
-            JsonNode event = JSON.readTree(record.value());
+            ConsumerRecord<String, String> consumerRecord = recordsFor(probe.poll(), productId).getFirst();
+            JsonNode event = JSON.readTree(consumerRecord.value());
             String eventId = event.get("eventId").asString();
             assertThat(event.get("productId").asString()).isEqualTo(productId);
             assertThat(event.get("title").asString()).isEqualTo("Laptop");
@@ -101,11 +101,11 @@ class ProductEventsIntegrationTest {
             assertThat(event.has("stockStatus")).isFalse();
             // ISO-8601 UTC instant, not a number
             assertThat(Instant.parse(event.get("timestamp").asString())).isBeforeOrEqualTo(Instant.now());
-            assertThat(header(record, KafkaTopics.EVENT_TYPE_HEADER)).isEqualTo("ProductCreated");
-            assertThat(header(record, KafkaTopics.EVENT_ID_HEADER)).isEqualTo(eventId);
-            assertThat(record.headers().lastHeader("__TypeId__")).isNull();
-            assertThat(record.partition()).isBetween(0, 2);
-            assertThat(record.offset()).isNotNegative();
+            assertThat(header(consumerRecord, KafkaTopics.EVENT_TYPE_HEADER)).isEqualTo("ProductCreated");
+            assertThat(header(consumerRecord, KafkaTopics.EVENT_ID_HEADER)).isEqualTo(eventId);
+            assertThat(consumerRecord.headers().lastHeader("__TypeId__")).isNull();
+            assertThat(consumerRecord.partition()).isBetween(0, 2);
+            assertThat(consumerRecord.offset()).isNotNegative();
 
             // The outbox row is the event's record and is marked published
             await().atMost(Duration.ofSeconds(10)).until(() -> jdbc.queryForObject(
@@ -135,9 +135,9 @@ class ProductEventsIntegrationTest {
             JsonNode activated = updatedEventWithStatus(records, "ACTIVE");
             assertThat(activated.get("title").asString()).isEqualTo("Renamed");
             assertThat(activated.get("version").asLong()).isGreaterThan(1);
-            for (ConsumerRecord<String, String> record : records) {
-                assertThat(header(record, KafkaTopics.EVENT_ID_HEADER))
-                        .isEqualTo(JSON.readTree(record.value()).get("eventId").asString());
+            for (ConsumerRecord<String, String> consumerRecord : records) {
+                assertThat(header(consumerRecord, KafkaTopics.EVENT_ID_HEADER))
+                        .isEqualTo(JSON.readTree(consumerRecord.value()).get("eventId").asString());
             }
         }
     }
@@ -217,24 +217,24 @@ class ProductEventsIntegrationTest {
     // Records may arrive in any order (the relay does not guarantee it), so events are found by content
     private static JsonNode updatedEventWithStatus(List<ConsumerRecord<String, String>> records, String status) {
         return records.stream()
-                .filter(record -> "ProductUpdated".equals(header(record, KafkaTopics.EVENT_TYPE_HEADER)))
-                .map(record -> JSON.readTree(record.value()))
+                .filter(consumerRecord -> "ProductUpdated".equals(header(consumerRecord, KafkaTopics.EVENT_TYPE_HEADER)))
+                .map(consumerRecord -> JSON.readTree(consumerRecord.value()))
                 .filter(event -> status.equals(event.get("status").asString()))
                 .findFirst()
                 .orElseThrow();
     }
 
-    private static String header(ConsumerRecord<?, ?> record, String name) {
-        return new String(record.headers().lastHeader(name).value(), StandardCharsets.UTF_8);
+    private static String header(ConsumerRecord<?, ?> consumerRecord, String name) {
+        return new String(consumerRecord.headers().lastHeader(name).value(), StandardCharsets.UTF_8);
     }
 
     private static List<ConsumerRecord<String, String>> ours(List<ConsumerRecord<String, String>> records,
                                                             List<String> productIds) {
-        return records.stream().filter(record -> productIds.contains(record.key())).toList();
+        return records.stream().filter(consumerRecord -> productIds.contains(consumerRecord.key())).toList();
     }
 
     private static List<ConsumerRecord<String, String>> recordsFor(List<ConsumerRecord<String, String>> records,
                                                                   String productId) {
-        return records.stream().filter(record -> productId.equals(record.key())).toList();
+        return records.stream().filter(consumerRecord -> productId.equals(consumerRecord.key())).toList();
     }
 }

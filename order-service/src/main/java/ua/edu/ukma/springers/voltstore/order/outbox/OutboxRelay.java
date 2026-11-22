@@ -1,6 +1,5 @@
 package ua.edu.ukma.springers.voltstore.order.outbox;
 
-import io.micrometer.tracing.CurrentTraceContext;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.MeterBinder;
@@ -20,7 +19,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Publishes outbox events to Kafka (polling relay; change data capture, e.g. Debezium reading the PostgreSQL WAL,
@@ -143,15 +144,15 @@ public class OutboxRelay implements MeterBinder {
                 .orElse(0.0);
     }
 
-    private void send(OutboxEvent event) throws Exception {
+    private void send(OutboxEvent event) throws InterruptedException, ExecutionException, TimeoutException {
         // Sent as a JSON tree, so the stored payload goes out byte-for-byte as JSON (not as a quoted string)
-        ProducerRecord<String, Object> record = new ProducerRecord<>(event.getTopic(), event.getMessageKey(),
+        ProducerRecord<String, Object> producerRecord = new ProducerRecord<>(event.getTopic(), event.getMessageKey(),
                 jsonMapper.readTree(event.getPayload()));
-        record.headers().add(KafkaTopics.EVENT_TYPE_HEADER, event.getEventType().getBytes(StandardCharsets.UTF_8));
-        record.headers().add(KafkaTopics.EVENT_ID_HEADER, event.getId().toString().getBytes(StandardCharsets.UTF_8));
+        producerRecord.headers().add(KafkaTopics.EVENT_TYPE_HEADER, event.getEventType().getBytes(StandardCharsets.UTF_8));
+        producerRecord.headers().add(KafkaTopics.EVENT_ID_HEADER, event.getId().toString().getBytes(StandardCharsets.UTF_8));
         // The producer span becomes a child of the request that wrote the event and sends its traceparent header
-        try (CurrentTraceContext.Scope ignored = traceContext.restore(event.getTraceparent())) {
-            kafkaTemplate.send(record).get(properties.publishTimeout().toMillis(), TimeUnit.MILLISECONDS);
+        try (var _ = traceContext.restore(event.getTraceparent())) {
+            kafkaTemplate.send(producerRecord).get(properties.publishTimeout().toMillis(), TimeUnit.MILLISECONDS);
         }
     }
 

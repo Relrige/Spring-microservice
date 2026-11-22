@@ -48,27 +48,21 @@ public class ProductDataBackfill {
         int requested = 0;
         int unknown = 0;
         UUID after = START;
-        for (int batch = 0; batch < MAX_BATCHES; batch++) {
+        boolean more = true;
+        for (int batch = 0; more && batch < MAX_BATCHES; batch++) {
             List<UUID> ids = stockItemRepository.findIdsWithoutTitleAfter(after, Limit.of(BATCH_SIZE));
-            if (ids.isEmpty()) {
-                break;
+            List<CatalogProductData> products = ids.isEmpty() ? null : findProducts(ids);
+            if (products == null) {
+                more = false;
+            } else {
+                filled += apply(products);
+                requested += ids.size();
+                unknown += ids.size() - (int) products.stream().map(CatalogProductData::productId)
+                        .filter(ids::contains).distinct().count();
+                // A short batch was the last one
+                more = ids.size() >= BATCH_SIZE;
+                after = ids.getLast();
             }
-            List<CatalogProductData> products;
-            try {
-                products = productCatalog.findAll(ids);
-            } catch (CatalogUnavailableException e) {
-                log.warn("Product data backfill stopped: Catalog is unavailable ({}); the next run tries again",
-                        e.getMessage());
-                break;
-            }
-            filled += apply(products);
-            requested += ids.size();
-            unknown += ids.size() - (int) products.stream().map(CatalogProductData::productId)
-                    .filter(ids::contains).distinct().count();
-            if (ids.size() < BATCH_SIZE) {
-                break;
-            }
-            after = ids.getLast();
         }
         if (unknown > 0) {
             // Should not happen: stock rows exist only for Catalog products
@@ -79,6 +73,18 @@ public class ProductDataBackfill {
             log.info("Product data backfill filled {} stock rows", filled);
         }
         return filled;
+    }
+
+    // null when Catalog is unavailable: the run stops and the next one tries again (an empty list means "none known")
+    @SuppressWarnings("java:S1168")
+    private List<CatalogProductData> findProducts(List<UUID> ids) {
+        try {
+            return productCatalog.findAll(ids);
+        } catch (CatalogUnavailableException e) {
+            log.warn("Product data backfill stopped: Catalog is unavailable ({}); the next run tries again",
+                    e.getMessage());
+            return null;
+        }
     }
 
     private int apply(List<CatalogProductData> products) {

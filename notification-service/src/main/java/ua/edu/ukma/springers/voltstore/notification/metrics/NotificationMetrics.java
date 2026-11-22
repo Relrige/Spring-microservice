@@ -34,7 +34,7 @@ public class NotificationMetrics {
                 .register(registry);
     }
 
-    public void record(NotificationType type, Outcome outcome) {
+    public void recordAttempt(NotificationType type, Outcome outcome) {
         Counter.builder(COUNTER)
                 .description("Sending attempts of the notification sender job, by email type and outcome")
                 .tag("type", type.name())

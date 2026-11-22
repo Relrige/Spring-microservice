@@ -38,7 +38,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -95,8 +94,8 @@ class OrderPaymentServiceTest {
         verify(orders).saveAndFlush(reread);
         verify(outbox).append(any(OrderPaidEvent.class));
         // The amount is the order's total, never the client's
-        verify(payments).charge(eq(ORDER_ID), eq(new BigDecimal("200.00")), eq("UAH"),
-                eq(new Payments.PaymentCard("4242424242424242", 12, 2099, "123")));
+        verify(payments).charge(ORDER_ID, new BigDecimal("200.00"), "UAH",
+                new Payments.PaymentCard("4242424242424242", 12, 2099, "123"));
     }
 
     @Test

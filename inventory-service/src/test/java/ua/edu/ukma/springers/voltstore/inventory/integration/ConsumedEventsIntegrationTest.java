@@ -47,7 +47,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -207,7 +206,7 @@ class ConsumedEventsIntegrationTest {
         doAnswer(invocation -> {
             handledIn.set(tracer.currentSpan() == null ? null : tracer.currentSpan().context().traceId());
             return real.answer(invocation);
-        }).when(stockItemRepository).insertIfAbsent(eq(productId));
+        }).when(stockItemRepository).insertIfAbsent(productId);
 
         send(PRODUCT_EVENTS, productId, "ProductCreated", productCreated(productId),
                 "00-" + traceId + "-00f067aa0ba902b7-01");
@@ -226,7 +225,7 @@ class ConsumedEventsIntegrationTest {
 
         await().atMost(WAIT).untilAsserted(() -> assertThat(deadLetterRecords(PRODUCT_EVENTS_DLT, productId.toString()))
                 .singleElement()
-                .extracting(record -> new String(record.headers().lastHeader("traceparent").value(),
+                .extracting(consumerRecord -> new String(consumerRecord.headers().lastHeader("traceparent").value(),
                         StandardCharsets.UTF_8).split("-")[1])
                 .isEqualTo(traceId));
     }
@@ -243,7 +242,7 @@ class ConsumedEventsIntegrationTest {
 
         await().atMost(WAIT).until(() -> stockItemRepository.findById(marker).isPresent());
         // The business change ran once; the duplicate stopped at the idempotency key
-        verify(stockItemRepository, times(1)).insertIfAbsent(eq(productId));
+        verify(stockItemRepository, times(1)).insertIfAbsent(productId);
         assertThat(count("SELECT count(*) FROM processed_events WHERE event_id = ?::uuid", eventIdOf(event)))
                 .isEqualTo(1);
     }
@@ -254,13 +253,13 @@ class ConsumedEventsIntegrationTest {
         // The repository is an interface proxy: "real method" = the spy's delegating default answer
         Answer<?> real = mockingDetails(stockItemRepository).getMockCreationSettings().getDefaultAnswer();
         doThrow(new TransientDataAccessResourceException("database restarting")).doAnswer(real)
-                .when(stockItemRepository).insertIfAbsent(eq(productId));
+                .when(stockItemRepository).insertIfAbsent(productId);
 
         String event = productCreated(productId);
         send(PRODUCT_EVENTS, productId, "ProductCreated", event);
 
         await().atMost(WAIT).until(() -> stockItemRepository.findById(productId).isPresent());
-        verify(stockItemRepository, atLeast(2)).insertIfAbsent(eq(productId));
+        verify(stockItemRepository, atLeast(2)).insertIfAbsent(productId);
         // Non-blocking retry: the failed record went through the first retry topic, not the DLT
         assertThat(deadLetters(PRODUCT_EVENTS_RETRY_0, productId.toString())).hasSize(1);
         assertThat(deadLetters(PRODUCT_EVENTS_DLT, productId.toString())).isEmpty();
@@ -484,14 +483,14 @@ class ConsumedEventsIntegrationTest {
     }
 
     private void send(String topic, UUID key, String eventType, String json, String traceparent) throws Exception {
-        ProducerRecord<String, String> record = new ProducerRecord<>(topic, key.toString(), json);
+        ProducerRecord<String, String> producerRecord = new ProducerRecord<>(topic, key.toString(), json);
         if (eventType != null) {
-            record.headers().add(KafkaTopics.EVENT_TYPE_HEADER, eventType.getBytes(StandardCharsets.UTF_8));
+            producerRecord.headers().add(KafkaTopics.EVENT_TYPE_HEADER, eventType.getBytes(StandardCharsets.UTF_8));
         }
         if (traceparent != null) {
-            record.headers().add("traceparent", traceparent.getBytes(StandardCharsets.UTF_8));
+            producerRecord.headers().add("traceparent", traceparent.getBytes(StandardCharsets.UTF_8));
         }
-        producer.send(record).get();
+        producer.send(producerRecord).get();
     }
 
     private List<String> deadLetters(String topic, String key) {
@@ -508,9 +507,9 @@ class ConsumedEventsIntegrationTest {
             consumer.subscribe(List.of(topic));
             List<ConsumerRecord<String, String>> records = new ArrayList<>();
             for (int i = 0; i < 5; i++) {
-                for (ConsumerRecord<String, String> record : consumer.poll(Duration.ofMillis(500))) {
-                    if (key.equals(record.key())) {
-                        records.add(record);
+                for (ConsumerRecord<String, String> consumerRecord : consumer.poll(Duration.ofMillis(500))) {
+                    if (key.equals(consumerRecord.key())) {
+                        records.add(consumerRecord);
                     }
                 }
             }
@@ -533,9 +532,10 @@ class ConsumedEventsIntegrationTest {
     private void assertCopy(UUID productId, String title, String status, Long version) {
         Map<String, Object> row = jdbc.queryForMap(
                 "SELECT title, product_status, product_version FROM stock_items WHERE product_id = ?", productId);
-        assertThat(row.get("title")).as("title").isEqualTo(title);
-        assertThat(row.get("product_status")).as("product_status").isEqualTo(status);
-        assertThat(row.get("product_version")).as("product_version").isEqualTo(version);
+        assertThat(row)
+                .containsEntry("title", title)
+                .containsEntry("product_status", status)
+                .containsEntry("product_version", version);
     }
 
     // The full-state payload of ProductCreated and ProductUpdated (Catalog task 29), from the Event Catalogue
