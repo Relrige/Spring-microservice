@@ -250,8 +250,9 @@ class PaymentServiceTest {
         @Test
         void partialAmount_is422() {
             givenCharge();
+            BigDecimal partialAmount = new BigDecimal("1000.00");
 
-            assertThatThrownBy(() -> refund(new BigDecimal("1000.00")))
+            assertThatThrownBy(() -> refund(partialAmount))
                     .isInstanceOf(RefundAmountMismatchException.class);
             verifyNoInteractions(gateway);
         }
