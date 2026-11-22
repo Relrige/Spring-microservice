@@ -60,7 +60,7 @@ A second pass fixes the rules the team listed after the first scan, "only where 
     - `javascript:S2245`: the k6 load tests pick random products; stays off for `load-tests/`.
     - `java:S2583` on line 52 of Order's `IdempotencyKeys`: `orElse(null)` really can return null.
     - `java:S2095` on test executors: they are stopped with `shutdownNow()` in `finally`. Try-with-resources would call `close()`, which waits for running tasks and can hang a failing test.
-    - Frontend: the path-template regex in `contract.ts` (no backtracking risk on its input), and the `<fieldset>` suggestion in one design mockup (it would change the layout).
+    - Frontend: the `<fieldset>` suggestion in one design mockup (it would change the layout; done in round 3 with the default styles reset). The path-template regex in `contract.ts` was kept here and fixed later: `[^{}]+` instead of `[^}]+` makes an unclosed `{` stop at the next one, so the time is linear on any input (40,000 unclosed braces: 402 ms before, under 1 ms after).
     - `java:S4502` (CSRF protection off) in the services' `SecurityConfig`s: the APIs are stateless, the caller comes from gateway headers or a bearer JWT and no cookie authenticates a request, so there is nothing for a cross-site request to ride on.
     - `java:S6809` in Customer's `CartService`: the public `@Transactional` methods call private helpers on `this`; the helpers run inside the caller's transaction, which is the intent. Moving them to another bean would only satisfy the rule.
     - `java:S1168` in Inventory's `ProductDataBackfill.findProducts`: `null` means "Catalog is unavailable, stop this run" and differs from an empty batch.
