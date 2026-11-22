@@ -148,13 +148,13 @@ public class OutboxRelay implements MeterBinder {
 
     private void send(OutboxEvent event) throws Exception {
         // Sent as a JSON tree, so the stored payload goes out byte-for-byte as JSON (not as a quoted string)
-        ProducerRecord<String, Object> record = new ProducerRecord<>(event.getTopic(), event.getMessageKey(),
+        ProducerRecord<String, Object> producerRecord = new ProducerRecord<>(event.getTopic(), event.getMessageKey(),
                 jsonMapper.readTree(event.getPayload()));
-        record.headers().add(KafkaTopics.EVENT_TYPE_HEADER, event.getEventType().getBytes(StandardCharsets.UTF_8));
-        record.headers().add(KafkaTopics.EVENT_ID_HEADER, event.getId().toString().getBytes(StandardCharsets.UTF_8));
+        producerRecord.headers().add(KafkaTopics.EVENT_TYPE_HEADER, event.getEventType().getBytes(StandardCharsets.UTF_8));
+        producerRecord.headers().add(KafkaTopics.EVENT_ID_HEADER, event.getId().toString().getBytes(StandardCharsets.UTF_8));
         // The producer span becomes a child of the request that wrote the event and sends its traceparent header
         try (CurrentTraceContext.Scope ignored = traceContext.restore(event.getTraceparent())) {
-            kafkaTemplate.send(record).get(properties.publishTimeout().toMillis(), TimeUnit.MILLISECONDS);
+            kafkaTemplate.send(producerRecord).get(properties.publishTimeout().toMillis(), TimeUnit.MILLISECONDS);
         }
     }
 

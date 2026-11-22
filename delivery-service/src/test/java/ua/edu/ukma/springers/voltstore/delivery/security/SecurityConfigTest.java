@@ -123,10 +123,12 @@ class SecurityConfigTest {
 
         @DeleteMapping("/delivery/shipments/{orderId}")
         void cancel(@PathVariable UUID orderId) {
+            // no-op: only the security rules in front of the endpoint are under test
         }
 
         @PostMapping("/delivery/orders/{orderId}/ttn/retry")
         void retry(@PathVariable UUID orderId) {
+            // no-op: only the security rules in front of the endpoint are under test
         }
     }
 }

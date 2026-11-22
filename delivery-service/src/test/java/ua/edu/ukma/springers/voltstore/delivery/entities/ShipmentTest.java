@@ -207,6 +207,7 @@ class ShipmentTest {
     private static Shipment inStatus(ShipmentStatus status) {
         Shipment shipment = Shipments.pending(UUID.randomUUID());
         switch (status) {
+                // nothing to do: a new shipment is already TTN_PENDING
             case TTN_PENDING -> {
             }
             case TTN_FAILED -> shipment.markFailed("carrier_error: down");

@@ -230,7 +230,7 @@ class TtnGenerationJobIntegrationTest {
         List<Object> claimed = Concurrently.run(2, job::runOnce);
 
         assertThat(claimed).noneMatch(Exception.class::isInstance);
-        assertThat(claimed.stream().mapToInt(count -> (Integer) count).sum()).isEqualTo(8);
+        assertThat(claimed.stream().mapToInt(Integer.class::cast).sum()).isEqualTo(8);
         verify(carrier, times(8)).register(any());
         assertThat(shipments).allSatisfy(shipment ->
                 assertThat(reload(shipment).getStatus()).isEqualTo(ShipmentStatus.TTN_GENERATED));
