@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
@@ -33,6 +34,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @WebMvcTest
 @Import(SecurityConfig.class)
 class RouteSecurityRulesTest {
+    private static final Pattern PATH_VARIABLE = Pattern.compile("\\{[^/}]+}");
 
     @Autowired
     private MockMvc mockMvc;
@@ -58,18 +60,10 @@ class RouteSecurityRulesTest {
             }
             for (String pattern : entry.getKey().getPathPatternsCondition().getPatternValues()) {
                 // Fill path variables with a concrete value so the pattern can be requested
-                String path = pattern.replaceAll("\\{[^/}]+}", UUID.randomUUID().toString());
+                String path = PATH_VARIABLE.matcher(pattern).replaceAll(UUID.randomUUID().toString());
                 for (var method : entry.getKey().getMethodsCondition().getMethods()) {
                     routes.add(method + " " + pattern);
-                    boolean reachable = false;
-                    for (HttpHeaders caller : callers()) {
-                        int status = mockMvc.perform(request(HttpMethod.valueOf(method.name()), path)
-                                        .headers(caller)
-                                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
-                                .andReturn().getResponse().getStatus();
-                        reachable |= status != 403;
-                    }
-                    if (!reachable) {
+                    if (!reachableBySomeRole(method.name(), path)) {
                         deniedRoutes.add(method + " " + pattern);
                     }
                 }
@@ -78,6 +72,18 @@ class RouteSecurityRulesTest {
 
         assertThat(routes).as("application routes discovered").isNotEmpty();
         assertThat(deniedRoutes).as("routes without an explicit security rule").isEmpty();
+    }
+
+    private boolean reachableBySomeRole(String method, String path) throws Exception {
+        boolean reachable = false;
+        for (HttpHeaders caller : callers()) {
+            int status = mockMvc.perform(request(HttpMethod.valueOf(method), path)
+                            .headers(caller)
+                            .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                    .andReturn().getResponse().getStatus();
+            reachable |= status != 403;
+        }
+        return reachable;
     }
 
     private static List<HttpHeaders> callers() {
