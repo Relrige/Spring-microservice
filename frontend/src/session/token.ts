@@ -17,7 +17,7 @@ export type DecodeResult =
 function decodeBase64Url(part: string): string {
   const base64 = part.replaceAll('-', '+').replaceAll('_', '/');
   const binary = atob(base64 + '='.repeat((4 - (base64.length % 4)) % 4));
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  const bytes = Uint8Array.from(binary, (char) => char.codePointAt(0)!);
   return new TextDecoder().decode(bytes);
 }
 

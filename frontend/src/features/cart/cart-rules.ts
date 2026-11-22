@@ -25,9 +25,14 @@ export const CART_MESSAGES: Record<CartViolation, string> = {
   DUPLICATE_PRODUCT: MESSAGES.unexpected,
 };
 
+/** Code-unit order, like the default `sort()`: locale collation would reorder mixed-case ids. */
+function byCodeUnit(a: string, b: string): number {
+  if (a < b) return -1;
+  return a > b ? 1 : 0;
+}
+
 function byProductId(a: CartItem, b: CartItem): number {
-  if (a.productId < b.productId) return -1;
-  return a.productId > b.productId ? 1 : 0;
+  return byCodeUnit(a.productId, b.productId);
 }
 
 function assertQuantity(quantity: number) {
@@ -45,7 +50,7 @@ export function checkCart(items: CartItem[]): RuleResult {
     return {
       ok: false,
       violation: 'QUANTITY_LIMIT_EXCEEDED',
-      productIds: over.map((item) => item.productId).sort(),
+      productIds: over.map((item) => item.productId).sort(byCodeUnit),
     };
   }
   return { ok: true, items: [...items].sort(byProductId) };
@@ -88,5 +93,5 @@ export function duplicateProducts(items: CartItem[]): string[] {
   const seen = new Set<string>();
   const twice = new Set<string>();
   for (const { productId } of items) (seen.has(productId) ? twice : seen).add(productId);
-  return [...twice].sort();
+  return [...twice].sort(byCodeUnit);
 }

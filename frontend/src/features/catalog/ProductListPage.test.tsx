@@ -137,7 +137,7 @@ describe('Search and filters', () => {
     await userEvent.type(screen.getByLabelText('Minimum price'), '-1');
     await userEvent.click(screen.getByRole('button', { name: 'Apply price' }));
     expect(await screen.findByText('Enter a price of 0 or more')).toBeInTheDocument();
-    expect(requests.length).toBe(before);
+    expect(requests).toHaveLength(before);
     expect(currentUrl(router)).toBe('/');
     server.events.removeAllListeners();
   });
@@ -154,10 +154,10 @@ describe('Search and filters', () => {
     expect(
       screen.getByText('Use at most 10 digits before the decimal point'),
     ).toBeInTheDocument();
-    expect(requests.length).toBe(sent);
+    expect(requests).toHaveLength(sent);
     expect(currentUrl(router)).toBe('/');
     expect(before.length).toBeGreaterThan(0);
-    expect(tileTitles().length).toBe(before.length);
+    expect(tileTitles()).toHaveLength(before.length);
     server.events.removeAllListeners();
   });
 
@@ -300,7 +300,7 @@ describe('Product image placeholder in the list', () => {
     renderApp(`/?category=${categoryId('Phones')}`);
     await tiles();
     const images = document.querySelectorAll('[data-testid="product-tile"] [data-image]');
-    expect(images.length).toBe(screen.getAllByTestId('product-tile').length);
+    expect(images).toHaveLength(screen.getAllByTestId('product-tile').length);
     const shown = [...images].map((image) => image.getAttribute('data-image'));
     expect(shown.every((url) => db.products.some((p) => p.imageUrl === url))).toBe(true);
   });
@@ -311,7 +311,7 @@ describe('Product image placeholder in the list', () => {
     await tiles();
     await waitFor(() => {
       const images = screen.getAllByRole('img', { name: 'Phones placeholder image' });
-      expect(images.length).toBe(screen.getAllByTestId('product-tile').length);
+      expect(images).toHaveLength(screen.getAllByTestId('product-tile').length);
     });
   });
 });

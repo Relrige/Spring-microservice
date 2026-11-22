@@ -49,7 +49,8 @@ export function buildUrl(path: string, query?: Record<string, QueryValue>): stri
     params.append(key, String(value));
   }
   const search = params.toString();
-  return `${config.baseUrl}${path}${search ? `?${search}` : ''}`;
+  const queryString = search ? `?${search}` : '';
+  return `${config.baseUrl}${path}${queryString}`;
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {

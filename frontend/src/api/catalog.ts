@@ -5,7 +5,7 @@ import { problemOf } from './errors';
 import type { components, operations, paths } from './generated/catalog';
 import { request, type RequestOptions } from './http';
 
-type Auth = RequestOptions['auth'];
+type Auth = NonNullable<RequestOptions['auth']>;
 type Schemas = components['schemas'];
 const pathFor = pathsOf<paths>();
 

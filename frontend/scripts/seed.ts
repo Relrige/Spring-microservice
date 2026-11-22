@@ -425,7 +425,9 @@ async function main() {
   }
 }
 
-main().catch((error: unknown) => {
+try {
+  await main();
+} catch (error: unknown) {
   console.error(`Seed failed: ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;
-});
+}

@@ -33,9 +33,15 @@ window.matchMedia = (query: string) =>
   }) as MediaQueryList;
 
 class ResizeObserverStub {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
+  observe() {
+    // No layout in jsdom: nothing to observe.
+  }
+  unobserve() {
+    // Nothing is observed.
+  }
+  disconnect() {
+    // Nothing is observed.
+  }
 }
 window.ResizeObserver ??= ResizeObserverStub;
 window.HTMLElement.prototype.scrollIntoView ??= () => {};

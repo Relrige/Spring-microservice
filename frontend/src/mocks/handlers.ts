@@ -350,7 +350,7 @@ const profileHandlers: HttpHandler[] = [
       else if (value.length > 100) errors[field] = ['size must be between 0 and 100'];
     }
     if (typeof body.phone !== 'string' || !PHONE.test(body.phone)) {
-      errors.phone = ['must match "^\\+[1-9]\\d{7,14}$"'];
+      errors.phone = [String.raw`must match "^\+[1-9]\d{7,14}$"`];
     }
     const address = body.defaultAddress;
     if (address != null && (typeof address !== 'string' || address.length > 500)) {
@@ -378,7 +378,7 @@ const EXPIRY_GRACE_MS = 30_000;
 const TTN_AFTER_MS = 3_000;
 const DELIVERED_AFTER_MS = 30_000;
 const MAX_TOTAL = 9_999_999_999.99;
-const CARRIERS = ['NOVA_POSHTA'];
+const CARRIERS = new Set(['NOVA_POSHTA']);
 
 /** Mock knobs; tests set `paymentDelayMs` to 0 for the `…5000` card. */
 export const mockSettings = { paymentDelayMs: 2_500 };
@@ -459,10 +459,26 @@ function itemErrors(items: unknown, errors: Record<string, string[]>): CartItem[
   return Object.keys(errors).length > 0 ? undefined : (items as CartItem[]);
 }
 
+/** EP-ORD-02 `deliveryDetails`: every field non-blank, phone international, a known carrier. */
+function deliveryErrors(delivery: Record<string, unknown>, errors: Record<string, string[]>) {
+  for (const field of ['name', 'phone', 'address', 'carrier']) {
+    const value = delivery[field];
+    if (typeof value !== 'string' || !value.trim()) {
+      errors[`deliveryDetails.${field}`] = ['must not be blank'];
+    }
+  }
+  if (!errors['deliveryDetails.phone'] && !PHONE.test(String(delivery.phone))) {
+    errors['deliveryDetails.phone'] = ['must be in international format'];
+  }
+  if (!errors['deliveryDetails.carrier'] && !CARRIERS.has(String(delivery.carrier))) {
+    errors['deliveryDetails.carrier'] = ['must be one of NOVA_POSHTA'];
+  }
+}
+
 function ineligible(items: CartItem[], checkStock: boolean): OrderSchemas['IneligibleItem'][] {
   return items.flatMap<OrderSchemas['IneligibleItem']>(({ productId }) => {
     const product = db.products.find((p) => p.productId === productId);
-    if (!product || product.status !== 'ACTIVE') return [{ productId, reason: 'NOT_ACTIVE' }];
+    if (product?.status !== 'ACTIVE') return [{ productId, reason: 'NOT_ACTIVE' }];
     if (checkStock && product.stockStatus === 'OUT_OF_STOCK') {
       return [{ productId, reason: 'INSUFFICIENT_STOCK' }];
     }
@@ -543,18 +559,7 @@ const orderHandlers: HttpHandler[] = [
     const errors: Record<string, string[]> = {};
     const items = itemErrors(body?.items, errors);
     const delivery = (body?.deliveryDetails ?? {}) as Record<string, unknown>;
-    for (const field of ['name', 'phone', 'address', 'carrier']) {
-      const value = delivery[field];
-      if (typeof value !== 'string' || !value.trim()) {
-        errors[`deliveryDetails.${field}`] = ['must not be blank'];
-      }
-    }
-    if (!errors['deliveryDetails.phone'] && !PHONE.test(String(delivery.phone))) {
-      errors['deliveryDetails.phone'] = ['must be in international format'];
-    }
-    if (!errors['deliveryDetails.carrier'] && !CARRIERS.includes(String(delivery.carrier))) {
-      errors['deliveryDetails.carrier'] = ['must be one of NOVA_POSHTA'];
-    }
+    deliveryErrors(delivery, errors);
     const key = request.headers.get('Idempotency-Key');
     if (key !== null && !UUID.test(key)) errors['Idempotency-Key'] = ['must be a UUID'];
     if (!items || Object.keys(errors).length > 0) {
@@ -840,7 +845,7 @@ const workerHandlers: HttpHandler[] = [
     if (!product) return problem(404, 'Stock item not found', {}, INVENTORY);
     return HttpResponse.json({
       ...stockRow(product),
-      ...(product.packaging ?? {}),
+      ...product.packaging,
     } satisfies InventorySchemas['StockItemResponse']);
   }),
 

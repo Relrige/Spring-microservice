@@ -42,7 +42,8 @@ export class ApiError extends Error {
     kind: ApiErrorKind,
     options: { status?: number; problem?: ProblemDetail; retryAfter?: number } = {},
   ) {
-    super(options.problem?.detail ?? `${kind}${options.status ? ` (${options.status})` : ''}`);
+    const status = options.status ? ` (${options.status})` : '';
+    super(options.problem?.detail ?? `${kind}${status}`);
     this.name = 'ApiError';
     this.kind = kind;
     this.status = options.status;
