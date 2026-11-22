@@ -20,7 +20,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Publishes outbox events to Kafka (polling relay; change data capture, e.g. Debezium reading the PostgreSQL WAL,
@@ -146,7 +148,7 @@ public class OutboxRelay implements MeterBinder {
                 .orElse(0.0);
     }
 
-    private void send(OutboxEvent event) throws Exception {
+    private void send(OutboxEvent event) throws InterruptedException, ExecutionException, TimeoutException {
         // Sent as a JSON tree, so the stored payload goes out byte-for-byte as JSON (not as a quoted string)
         ProducerRecord<String, Object> producerRecord = new ProducerRecord<>(event.getTopic(), event.getMessageKey(),
                 jsonMapper.readTree(event.getPayload()));

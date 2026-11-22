@@ -138,7 +138,7 @@ public class TtnGenerationJob {
         boolean applied;
         try {
             applied = Boolean.TRUE.equals(transactionTemplate.execute(status -> apply(shipment, result)));
-        } catch (ObjectOptimisticLockingFailureException e) {
+        } catch (ObjectOptimisticLockingFailureException _) {
             // Changed between our read and our commit
             applied = false;
         }
@@ -158,10 +158,10 @@ public class TtnGenerationJob {
         }
         Instant now = clock.instant();
         switch (result) {
-            case TtnAttemptResult.Success success -> {
-                shipment.markGenerated(success.ttn(), success.parcel());
-                eventPublisher.publish(TtnGeneratedEvent.of(shipment.getOrderId(), success.ttn(), now));
-                log.info("TTN {} generated for order {} (attempt {})", success.ttn(), shipment.getOrderId(),
+            case TtnAttemptResult.Success(var ttn, var parcel) -> {
+                shipment.markGenerated(ttn, parcel);
+                eventPublisher.publish(TtnGeneratedEvent.of(shipment.getOrderId(), ttn, now));
+                log.info("TTN {} generated for order {} (attempt {})", ttn, shipment.getOrderId(),
                         shipment.getAttempts() + 1);
             }
             case TtnAttemptResult.Failure failure when failure.retryable()

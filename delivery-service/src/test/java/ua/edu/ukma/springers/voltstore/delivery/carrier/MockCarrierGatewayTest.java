@@ -56,8 +56,7 @@ class MockCarrierGatewayTest {
 
         List<String> ttns = IntStream.range(0, 100).mapToObj(i -> gateway.register(REQUEST)).toList();
 
-        assertThat(ttns).allMatch(ttn -> ttn.matches("[1-9]\\d{13}"));
-        assertThat(ttns).doesNotHaveDuplicates();
+        assertThat(ttns).allMatch(ttn -> ttn.matches("[1-9]\\d{13}")).doesNotHaveDuplicates();
     }
 
     @Test

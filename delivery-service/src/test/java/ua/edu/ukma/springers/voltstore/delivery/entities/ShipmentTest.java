@@ -46,7 +46,10 @@ class ShipmentTest {
 
     @Test
     void pending_requiresItems() {
-        assertThatThrownBy(() -> Shipment.pending(UUID.randomUUID(), Shipments.RECIPIENT, "NOVA_POSHTA", List.of(),
+        UUID orderId = UUID.randomUUID();
+        List<ShipmentItem> noItems = List.of();
+
+        assertThatThrownBy(() -> Shipment.pending(orderId, Shipments.RECIPIENT, "NOVA_POSHTA", noItems,
                 BigDecimal.ONE, "UAH", NOW)).isInstanceOf(IllegalArgumentException.class);
     }
 

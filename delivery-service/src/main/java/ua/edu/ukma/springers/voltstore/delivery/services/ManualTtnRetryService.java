@@ -64,7 +64,7 @@ public class ManualTtnRetryService {
         boolean applied;
         try {
             applied = Boolean.TRUE.equals(transactionTemplate.execute(status -> apply(snapshot, result)));
-        } catch (ObjectOptimisticLockingFailureException e) {
+        } catch (ObjectOptimisticLockingFailureException _) {
             applied = false;
         }
         if (!applied) {
@@ -87,10 +87,10 @@ public class ManualTtnRetryService {
             return false;
         }
         switch (result) {
-            case TtnAttemptResult.Success success -> {
-                shipment.markGenerated(success.ttn(), success.parcel());
-                eventPublisher.publish(TtnGeneratedEvent.of(shipment.getOrderId(), success.ttn(), clock.instant()));
-                log.info("Manual retry generated TTN {} for order {}", success.ttn(), shipment.getOrderId());
+            case TtnAttemptResult.Success(var ttn, var parcel) -> {
+                shipment.markGenerated(ttn, parcel);
+                eventPublisher.publish(TtnGeneratedEvent.of(shipment.getOrderId(), ttn, clock.instant()));
+                log.info("Manual retry generated TTN {} for order {}", ttn, shipment.getOrderId());
             }
             case TtnAttemptResult.Failure failure -> {
                 shipment.markFailed(failure.reason());

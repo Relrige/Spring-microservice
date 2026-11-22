@@ -112,7 +112,7 @@ class TtnGenerationJobIntegrationTest {
         assertThat(generated.getFailureReason()).isNull();
         List<Map<String, Object>> events = outboxRows(shipment);
         assertThat(events).singleElement().satisfies(row -> {
-            assertThat(row.get("event_type")).isEqualTo("TTNGenerated");
+            assertThat(row).containsEntry("event_type", "TTNGenerated");
             assertThat(row.get("payload").toString()).contains(generated.getTtn());
         });
 

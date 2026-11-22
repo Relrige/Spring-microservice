@@ -87,7 +87,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                                                         HttpStatusCode status, WebRequest request) {
         String name = ex instanceof MethodArgumentTypeMismatchException argument
                 ? argument.getName() : ex.getPropertyName();
-        String requiredType = ex.getRequiredType() == null ? "value" : ex.getRequiredType().getSimpleName();
+        Class<?> type = ex.getRequiredType();
+        String requiredType = type == null ? "value" : type.getSimpleName();
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "Invalid value for '" + name + "'.");
         problem.setTitle(VALIDATION_FAILED);
         problem.setProperty(ERRORS, Map.of(String.valueOf(name), List.of("must be a valid " + requiredType)));
