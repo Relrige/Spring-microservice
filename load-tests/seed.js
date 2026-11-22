@@ -104,7 +104,7 @@ function ensureCustomers(password) {
     return created;
 }
 
-export default function () {
+export default function seed() {
     const staffPassword = requireEnv('STAFF_PASSWORD');
     const admin = login(requireEnv('ADMIN_EMAIL'), requireEnv('ADMIN_PASSWORD'));
     const manager = ensureStaff(admin, MANAGER_EMAIL, 'CATALOG_MANAGER', staffPassword);

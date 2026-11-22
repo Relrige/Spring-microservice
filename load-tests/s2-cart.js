@@ -42,7 +42,7 @@ export function setup() {
     return { tokens, productIds: seededProducts().map((p) => p.productId) };
 }
 
-export default function (data) {
+export default function iteration(data) {
     const token = data.tokens[(__VU - 1) % data.tokens.length];
     const productId = pick(data.productIds);
     const item = `${BASE_URL}/customers/cart/items/${productId}`;

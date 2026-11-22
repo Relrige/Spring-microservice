@@ -44,7 +44,7 @@ export function setup() {
     return { products, categoryIds: [...new Set(products.map((p) => p.categoryId))] };
 }
 
-export default function (data) {
+export default function iteration(data) {
     const roll = Math.random();
     let query;
     if (roll < 0.5) {

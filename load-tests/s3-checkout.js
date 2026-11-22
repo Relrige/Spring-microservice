@@ -47,7 +47,7 @@ export function setup() {
     return { tokens: loginCustomers(), productIds: seededProducts().map((p) => p.productId) };
 }
 
-export default function (data) {
+export default function iteration(data) {
     const token = pick(data.tokens);
     const items = pickDistinct(data.productIds, 1 + Math.floor(Math.random() * 3))
         .map((productId) => ({ productId, quantity: 1 }));
