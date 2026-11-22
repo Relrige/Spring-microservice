@@ -30,7 +30,7 @@ No REST contract, event, or architectural change.
    - `java:S2143`: Nimbus JOSE takes `java.util.Date` for JWT claims.
    - `java:S2187`: `InventoryGrpcConnectionTest` keeps its tests in nested classes.
    - `java:S107`, `java:S1301`: an 8-parameter method and a `switch` statement are style preferences.
-4. **Cognitive complexity (`java:S3776`) is not refactored** in Inventory's `StockGrpcService` and Order's `OrphanReservationJob`: both sit on the reservation and saga paths, and the regression risk is larger than the readability gain.
+4. **Cognitive complexity (`java:S3776`) is not refactored** in Inventory's `StockGrpcService` and Order's `OrphanReservationJob`: both sit on the reservation and saga paths, and the regression risk is larger than the readability gain. *Later:* `OrphanReservationJob.releaseOrphanReservations` was split into its three phases (`findOrphans`, `releaseAll`, `settle`) by moving each block unchanged into a private method; the full Order suite, including `RecoveryJobsTest`, passes. `StockGrpcService` stays as it is.
 5. **`java:S6213`:** variables named `record` (a restricted identifier since Java 16) are renamed.
 6. **`Thread.sleep` in tests (`java:S2925`)** stays; a one-line comment explains intentional delays. Awaitility is only a dependency in Catalog, and adding it elsewhere is a new library.
 7. **Findings of the original list that the local scan did not report:** only the real ones are fixed. The `java:S2259` NPE warnings are false positives (the code already checks for null). `catch (InterruptedException ...)` blocks in main code are checked and fixed.

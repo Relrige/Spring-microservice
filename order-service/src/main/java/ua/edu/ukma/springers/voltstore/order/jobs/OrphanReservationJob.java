@@ -45,6 +45,18 @@ public class OrphanReservationJob {
 
     @Scheduled(fixedDelayString = "${order.recovery.interval}", initialDelayString = "${order.recovery.interval}")
     public void releaseOrphanReservations() {
+        List<UUID> orphans = findOrphans();
+        if (orphans.isEmpty()) {
+            return;
+        }
+        Map<UUID, String> failed = releaseAll(orphans);
+        for (UUID orderId : orphans) {
+            settle(orderId, failed);
+        }
+    }
+
+    /** Settled attempts whose order was never stored; stale attempts next to a stored order are deleted on the way. */
+    private List<UUID> findOrphans() {
         Instant settledBefore = clock.instant().minus(properties.reservationSettle());
         List<UUID> orphans = new ArrayList<>();
         for (ReservationAttempt attempt : attempts.findByCreatedAtLessThanEqualOrderByCreatedAtAsc(settledBefore,
@@ -61,32 +73,33 @@ public class OrphanReservationJob {
                 log.error("Cleaning up the reservation attempt of order {} failed unexpectedly", orderId, e);
             }
         }
-        if (orphans.isEmpty()) {
-            return;
-        }
+        return orphans;
+    }
 
-        // The whole batch on one gRPC stream (bidirectional); a failure is reported per order
-        Map<UUID, String> failed;
+    /** The whole batch on one gRPC stream (bidirectional); a failure is reported per order. */
+    private Map<UUID, String> releaseAll(List<UUID> orphans) {
         try {
-            failed = stock.releaseAll(orphans);
+            return stock.releaseAll(orphans);
         } catch (RuntimeException e) {
             String reason = e.getMessage() == null ? e.toString() : e.getMessage();
-            failed = new LinkedHashMap<>();
+            Map<UUID, String> failed = new LinkedHashMap<>();
             for (UUID orderId : orphans) {
                 failed.put(orderId, reason);
             }
+            return failed;
         }
-        for (UUID orderId : orphans) {
-            try {
-                if (failed.containsKey(orderId)) {
-                    recordFailedRelease(orderId, failed.get(orderId));
-                } else {
-                    transactions.executeWithoutResult(tx -> attempts.deleteById(orderId));
-                    log.info("Released the reservation of order {}, which was never stored", orderId);
-                }
-            } catch (RuntimeException e) {
-                log.error("Cleaning up the reservation attempt of order {} failed unexpectedly", orderId, e);
+    }
+
+    private void settle(UUID orderId, Map<UUID, String> failed) {
+        try {
+            if (failed.containsKey(orderId)) {
+                recordFailedRelease(orderId, failed.get(orderId));
+            } else {
+                transactions.executeWithoutResult(tx -> attempts.deleteById(orderId));
+                log.info("Released the reservation of order {}, which was never stored", orderId);
             }
+        } catch (RuntimeException e) {
+            log.error("Cleaning up the reservation attempt of order {} failed unexpectedly", orderId, e);
         }
     }
 
