@@ -100,7 +100,7 @@ The number and role of services may still change.
 - [`k8s/`](k8s/): Kubernetes manifests per service, plus Kafka, Ingress, NetworkPolicies (`network/`), and Prometheus/Alertmanager (`monitoring/`). [`k8s.txt`](k8s.txt) holds the minikube setup commands.
 - [`e2e/manual/`](e2e/manual/): manual end-to-end verification guides for Compose and Kubernetes.
 - [`.github/workflows/ci.yml`](.github/workflows/ci.yml): CI that builds and tests every service.
-- `VoltStore_*API_Tests*.json`: API request collections for manual testing.
+- [`VoltStore.postman_collection.json`](VoltStore.postman_collection.json): the Postman collection of the whole API through the gateway (registration, login, the three business scenarios, gateway protection).
 
 ### 5.3. Technology and Patterns in Use
 These were chosen during the project. Changing one is an architectural decision to discuss, not a refactoring.
